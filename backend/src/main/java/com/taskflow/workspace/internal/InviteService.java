@@ -2,6 +2,7 @@ package com.taskflow.workspace.internal;
 
 import com.taskflow.identity.UserDirectory;
 import com.taskflow.identity.UserInfo;
+import com.taskflow.shared.ActorType;
 import com.taskflow.shared.CurrentActor;
 import com.taskflow.shared.EventRecorder;
 import com.taskflow.shared.Hashing;
@@ -204,6 +205,10 @@ class InviteService {
 
   @Transactional
   Accepted accept(String token) {
+    // An agent has no email and is never a member: refuse before anything reads or writes.
+    if (CurrentActor.require().type() != ActorType.USER) {
+      throw TaskflowException.forbidden("auth.forbidden", "Only a person can accept an invite");
+    }
     Row row = find(token);
     UserInfo me =
         users
