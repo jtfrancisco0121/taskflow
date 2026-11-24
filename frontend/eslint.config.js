@@ -4,6 +4,20 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
+// AD-11: a feature is imported only through its index.ts, and shared/api never import features.
+const features = ['auth', 'workspace', 'locations', 'tasks', 'comments', 'statuses']
+const deepOf = (name, relative) => [
+  { group: [`**/features/${name}/**`, `!**/features/${name}/index*`] },
+  ...(relative ? [{ group: [`../${name}/**`, `!../${name}/index*`] }] : []),
+]
+const boundary = (files, patterns, message) => ({
+  files,
+  rules: {
+    'no-restricted-imports': ['error', { patterns: patterns.map((p) => ({ ...p, message })) }],
+  },
+})
+const deepMessage = 'Import another feature only through its index.ts (AD-11).'
+
 export default tseslint.config(
   { ignores: ['dist', 'coverage', 'src/api/schema.d.ts'] },
   {
@@ -46,4 +60,21 @@ export default tseslint.config(
       ],
     },
   },
+  ...features.map((feature) =>
+    boundary(
+      [`src/features/${feature}/**/*.{ts,tsx}`],
+      features.filter((other) => other !== feature).flatMap((other) => deepOf(other, true)),
+      deepMessage,
+    ),
+  ),
+  boundary(
+    ['src/app/**/*.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],
+    features.flatMap((feature) => deepOf(feature, false)),
+    deepMessage,
+  ),
+  boundary(
+    ['src/shared/**/*.{ts,tsx}', 'src/api/**/*.{ts,tsx}'],
+    [{ group: ['**/features', '**/features/**'] }],
+    'src/shared and src/api must not import src/features (AD-11).',
+  ),
 )
