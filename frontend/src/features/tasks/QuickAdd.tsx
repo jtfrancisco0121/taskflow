@@ -3,15 +3,25 @@ import { messageOf } from '../../api/errors'
 import { useCreateTask } from './useCreateTask'
 
 /** FR-15: the last row of a List's view; Enter creates, clears and keeps focus. */
-export function QuickAdd({ workspaceId, listId }: { workspaceId: string; listId: string }) {
+export function QuickAdd({
+  workspaceId,
+  listId,
+  autoFocus = true,
+}: {
+  workspaceId: string
+  listId: string
+  autoFocus?: boolean
+}) {
   const [title, setTitle] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const create = useCreateTask(workspaceId, listId)
   const pending = create.isPending
 
+  const wasPending = useRef(false)
   useEffect(() => {
     // Disabled inputs lose focus; give it back when the create finishes.
-    if (!pending) inputRef.current?.focus()
+    if (wasPending.current && !pending) inputRef.current?.focus()
+    wasPending.current = pending
   }, [pending])
 
   function submit() {
@@ -28,7 +38,7 @@ export function QuickAdd({ workspaceId, listId }: { workspaceId: string; listId:
         placeholder="Add a task"
         value={title}
         disabled={pending}
-        autoFocus
+        autoFocus={autoFocus}
         onChange={(event) => setTitle(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter') {

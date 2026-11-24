@@ -21,6 +21,7 @@ export function TaskRow({ task, members }: TaskRowProps) {
 
   return (
     <tr
+      data-task-id={task.id}
       onClick={openTask}
       aria-current={open ? 'true' : undefined}
       className={`cursor-pointer border-b border-slate-100 hover:bg-slate-50 ${open ? 'bg-blue-50' : ''}`}

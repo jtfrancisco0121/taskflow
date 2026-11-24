@@ -1,4 +1,5 @@
 import { Outlet, useParams } from 'react-router'
+import { useTaskWorkspaceId } from '../features/tasks'
 import { SidebarTree } from '../features/locations'
 import { useSession, useSignOut } from '../features/auth'
 import { useRememberWorkspace, WorkspaceSwitcher } from '../features/workspace'
@@ -10,7 +11,10 @@ export function AppShell() {
   const toggleSidebar = useUiStore((state) => state.toggleSidebar)
   const session = useSession()
   const signOut = useSignOut()
-  const { workspaceId } = useParams()
+  const { workspaceId: urlWorkspaceId, taskId } = useParams()
+  // AD-3: the current Workspace is in the URL, or on /t/:taskId the loaded task's Workspace.
+  const taskWorkspaceId = useTaskWorkspaceId(taskId)
+  const workspaceId = urlWorkspaceId ?? taskWorkspaceId
   useRememberWorkspace(workspaceId)
 
   return (

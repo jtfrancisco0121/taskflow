@@ -18,7 +18,16 @@ export function ListViewPage({ locationId: forced }: { locationId?: string }) {
   return <ListView key={locationId} workspaceId={workspaceId} locationId={locationId} />
 }
 
-export function ListView({ workspaceId, locationId }: { workspaceId: string; locationId: string }) {
+export function ListView({
+  workspaceId,
+  locationId,
+  focusQuickAdd = true,
+}: {
+  workspaceId: string
+  locationId: string
+  /** False behind the Task panel, which owns the focus. */
+  focusQuickAdd?: boolean
+}) {
   const location = useLocationInfo(locationId)
   const tasks = useTasks(workspaceId, locationId)
   const { members } = useMembers(workspaceId)
@@ -113,7 +122,9 @@ export function ListView({ workspaceId, locationId }: { workspaceId: string; loc
           Load more
         </Button>
       )}
-      {type === 'LIST' && <QuickAdd workspaceId={workspaceId} listId={locationId} />}
+      {type === 'LIST' && (
+        <QuickAdd workspaceId={workspaceId} listId={locationId} autoFocus={focusQuickAdd} />
+      )}
     </section>
   )
 }
