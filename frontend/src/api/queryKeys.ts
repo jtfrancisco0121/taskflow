@@ -11,6 +11,7 @@ export const queryKeys = {
   tasks: (wsId: string, locationId: string) => ['ws', wsId, 'tasks', locationId] as const,
   tasksAll: (wsId: string) => ['ws', wsId, 'tasks'] as const,
   task: (taskId: string) => ['task', taskId] as const,
+  taskAll: () => ['task'] as const,
   comments: (taskId: string) => ['task', taskId, 'comments'] as const,
   activity: (taskId: string) => ['task', taskId, 'activity'] as const,
 }

@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { messageOf } from '../../api/errors'
 import { Button } from '../../shared/ui/Button'
 import { useLocationInfo } from '../locations'
+import { StatusesDialog } from '../statuses'
 import { useMembers } from '../workspace'
 import { QuickAdd } from './QuickAdd'
 import { TaskRow } from './TaskRow'
@@ -33,6 +34,8 @@ export function ListView({
   const { members } = useMembers(workspaceId)
   const memberNames = new Map(members.map((m) => [m.userId!, m.displayName ?? m.email ?? '']))
   const sentinel = useRef<HTMLDivElement>(null)
+  const statusesButton = useRef<HTMLButtonElement>(null)
+  const [statusesOpen, setStatusesOpen] = useState(false)
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = tasks
 
   // Next page when the end of the list scrolls into view (the button below is the keyboard path).
@@ -77,6 +80,11 @@ export function ListView({
           </span>
         )}
         {type && <span className="text-sm text-slate-500">{TYPE_NAME[type]}</span>}
+        {location.data && type && (
+          <Button ref={statusesButton} className="ml-auto" onClick={() => setStatusesOpen(true)}>
+            Statuses
+          </Button>
+        )}
       </header>
       {tasks.isPending && (
         <div role="status" aria-label="Loading tasks" className="flex flex-col gap-2">
@@ -121,6 +129,19 @@ export function ListView({
         <Button className="mt-2" disabled={isFetchingNextPage} onClick={() => void fetchNextPage()}>
           Load more
         </Button>
+      )}
+      {statusesOpen && location.data && type && (
+        <StatusesDialog
+          workspaceId={workspaceId}
+          location={{
+            id: locationId,
+            name: location.data.name ?? '',
+            type,
+            parentId: location.data.parentId,
+          }}
+          onClose={() => setStatusesOpen(false)}
+          restoreFocus={() => statusesButton.current}
+        />
       )}
       {type === 'LIST' && (
         <QuickAdd workspaceId={workspaceId} listId={locationId} autoFocus={focusQuickAdd} />

@@ -1,0 +1,93 @@
+import { useState } from 'react'
+import { messageOf } from '../../api/errors'
+import type { StatusInfo } from '../../api/types'
+import { Button } from '../../shared/ui/Button'
+import { resolveRemap } from './buildRemap'
+import { useLocationStatuses } from './useLocationStatuses'
+import { useResetStatuses } from './useStatusMutations'
+
+type ResetPanelProps = {
+  workspaceId: string
+  locationId: string
+  parentId: string
+  /** The location's own statuses; every one of them is retired by a reset. */
+  own: StatusInfo[]
+  onCancel: () => void
+  onDone: () => void
+}
+
+/** FR-24: "Reset to inherited" asks only about own statuses that have no same-name inherited one. */
+export function ResetPanel({
+  workspaceId,
+  locationId,
+  parentId,
+  own,
+  onCancel,
+  onDone,
+}: ResetPanelProps) {
+  const inherited = useLocationStatuses(workspaceId, parentId)
+  const reset = useResetStatuses(workspaceId, locationId)
+  const [choices, setChoices] = useState<Record<string, string>>({})
+  const targets = (inherited.data?.statuses ?? []).map((status) => ({
+    key: status.id ?? '',
+    name: status.name ?? '',
+  }))
+  const resolution = resolveRemap(own, targets, choices)
+  const ready = inherited.isSuccess && resolution.unresolved.length === 0
+
+  if (inherited.isPending) return <p role="status">Loading…</p>
+  if (inherited.isError) {
+    return (
+      <p role="alert" className="text-sm text-red-700">
+        {messageOf(inherited.error)}
+      </p>
+    )
+  }
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm">
+        Reset to the inherited set? This location will use the statuses of its parent again.
+      </p>
+      {resolution.needsChoice.length > 0 && (
+        <fieldset className="rounded border border-amber-200 bg-amber-50 p-2">
+          <legend className="px-1 text-sm font-medium">Move its tasks to</legend>
+          {resolution.needsChoice.map((status) => (
+            <label key={status.id} className="mb-1 flex items-center gap-2 text-sm">
+              <span className="w-40 truncate">{status.name}</span>
+              <select
+                aria-label={`Move tasks from ${status.name} to`}
+                className="rounded border border-slate-300 px-1.5 py-1 text-sm"
+                value={choices[status.id ?? ''] ?? ''}
+                onChange={(event) =>
+                  setChoices((all) => ({ ...all, [status.id ?? '']: event.target.value }))
+                }
+              >
+                <option value="">Choose a status</option>
+                {targets.map((target) => (
+                  <option key={target.key} value={target.key}>
+                    {target.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </fieldset>
+      )}
+      {reset.isError && (
+        <p role="alert" className="text-sm text-red-700">
+          {messageOf(reset.error)}
+        </p>
+      )}
+      <div className="flex justify-end gap-2">
+        <Button onClick={onCancel}>Cancel</Button>
+        <Button
+          variant="danger"
+          disabled={!ready || reset.isPending}
+          onClick={() => reset.mutate(resolution.remap, { onSuccess: onDone })}
+        >
+          Reset to inherited
+        </Button>
+      </div>
+    </div>
+  )
+}

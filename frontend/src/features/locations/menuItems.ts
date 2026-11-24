@@ -1,6 +1,6 @@
 import type { TreeNode } from './useTreeChildren'
 
-export type MenuAction = 'new-folder' | 'new-list' | 'rename' | 'privacy' | 'move'
+export type MenuAction = 'new-folder' | 'new-list' | 'rename' | 'privacy' | 'move' | 'statuses'
 
 type Item = { action: MenuAction; label: string }
 
@@ -17,5 +17,6 @@ export function menuItems(node: TreeNode): Item[] {
     label: node.isPrivate ? 'Make public' : 'Make private',
   })
   if (node.type !== 'SPACE') items.push({ action: 'move', label: 'Move' })
+  items.push({ action: 'statuses', label: 'Statuses' })
   return items
 }

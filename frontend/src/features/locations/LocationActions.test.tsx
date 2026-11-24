@@ -109,6 +109,7 @@ describe('Location actions', () => {
       'New List',
       'Rename',
       'Make private',
+      'Statuses',
     ])
     await user.keyboard('{Escape}')
     await screen.findByRole('treeitem', { name: 'Launch' })
@@ -117,9 +118,15 @@ describe('Location actions', () => {
       'Rename',
       'Make private',
       'Move',
+      'Statuses',
     ])
     await user.keyboard('{Escape}')
-    expect(items(await openMenu(user, 'Launch'))).toEqual(['Rename', 'Make private', 'Move'])
+    expect(items(await openMenu(user, 'Launch'))).toEqual([
+      'Rename',
+      'Make private',
+      'Move',
+      'Statuses',
+    ])
   })
 
   it('FR-11: creating a Folder shows its first List, selects it and sends the parent', async () => {
@@ -200,6 +207,23 @@ describe('Location actions', () => {
     const item = await screen.findByRole('treeitem', { name: 'Marketing (private)' })
     expect(within(item).getByRole('img', { name: 'Private' })).toBeVisible()
     expect(stub.calls.find((c) => c.method === 'PATCH')!.body).toEqual({ isPrivate: true })
+  })
+
+  it('FR-22: the Statuses action opens the dialog for that location', async () => {
+    backend(base)
+    installFetch({
+      'GET /api/v1/workspaces/:id/tree': { items: [base[0]] },
+      'GET /api/v1/locations/:id/statuses': { locationId: 's1', definedAt: 's1', statuses: [] },
+    })
+    const user = userEvent.setup()
+    renderTree()
+
+    await openMenu(user, 'Marketing')
+    await user.click(screen.getByRole('menuitem', { name: 'Statuses' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Statuses: Marketing' })).toBeVisible()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('FR-13: a Space has no Move action', async () => {
