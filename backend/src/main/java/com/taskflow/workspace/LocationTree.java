@@ -15,4 +15,10 @@ public interface LocationTree {
    * archived and deleted ones so trashed tasks are covered too. Empty when the location is unknown.
    */
   List<UUID> listIdsAtOrUnder(UUID locationId);
+
+  /**
+   * Ids of every location of any type at or under this location (the location itself included),
+   * archived and deleted ones too. Empty when the location is unknown.
+   */
+  List<UUID> locationIdsAtOrUnder(UUID locationId);
 }

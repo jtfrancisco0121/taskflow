@@ -51,4 +51,15 @@ class LocationTreeImpl implements LocationTree {
         locationId,
         locationId);
   }
+
+  @Override
+  public List<UUID> locationIdsAtOrUnder(UUID locationId) {
+    return jdbc.queryForList(
+        "SELECT id FROM location"
+            + " WHERE workspace_id = (SELECT workspace_id FROM location WHERE id = ?)"
+            + " AND path <@ (SELECT path FROM location WHERE id = ?)",
+        UUID.class,
+        locationId,
+        locationId);
+  }
 }

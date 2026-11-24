@@ -277,6 +277,30 @@
         "required" : [ "name" ],
         "type" : "object"
       },
+      "CreateFieldRequest" : {
+        "properties" : {
+          "config" : {
+            "additionalProperties" : { },
+            "type" : "object"
+          },
+          "name" : {
+            "maxLength" : 50,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "options" : {
+            "items" : {
+              "$ref" : "#/components/schemas/OptionRequest"
+            },
+            "type" : "array"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "name", "type" ],
+        "type" : "object"
+      },
       "CreateInviteRequest" : {
         "properties" : {
           "email" : {
@@ -486,6 +510,67 @@
           "listId" : {
             "format" : "uuid",
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "FieldListView" : {
+        "properties" : {
+          "canEdit" : {
+            "type" : "boolean"
+          },
+          "fields" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FieldView"
+            },
+            "type" : "array"
+          },
+          "locationId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "FieldView" : {
+        "properties" : {
+          "config" : {
+            "additionalProperties" : { },
+            "type" : "object"
+          },
+          "definedAt" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "definedAtName" : {
+            "type" : "string"
+          },
+          "hidden" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "inherited" : {
+            "type" : "boolean"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "options" : {
+            "items" : {
+              "$ref" : "#/components/schemas/OptionInfo"
+            },
+            "type" : "array"
+          },
+          "type" : {
+            "enum" : [ "TEXT", "LONG_TEXT", "NUMBER", "DATE", "DROPDOWN", "LABELS", "CHECKBOX", "URL", "EMAIL", "PEOPLE", "RATING", "PROGRESS" ],
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -762,6 +847,39 @@
         "properties" : {
           "name" : {
             "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "name" ],
+        "type" : "object"
+      },
+      "OptionInfo" : {
+        "properties" : {
+          "color" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "OptionRequest" : {
+        "properties" : {
+          "color" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "name" : {
+            "maxLength" : 50,
             "minLength" : 0,
             "type" : "string"
           }
@@ -1367,6 +1485,37 @@
         },
         "type" : "object"
       },
+      "UpdateFieldRequest" : {
+        "properties" : {
+          "afterId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "beforeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "config" : {
+            "additionalProperties" : { },
+            "type" : "object"
+          },
+          "name" : {
+            "maxLength" : 50,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "options" : {
+            "items" : {
+              "$ref" : "#/components/schemas/OptionRequest"
+            },
+            "type" : "array"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "UpdateItemRequest" : {
         "properties" : {
           "afterId" : {
@@ -1792,7 +1941,7 @@
         "tags" : [ "checklist-controller" ]
       },
       "patch" : {
-        "operationId" : "update_3",
+        "operationId" : "update_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1919,6 +2068,100 @@
         "tags" : [ "comment-controller" ]
       }
     },
+    "/api/v1/fields/{id}" : {
+      "delete" : {
+        "operationId" : "retire",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "custom-field-controller" ]
+      },
+      "get" : {
+        "operationId" : "get_6",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FieldView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "custom-field-controller" ]
+      },
+      "patch" : {
+        "operationId" : "update_3",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateFieldRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FieldView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "custom-field-controller" ]
+      }
+    },
     "/api/v1/invites/{token}" : {
       "get" : {
         "operationId" : "preview",
@@ -1973,7 +2216,7 @@
     },
     "/api/v1/lists/{id}/tasks" : {
       "post" : {
-        "operationId" : "create_7",
+        "operationId" : "create_8",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2143,9 +2386,139 @@
         "tags" : [ "location-controller" ]
       }
     },
+    "/api/v1/locations/{id}/fields" : {
+      "get" : {
+        "operationId" : "list_5",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FieldListView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "custom-field-controller" ]
+      },
+      "post" : {
+        "operationId" : "create_7",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateFieldRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FieldView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "custom-field-controller" ]
+      }
+    },
+    "/api/v1/locations/{id}/fields/{fieldId}/hidden" : {
+      "delete" : {
+        "operationId" : "unhide",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "fieldId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FieldListView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "custom-field-controller" ]
+      },
+      "put" : {
+        "operationId" : "hide",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "fieldId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FieldListView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "custom-field-controller" ]
+      }
+    },
     "/api/v1/locations/{id}/grants" : {
       "get" : {
-        "operationId" : "list_6",
+        "operationId" : "list_7",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2464,7 +2837,7 @@
     },
     "/api/v1/tasks" : {
       "get" : {
-        "operationId" : "list_5",
+        "operationId" : "list_6",
         "parameters" : [ {
           "in" : "query",
           "name" : "locationId",
