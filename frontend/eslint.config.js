@@ -22,4 +22,28 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },
+  {
+    // AD-5: only src/api talks HTTP.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/api/**', 'src/**/*.test.{ts,tsx}', 'src/test/**'],
+    rules: {
+      'no-restricted-globals': [
+        'error',
+        { name: 'fetch', message: 'Use the generated client in src/api/client.ts.' },
+      ],
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'window',
+          property: 'fetch',
+          message: 'Use the generated client in src/api/client.ts.',
+        },
+        {
+          object: 'globalThis',
+          property: 'fetch',
+          message: 'Use the generated client in src/api/client.ts.',
+        },
+      ],
+    },
+  },
 )
