@@ -25,6 +25,47 @@ public interface AgentTool {
   /** Runs the tool. The result is serialized to JSON as the tool's output. */
   Object call(JsonNode arguments);
 
+  /** The optional argument that makes a create tool safe to retry (decision 005.11). */
+  String IDEMPOTENCY_KEY = "idempotencyKey";
+
+  /**
+   * Whether the tool creates something and accepts {@link #IDEMPOTENCY_KEY}. The MCP endpoint then
+   * adds the argument to the schema and runs the call through {@link IdempotentCalls}.
+   */
+  default boolean idempotent() {
+    return false;
+  }
+
+  /** The same tool, marked as a create that accepts {@link #IDEMPOTENCY_KEY}. */
+  static AgentTool withIdempotencyKey(AgentTool tool) {
+    return new AgentTool() {
+      @Override
+      public String name() {
+        return tool.name();
+      }
+
+      @Override
+      public String description() {
+        return tool.description();
+      }
+
+      @Override
+      public JsonNode inputSchema() {
+        return tool.inputSchema();
+      }
+
+      @Override
+      public Object call(JsonNode arguments) {
+        return tool.call(arguments);
+      }
+
+      @Override
+      public boolean idempotent() {
+        return true;
+      }
+    };
+  }
+
   /** A tool from its parts, for modules that declare their tools as {@code @Bean} methods. */
   static AgentTool of(
       String name,
