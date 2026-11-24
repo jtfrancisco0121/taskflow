@@ -1,11 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { api } from '../../api/client'
 import { clientId } from '../../api/clientId'
 import { getAccessToken, getSessionUser, refreshSession } from '../../api/session'
-import { unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
-import { useQuery } from '@tanstack/react-query'
+import { useTreeChildren } from '../locations'
 import { useMembers } from '../workspace'
 import { createCachePatcher } from './cachePatcher'
 import { RealtimeContext } from './RealtimeContext'
@@ -56,13 +54,9 @@ export function LiveUpdates({
   const me = getSessionUser()?.id
   const role = members.find((m) => m.userId === me)?.role
   const isGuest = role === 'GUEST'
-  const roots = useQuery({
-    queryKey: queryKeys.tree(workspaceId ?? '', 'root'),
-    enabled: !!workspaceId && isGuest,
-    queryFn: () =>
-      unwrap(api.GET('/api/v1/workspaces/{id}/tree', { params: { path: { id: workspaceId! } } })),
-  })
-  const guestRoots = (roots.data?.items ?? []).map((n) => n.id!).sort()
+  // The same hook (and cache shape) as the sidebar: a guest's top-level Locations are its grants.
+  const roots = useTreeChildren(workspaceId ?? '', 'root', !!workspaceId && isGuest)
+  const guestRoots = (roots.data ?? []).map((n) => n.id!).sort()
   const topicKey =
     workspaceId && role
       ? topicsFor({ workspaceId, isGuest, guestRoots, locationId, taskId }).join(',')

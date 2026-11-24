@@ -1,45 +1,12 @@
-import { expect, test, type Page } from '@playwright/test'
-
-/** A unique account per run, so the flow never depends on leftover data. */
-function uniqueEmail() {
-  return `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@example.com`
-}
-
-async function signUpAndCreateWorkspace(page: Page, workspaceName: string) {
-  await page.goto('/signup')
-  await page.getByLabel('Display name').fill('Maya E2E')
-  await page.getByLabel('Email').fill(uniqueEmail())
-  await page.getByLabel('Password').fill('correct-horse-battery')
-  await page.getByRole('button', { name: 'Create account' }).click()
-
-  await expect(page.getByRole('heading', { name: 'Create your Workspace' })).toBeVisible()
-  await page.getByLabel('Name', { exact: true }).fill(workspaceName)
-  await page.getByRole('button', { name: 'Create Workspace' }).click()
-  await expect(page.getByText('This Workspace has no Spaces yet.')).toBeVisible()
-}
-
-async function createSpace(page: Page, name: string) {
-  await page.getByRole('button', { name: 'Create Space' }).click()
-  await page.getByRole('textbox', { name: 'New Space name' }).fill(name)
-  await page.keyboard.press('Enter')
-  await expect(page.getByRole('treeitem', { name })).toBeVisible()
-}
-
-async function createList(page: Page, spaceName: string, listName: string) {
-  await page.getByRole('button', { name: `Actions for ${spaceName}` }).click()
-  await page.getByRole('menuitem', { name: 'New List' }).click()
-  await page.getByRole('textbox', { name: 'New List name' }).fill(listName)
-  await page.keyboard.press('Enter')
-  await expect(page.getByRole('heading', { name: listName })).toBeVisible()
-}
-
-async function addTask(page: Page, title: string) {
-  await page.getByRole('textbox', { name: 'Add a task' }).fill(title)
-  await page.keyboard.press('Enter')
-  await expect(page.getByRole('link', { name: title })).toBeVisible()
-}
-
-const row = (page: Page, title: string) => page.getByRole('row').filter({ hasText: title })
+import { expect, test } from '@playwright/test'
+import {
+  addTask,
+  createList,
+  createSpace,
+  row,
+  signUpAndCreateWorkspace,
+  statusOf,
+} from './helpers'
 
 test('FR-26: sign up, create a Workspace, Space, List and task, then open the task', async ({
   page,
@@ -87,12 +54,12 @@ test('statuses: a first own set remaps its List only, and a reset leaves the sib
   await addTask(page, 'Task in A')
   await createList(page, 'Ops', 'List B')
   await addTask(page, 'Task in B')
-  await expect(row(page, 'Task in B').getByText('to do')).toBeVisible()
+  await expect(statusOf(page, 'Task in B')).toHaveText('to do')
 
   // List A inherits the Space set: save a first own set that renames "to do" to "Backlog".
   await page.getByRole('link', { name: 'List A' }).click()
   await expect(page.getByRole('heading', { name: 'List A' })).toBeVisible()
-  await expect(row(page, 'Task in A').getByText('to do')).toBeVisible()
+  await expect(statusOf(page, 'Task in A')).toHaveText('to do')
   await page.getByRole('button', { name: 'Statuses' }).click()
   const dialog = page.getByRole('dialog', { name: /Statuses/ })
   await expect(dialog.getByText('Inherited from Ops')).toBeVisible()
@@ -103,12 +70,12 @@ test('statuses: a first own set remaps its List only, and a reset leaves the sib
   await dialog.getByRole('button', { name: 'Save' }).click()
   await expect(dialog.getByText('Defined here')).toBeVisible()
   await dialog.getByRole('button', { name: 'Close' }).click()
-  await expect(row(page, 'Task in A').getByText('Backlog')).toBeVisible()
+  await expect(statusOf(page, 'Task in A')).toHaveText('Backlog')
 
   // the sibling List still inherits: its task keeps "to do" with its status pill resolved
   await page.getByRole('link', { name: 'List B' }).click()
   await expect(page.getByRole('heading', { name: 'List B' })).toBeVisible()
-  await expect(row(page, 'Task in B').getByText('to do')).toBeVisible()
+  await expect(statusOf(page, 'Task in B')).toHaveText('to do')
 
   // reset List A to inherited: its task goes back to "to do", the sibling is still untouched
   await page.getByRole('link', { name: 'List A' }).click()
@@ -118,7 +85,7 @@ test('statuses: a first own set remaps its List only, and a reset leaves the sib
   await dialog.getByRole('button', { name: 'Reset to inherited' }).click()
   await expect(dialog.getByText('Inherited from Ops')).toBeVisible()
   await dialog.getByRole('button', { name: 'Close' }).click()
-  await expect(row(page, 'Task in A').getByText('to do')).toBeVisible()
+  await expect(statusOf(page, 'Task in A')).toHaveText('to do')
   await page.getByRole('link', { name: 'List B' }).click()
-  await expect(row(page, 'Task in B').getByText('to do')).toBeVisible()
+  await expect(statusOf(page, 'Task in B')).toHaveText('to do')
 })
