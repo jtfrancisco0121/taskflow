@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.DynamicPropertyRegistrar;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.RabbitMQContainer;
 
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfiguration {
@@ -25,6 +26,13 @@ public class TestcontainersConfiguration {
   @ServiceConnection(name = "redis")
   GenericContainer<?> redisContainer() {
     return new GenericContainer<>("redis:8.12").withExposedPorts(6379);
+  }
+
+  /** Keep this tag equal to the rabbitmq image in deploy/compose.yaml. */
+  @Bean
+  @ServiceConnection
+  RabbitMQContainer rabbitContainer() {
+    return new RabbitMQContainer("rabbitmq:4.3-management");
   }
 
   /** Keep this tag equal to the mailpit image in deploy/compose.yaml. */
