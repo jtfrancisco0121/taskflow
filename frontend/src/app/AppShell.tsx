@@ -1,0 +1,41 @@
+import { Outlet } from 'react-router'
+import { useUiStore } from '../shared/ui-store'
+
+export function AppShell() {
+  const sidebarOpen = useUiStore((state) => state.sidebarOpen)
+  const toggleSidebar = useUiStore((state) => state.toggleSidebar)
+
+  return (
+    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
+      <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
+        <button
+          type="button"
+          aria-label="Toggle sidebar"
+          aria-expanded={sidebarOpen}
+          onClick={toggleSidebar}
+          className="rounded border border-slate-300 px-2 py-1 text-sm hover:bg-slate-100"
+        >
+          Menu
+        </button>
+        <span className="text-lg font-bold">Taskflow</span>
+      </header>
+      <div className="flex flex-1">
+        {sidebarOpen && (
+          <aside
+            aria-label="Sidebar"
+            className="w-56 border-r border-slate-200 bg-white p-4 text-sm"
+          >
+            <nav>
+              <a href="/" className="font-medium">
+                Home
+              </a>
+            </nav>
+          </aside>
+        )}
+        <main className="flex-1 p-6">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  )
+}
