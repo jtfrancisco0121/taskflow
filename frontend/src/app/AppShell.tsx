@@ -1,9 +1,21 @@
-import { Outlet } from 'react-router'
+import { Outlet, useParams } from 'react-router'
+import { useTaskWorkspaceId } from '../features/tasks'
+import { SidebarTree } from '../features/locations'
+import { useSession, useSignOut } from '../features/auth'
+import { useRememberWorkspace, WorkspaceSwitcher } from '../features/workspace'
+import { Button } from '../shared/ui/Button'
 import { useUiStore } from '../shared/ui-store'
 
 export function AppShell() {
   const sidebarOpen = useUiStore((state) => state.sidebarOpen)
   const toggleSidebar = useUiStore((state) => state.toggleSidebar)
+  const session = useSession()
+  const signOut = useSignOut()
+  const { workspaceId: urlWorkspaceId, taskId } = useParams()
+  // AD-3: the current Workspace is in the URL, or on /t/:taskId the loaded task's Workspace.
+  const taskWorkspaceId = useTaskWorkspaceId(taskId)
+  const workspaceId = urlWorkspaceId ?? taskWorkspaceId
+  useRememberWorkspace(workspaceId)
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
@@ -18,6 +30,11 @@ export function AppShell() {
           Menu
         </button>
         <span className="text-lg font-bold">Taskflow</span>
+        <WorkspaceSwitcher currentId={workspaceId} />
+        <div className="ml-auto flex items-center gap-3 text-sm">
+          {session.user?.displayName && <span>{session.user.displayName}</span>}
+          <Button onClick={() => void signOut()}>Sign out</Button>
+        </div>
       </header>
       <div className="flex flex-1">
         {sidebarOpen && (
@@ -25,10 +42,8 @@ export function AppShell() {
             aria-label="Sidebar"
             className="w-56 border-r border-slate-200 bg-white p-4 text-sm"
           >
-            <nav>
-              <a href="/" className="font-medium">
-                Home
-              </a>
+            <nav aria-label="Locations">
+              {workspaceId && <SidebarTree workspaceId={workspaceId} />}
             </nav>
           </aside>
         )}

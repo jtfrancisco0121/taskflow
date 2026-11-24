@@ -25,3 +25,7 @@ dist/
 coverage/
 .vite/
 *.tsbuildinfo
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/

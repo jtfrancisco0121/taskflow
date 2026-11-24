@@ -185,4 +185,105 @@ class StatusRemapIT extends TaskTestBase {
     assertThat(read(m, done).get("version").asLong()).isEqualTo(3);
     assertThat(events(done, "task.status_changed")).isEqualTo(2);
   }
+
+  /** A remap sending every status of {@code from}'s effective set to the given new status name. */
+  private List<Map<String, Object>> remapAllTo(TestUser user, UUID from, String to) {
+    List<Map<String, Object>> remap = new java.util.ArrayList<>();
+    get("/api/v1/locations/" + from + "/statuses", user.token())
+        .at("/statuses")
+        .forEach(s -> remap.add(Map.of("from", s.get("id").asText(), "to", to)));
+    return remap;
+  }
+
+  private Resp firstOwnSet(TestUser user, UUID location) {
+    return put(
+        "/api/v1/locations/" + location + "/statuses",
+        user.token(),
+        Map.of(
+            "statuses",
+            List.of(
+                Map.of("name", "a", "group", "NOT_STARTED"), Map.of("name", "b", "group", "DONE")),
+            "remap",
+            remapAllTo(user, location, "a")));
+  }
+
+  @Test
+  void aFirstOwnSetOnAnInheritingListLeavesSiblingListTasksUntouched() {
+    Fix f = fixture();
+    TestUser m = f.ws().member();
+    UUID sibling = f.list();
+    UUID edited = list(m, f.space(), "Edited");
+    UUID inEdited = task(m, edited, "In edited");
+    UUID inSibling = task(m, sibling, "In sibling");
+    UUID siblingStatus = UUID.fromString(read(m, inSibling).get("statusId").asText());
+    long siblingVersion = version(m, inSibling);
+    long editedVersion = version(m, inEdited);
+
+    Resp saved = firstOwnSet(m, edited);
+
+    assertThat(saved.status()).as(saved.raw()).isEqualTo(200);
+    assertThat(read(m, inEdited).get("statusId").asText())
+        .isEqualTo(statusId(edited, "a").toString());
+    assertThat(read(m, inEdited).get("version").asLong()).isEqualTo(editedVersion + 1);
+    assertThat(events(inEdited, "task.status_changed")).isEqualTo(1);
+    assertThat(read(m, inSibling).get("statusId").asText()).isEqualTo(siblingStatus.toString());
+    assertThat(read(m, inSibling).get("version").asLong())
+        .as("a sibling List that still inherits is not re-statused")
+        .isEqualTo(siblingVersion);
+    assertThat(events(inSibling, "task.status_changed")).isZero();
+  }
+
+  @Test
+  void aFirstOwnSetOnAnInheritingFolderRemapsItsListsAndLeavesASiblingListUntouched() {
+    Fix f = fixture();
+    TestUser m = f.ws().member();
+    UUID sibling = f.list();
+    UUID folder = folder(m, f.space(), "F");
+    UUID inFolderList =
+        jdbc.queryForObject("SELECT id FROM location WHERE parent_id = ?", UUID.class, folder);
+    UUID inFolder = task(m, inFolderList, "In folder");
+    UUID inSibling = task(m, sibling, "In sibling");
+    UUID siblingStatus = UUID.fromString(read(m, inSibling).get("statusId").asText());
+    long siblingVersion = version(m, inSibling);
+
+    Resp saved = firstOwnSet(m, folder);
+
+    assertThat(saved.status()).as(saved.raw()).isEqualTo(200);
+    assertThat(read(m, inFolder).get("statusId").asText())
+        .isEqualTo(statusId(folder, "a").toString());
+    assertThat(read(m, inSibling).get("statusId").asText()).isEqualTo(siblingStatus.toString());
+    assertThat(read(m, inSibling).get("version").asLong()).isEqualTo(siblingVersion);
+    assertThat(events(inSibling, "task.status_changed")).isZero();
+  }
+
+  @Test
+  void resettingAListLeavesSiblingTasksUntouched() {
+    Fix f = fixture();
+    TestUser m = f.ws().member();
+    UUID sibling = f.list();
+    UUID edited = list(m, f.space(), "Edited");
+    assertThat(firstOwnSet(m, edited).status()).isEqualTo(200);
+    UUID inEdited = task(m, edited, "In edited");
+    UUID inSibling = task(m, sibling, "In sibling");
+    UUID siblingStatus = UUID.fromString(read(m, inSibling).get("statusId").asText());
+    long siblingVersion = version(m, inSibling);
+
+    Resp reset =
+        send(
+            org.springframework.http.HttpMethod.DELETE,
+            "/api/v1/locations/" + edited + "/statuses",
+            m.token(),
+            Map.of(
+                "remap",
+                List.of(
+                    Map.of("from", statusId(edited, "a"), "to", "to do"),
+                    Map.of("from", statusId(edited, "b"), "to", "complete"))));
+
+    assertThat(reset.status()).as(reset.raw()).isEqualTo(200);
+    assertThat(read(m, inEdited).get("statusId").asText())
+        .isEqualTo(statusId(f.space(), "to do").toString());
+    assertThat(read(m, inSibling).get("statusId").asText()).isEqualTo(siblingStatus.toString());
+    assertThat(read(m, inSibling).get("version").asLong()).isEqualTo(siblingVersion);
+    assertThat(events(inSibling, "task.status_changed")).isZero();
+  }
 }

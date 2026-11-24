@@ -6,6 +6,7 @@ import com.taskflow.field.StatusInfo;
 import com.taskflow.field.StatusSetChanged;
 import com.taskflow.shared.EventRecorder;
 import com.taskflow.workspace.LocationMoved;
+import com.taskflow.workspace.LocationTree;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -25,21 +26,32 @@ class StatusRemapListener {
   private final JdbcTemplate jdbc;
   private final EventRecorder events;
   private final StatusCatalog statuses;
+  private final LocationTree tree;
 
-  StatusRemapListener(JdbcTemplate jdbc, EventRecorder events, StatusCatalog statuses) {
+  StatusRemapListener(
+      JdbcTemplate jdbc, EventRecorder events, StatusCatalog statuses, LocationTree tree) {
     this.jdbc = jdbc;
     this.events = events;
     this.statuses = statuses;
+    this.tree = tree;
   }
 
   /**
-   * A status set was replaced or reset: apply the caller's remap to every task using the old ids.
+   * A status set was replaced or reset: apply the caller's remap to the tasks using the old ids,
+   * but only in the Lists at or under the edited location. A first own set on an inheriting List
+   * "removes" every inherited status, so a workspace-wide remap would also re-status the tasks of
+   * sibling Lists that still inherit them.
    */
   @EventListener
   void on(StatusSetChanged changed) {
+    List<UUID> lists = tree.listIdsAtOrUnder(changed.locationId());
     changed
         .remap()
-        .forEach((from, to) -> remap(changed.workspaceId(), null, from, to, "status_set_changed"));
+        .forEach((from, to) -> {
+          for (UUID list : lists) {
+            remap(changed.workspaceId(), list, from, to, "status_set_changed");
+          }
+        });
   }
 
   /** A location moved: tasks whose List left its status scope get the same-group status. */
@@ -69,20 +81,13 @@ class StatusRemapListener {
 
   private void remap(UUID workspaceId, UUID listId, UUID from, UUID to, String cause) {
     List<Map<String, Object>> changed =
-        listId == null
-            ? jdbc.queryForList(
-                "UPDATE task SET status_id = ?, version = version + 1, updated_at = now() WHERE"
-                    + " workspace_id = ? AND status_id = ? RETURNING id, version",
-                to,
-                workspaceId,
-                from)
-            : jdbc.queryForList(
-                "UPDATE task SET status_id = ?, version = version + 1, updated_at = now() WHERE"
-                    + " workspace_id = ? AND list_id = ? AND status_id = ? RETURNING id, version",
-                to,
-                workspaceId,
-                listId,
-                from);
+        jdbc.queryForList(
+            "UPDATE task SET status_id = ?, version = version + 1, updated_at = now() WHERE"
+                + " workspace_id = ? AND list_id = ? AND status_id = ? RETURNING id, version",
+            to,
+            workspaceId,
+            listId,
+            from);
     for (Map<String, Object> row : changed) {
       events.record(
           workspaceId,

@@ -3,6 +3,7 @@ package com.taskflow.workspace.internal;
 import com.taskflow.workspace.LocationInfo;
 import com.taskflow.workspace.LocationTree;
 import com.taskflow.workspace.LocationType;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -38,5 +39,16 @@ class LocationTreeImpl implements LocationTree {
             locationId)
         .stream()
         .findFirst();
+  }
+
+  @Override
+  public List<UUID> listIdsAtOrUnder(UUID locationId) {
+    return jdbc.queryForList(
+        "SELECT id FROM location WHERE type = 'LIST'"
+            + " AND workspace_id = (SELECT workspace_id FROM location WHERE id = ?)"
+            + " AND path <@ (SELECT path FROM location WHERE id = ?)",
+        UUID.class,
+        locationId,
+        locationId);
   }
 }
