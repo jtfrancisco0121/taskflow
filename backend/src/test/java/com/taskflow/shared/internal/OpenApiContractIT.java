@@ -24,6 +24,16 @@ import org.springframework.context.annotation.Import;
 @Import(TestcontainersConfiguration.class)
 class OpenApiContractIT {
 
+  /** Every path of the contract. Add new endpoints here, then regenerate the spec. */
+  private static final java.util.List<String> EXPECTED_PATHS =
+      java.util.List.of(
+          "/api/v1/meta",
+          "/api/v1/auth/signup",
+          "/api/v1/auth/signin",
+          "/api/v1/auth/refresh",
+          "/api/v1/auth/signout",
+          "/api/v1/me");
+
   private static final Path SPEC = Path.of("..", "docs", "api", "openapi.json");
 
   @Autowired TestRestTemplate rest;
@@ -52,7 +62,9 @@ class OpenApiContractIT {
   @Test
   void specListsOnlyApiV1Paths() throws IOException {
     JsonNode tree = new ObjectMapper().readTree(rest.getForObject("/v3/api-docs", String.class));
-    assertThat(tree.get("paths").fieldNames()).toIterable().containsExactly("/api/v1/meta");
+    assertThat(tree.get("paths").fieldNames())
+        .toIterable()
+        .containsExactlyInAnyOrderElementsOf(EXPECTED_PATHS);
     assertThat(tree.get("servers").toString()).isEqualTo("[{\"url\":\"/\"}]");
   }
 

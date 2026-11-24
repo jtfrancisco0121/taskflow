@@ -10,6 +10,7 @@ public class TaskflowException extends RuntimeException {
   private final HttpStatus status;
   private final String code;
   private final Map<String, Object> extra = new LinkedHashMap<>();
+  private final Map<String, String> headers = new LinkedHashMap<>();
 
   public TaskflowException(HttpStatus status, String code, String message) {
     super(message);
@@ -36,6 +37,16 @@ public class TaskflowException extends RuntimeException {
   public TaskflowException with(String key, Object value) {
     extra.put(key, value);
     return this;
+  }
+
+  /** Adds a response header, for example Retry-After. */
+  public TaskflowException header(String name, String value) {
+    headers.put(name, value);
+    return this;
+  }
+
+  public Map<String, String> headers() {
+    return headers;
   }
 
   public HttpStatus status() {

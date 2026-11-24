@@ -1,7 +1,4 @@
-/**
- * Users, authentication, JWT and refresh tokens, roles, service accounts, API keys, permission
- * evaluation.
- */
+/** Users, authentication, JWT access tokens and rotating refresh tokens, security wiring. */
 @ApplicationModule(allowedDependencies = "shared")
 package com.taskflow.identity;
 

@@ -31,7 +31,9 @@ class ProblemDetailsHandler extends ResponseEntityExceptionHandler {
     problem.setTitle(e.status().getReasonPhrase());
     problem.setProperty("code", e.code());
     e.extra().forEach(problem::setProperty);
-    return ResponseEntity.status(e.status()).body(problem);
+    ResponseEntity.BodyBuilder builder = ResponseEntity.status(e.status());
+    e.headers().forEach(builder::header);
+    return builder.body(problem);
   }
 
   @ExceptionHandler(AccessDeniedException.class)
