@@ -68,6 +68,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/checklist-items/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteItem"];
+        options?: never;
+        head?: never;
+        patch: operations["updateItem"];
+        trace?: never;
+    };
+    "/api/v1/checklists/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["delete_3"];
+        options?: never;
+        head?: never;
+        patch: operations["update_2"];
+        trace?: never;
+    };
+    "/api/v1/checklists/{id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["addItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invites/{token}": {
         parameters: {
             query?: never;
@@ -109,7 +157,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_3"];
+        post: operations["create_4"];
         delete?: never;
         options?: never;
         head?: never;
@@ -125,7 +173,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_2"];
+        post: operations["create_3"];
         delete?: never;
         options?: never;
         head?: never;
@@ -142,7 +190,7 @@ export interface paths {
         get: operations["get_3"];
         put?: never;
         post?: never;
-        delete: operations["delete_1"];
+        delete: operations["delete_2"];
         options?: never;
         head?: never;
         patch: operations["update_1"];
@@ -171,7 +219,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_3"];
+        get: operations["list_4"];
         put?: never;
         post?: never;
         delete?: never;
@@ -205,7 +253,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["move"];
+        post: operations["move_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -283,7 +331,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_2"];
+        get: operations["list_3"];
         put?: never;
         post?: never;
         delete?: never;
@@ -302,10 +350,74 @@ export interface paths {
         get: operations["get_2"];
         put?: never;
         post?: never;
-        delete?: never;
+        delete: operations["delete_1"];
         options?: never;
         head?: never;
         patch: operations["update"];
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/checklists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_2"];
+        put?: never;
+        post: operations["create_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["duplicate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["move"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["restore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/workspaces": {
@@ -436,6 +548,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{id}/trash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["trash"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{id}/tree": {
         parameters: {
             query?: never;
@@ -478,11 +606,31 @@ export interface components {
             /** @enum {string} */
             role: "OWNER" | "ADMIN" | "MEMBER" | "GUEST";
         };
+        ChecklistView: {
+            /** Format: uuid */
+            id?: string;
+            items?: components["schemas"]["ItemView"][];
+            name?: string;
+            /** Format: uuid */
+            taskId?: string;
+        };
+        CreateChecklistRequest: {
+            name: string;
+        };
         CreateInviteRequest: {
             /** Format: email */
             email: string;
             /** @enum {string} */
             role: "OWNER" | "ADMIN" | "MEMBER" | "GUEST";
+        };
+        CreateItemRequest: {
+            /** Format: uuid */
+            afterId?: string;
+            /** Format: uuid */
+            assigneeId?: string;
+            /** Format: uuid */
+            beforeId?: string;
+            text: string;
         };
         CreateLocationRequest: {
             isPrivate?: boolean;
@@ -514,6 +662,10 @@ export interface components {
             key?: string;
             name: string;
         };
+        DuplicateTaskRequest: {
+            /** Format: uuid */
+            listId?: string;
+        };
         GrantView: {
             /** Format: date-time */
             createdAt?: string;
@@ -544,6 +696,14 @@ export interface components {
             status?: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
             /** Format: uuid */
             workspaceId?: string;
+        };
+        ItemView: {
+            /** Format: uuid */
+            assigneeId?: string;
+            checked?: boolean;
+            /** Format: uuid */
+            id?: string;
+            text?: string;
         };
         JsonNode: unknown;
         LocationView: {
@@ -580,6 +740,16 @@ export interface components {
             /** Format: uuid */
             parentId?: string;
         };
+        MoveTaskRequest: {
+            /** Format: uuid */
+            afterId?: string;
+            /** Format: uuid */
+            beforeId?: string;
+            /** Format: uuid */
+            listId: string;
+            /** Format: uuid */
+            statusId?: string;
+        };
         PageGrantView: {
             items?: components["schemas"]["GrantView"][];
             nextCursor?: string;
@@ -594,6 +764,10 @@ export interface components {
         };
         PageTaskView: {
             items?: components["schemas"]["TaskView"][];
+            nextCursor?: string;
+        };
+        PageTrashItem: {
+            items?: components["schemas"]["TrashItem"][];
             nextCursor?: string;
         };
         PageTreeNode: {
@@ -689,6 +863,17 @@ export interface components {
             /** Format: uuid */
             workspaceId?: string;
         };
+        TrashItem: {
+            /** Format: date-time */
+            deletedAt?: string;
+            /** Format: date-time */
+            purgeAt?: string;
+            /** Format: int32 */
+            subtaskCount?: number;
+            task?: components["schemas"]["TaskView"];
+            /** Format: uuid */
+            trashBatchId?: string;
+        };
         TreeNode: {
             archived?: boolean;
             hasChildren?: boolean;
@@ -700,6 +885,23 @@ export interface components {
             parentId?: string;
             /** @enum {string} */
             type?: "SPACE" | "FOLDER" | "LIST";
+        };
+        UpdateChecklistRequest: {
+            /** Format: uuid */
+            afterId?: string;
+            /** Format: uuid */
+            beforeId?: string;
+            name?: string;
+        };
+        UpdateItemRequest: {
+            /** Format: uuid */
+            afterId?: string;
+            /** Format: uuid */
+            assigneeId?: string;
+            /** Format: uuid */
+            beforeId?: string;
+            checked?: boolean;
+            text?: string;
         };
         UpdateLocationRequest: {
             isPrivate?: boolean;
@@ -836,6 +1038,124 @@ export interface operations {
             };
         };
     };
+    deleteItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    updateItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateItemRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ChecklistView"];
+                };
+            };
+        };
+    };
+    delete_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateChecklistRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ChecklistView"];
+                };
+            };
+        };
+    };
+    addItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateItemRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ChecklistView"];
+                };
+            };
+        };
+    };
     preview: {
         parameters: {
             query?: never;
@@ -880,7 +1200,7 @@ export interface operations {
             };
         };
     };
-    create_3: {
+    create_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -906,7 +1226,7 @@ export interface operations {
             };
         };
     };
-    create_2: {
+    create_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -952,7 +1272,7 @@ export interface operations {
             };
         };
     };
-    delete_1: {
+    delete_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1020,7 +1340,7 @@ export interface operations {
             };
         };
     };
-    list_3: {
+    list_4: {
         parameters: {
             query?: {
                 cursor?: string;
@@ -1087,7 +1407,7 @@ export interface operations {
             };
         };
     };
-    move: {
+    move_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -1249,7 +1569,7 @@ export interface operations {
             };
         };
     };
-    list_2: {
+    list_3: {
         parameters: {
             query?: {
                 locationId?: string;
@@ -1297,6 +1617,28 @@ export interface operations {
             };
         };
     };
+    delete_1: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     update: {
         parameters: {
             query?: never;
@@ -1313,6 +1655,132 @@ export interface operations {
                 "application/json": components["schemas"]["UpdateTaskRequest"];
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TaskView"];
+                };
+            };
+        };
+    };
+    list_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ChecklistView"][];
+                };
+            };
+        };
+    };
+    create_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateChecklistRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ChecklistView"];
+                };
+            };
+        };
+    };
+    duplicate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DuplicateTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TaskView"];
+                };
+            };
+        };
+    };
+    move: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MoveTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TaskView"];
+                };
+            };
+        };
+    };
+    restore: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {
@@ -1624,6 +2092,31 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["TaskView"];
+                };
+            };
+        };
+    };
+    trash: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageTrashItem"];
                 };
             };
         };

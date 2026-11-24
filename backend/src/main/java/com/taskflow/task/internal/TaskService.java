@@ -174,6 +174,12 @@ class TaskService {
   @Transactional
   TaskView update(UUID id, long expectedVersion, ObjectNode patch) {
     TaskRepository.Row current = repo.live(id);
+    if (patch.has("parentTaskId")) {
+      // Re-parenting serialises on the List row, then re-reads inside the lock (decision 002 item
+      // 6).
+      repo.lockLists(current.listId(), null);
+      current = repo.live(id);
+    }
     if (current.version() != expectedVersion) {
       throw conflict(current);
     }
@@ -220,6 +226,28 @@ class TaskService {
         sets.add("due_date = ?");
         args.add(ts(due));
         changes.put("dueDate", change(current.dueDate(), due));
+      }
+    }
+    if (patch.has("parentTaskId")) {
+      JsonNode node = patch.get("parentTaskId");
+      UUID next = node.isNull() ? null : uuid(node, "task.invalid_parent");
+      if (!Objects.equals(next, current.parentTaskId())) {
+        if (next != null) {
+          if (next.equals(id) || repo.inSubtree(id, next)) {
+            throw TaskflowException.conflict(
+                "task.parent_cycle", "A task cannot become a subtask of its own subtree");
+          }
+          permissions.require(Permissions.TASK, next, Action.VIEW);
+          if (!repo.live(next).listId().equals(current.listId())) {
+            throw TaskflowException.badRequest(
+                "task.parent_other_list", "A subtask lives in the same List as its parent");
+          }
+        }
+        sets.add("parent_task_id = ?");
+        args.add(next);
+        sets.add("rank = ?");
+        args.add(ranks.append(siblings(current.workspaceId(), current.listId(), next)));
+        changes.put("parentTaskId", change(current.parentTaskId(), next));
       }
     }
     boolean statusOnly = true;

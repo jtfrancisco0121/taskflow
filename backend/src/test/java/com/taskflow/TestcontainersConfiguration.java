@@ -43,6 +43,7 @@ public class TestcontainersConfiguration {
           () ->
               "http://" + mailpitContainer.getHost() + ":" + mailpitContainer.getMappedPort(8025));
       registry.add("taskflow.jwt.secret", () -> JWT_SECRET);
+      registry.add("taskflow.purge.enabled", () -> "false");
     };
   }
 }

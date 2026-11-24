@@ -140,6 +140,46 @@ class TaskRepository {
     return out;
   }
 
+  /** A task of a subtree with its depth below the root, ordered parents first. */
+  record SubRow(UUID id, UUID parentTaskId, int depth) {}
+
+  /**
+   * The root and every descendant, parents first then by rank. The CYCLE clause is a second line of
+   * defence: a corrupt parent loop ends the recursion instead of looping forever (AD-15).
+   */
+  List<SubRow> subtree(UUID rootId, boolean liveOnly) {
+    return jdbc.query(
+        "WITH RECURSIVE sub AS (SELECT id, parent_task_id, rank, 0 AS depth FROM task WHERE id = ?"
+            + " UNION ALL SELECT c.id, c.parent_task_id, c.rank, sub.depth + 1 FROM task c JOIN sub ON"
+            + " c.parent_task_id = sub.id"
+            + (liveOnly ? " WHERE c.deleted_at IS NULL" : "")
+            + ") CYCLE id SET is_cycle USING cycle_path SELECT id, parent_task_id, depth FROM sub WHERE"
+            + " NOT is_cycle ORDER BY depth, rank COLLATE \"C\", id",
+        (rs, i) ->
+            new SubRow(
+                rs.getObject("id", UUID.class),
+                rs.getObject("parent_task_id", UUID.class),
+                rs.getInt("depth")),
+        rootId);
+  }
+
+  /** True when {@code candidate} is {@code rootId} or one of its descendants. */
+  boolean inSubtree(UUID rootId, UUID candidate) {
+    return subtree(rootId, false).stream().anyMatch(r -> r.id().equals(candidate));
+  }
+
+  /** Locks the List rows in id order, so crossed moves cannot deadlock (AD-15). */
+  void lockLists(UUID a, UUID b) {
+    List<UUID> ids = new ArrayList<>();
+    ids.add(a);
+    if (b != null && !b.equals(a)) {
+      ids.add(b);
+    }
+    ids.stream()
+        .sorted()
+        .forEach(id -> jdbc.query("SELECT 1 FROM location WHERE id = ? FOR UPDATE", rs -> {}, id));
+  }
+
   /** The next readable number of the workspace; atomic under parallel creates (AD-14). */
   long nextNumber(UUID workspaceId) {
     Long number =

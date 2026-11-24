@@ -111,14 +111,22 @@ class PermissionService implements Permissions {
             .orElseThrow(() ->
                 TaskflowException.notFound(
                     type.toLowerCase(java.util.Locale.ROOT) + ".not_found", type + " not found"));
-    Loc loc = load(target.locationId());
-    Role role = visibleRole(loc);
+    Loc loc;
+    Role role;
+    try {
+      loc = load(target.locationId());
+      role = visibleRole(loc);
+    } catch (TaskflowException e) {
+      if (e.status().value() == 404) {
+        // An invisible task must look exactly like a missing one: same code, same message.
+        throw TaskflowException.notFound(
+            type.toLowerCase(java.util.Locale.ROOT) + ".not_found", type + " not found");
+      }
+      throw e;
+    }
     if (target.trashed() && action != Action.RESTORE) {
       throw TaskflowException.notFound(
           type.toLowerCase(java.util.Locale.ROOT) + ".not_found", type + " not found");
-    }
-    if (!target.trashed() && action == Action.RESTORE) {
-      throw TaskflowException.conflict("task.not_trashed", "The task is not in the trash");
     }
     boolean allowed =
         switch (action) {
@@ -129,6 +137,9 @@ class PermissionService implements Permissions {
         };
     if (!allowed) {
       throw forbidden();
+    }
+    if (!target.trashed() && action == Action.RESTORE) {
+      throw TaskflowException.conflict("task.not_trashed", "The task is not in the trash");
     }
     if (loc.archived() && action != Action.VIEW && action != Action.RESTORE) {
       throw archived();

@@ -57,6 +57,39 @@
         "required" : [ "role" ],
         "type" : "object"
       },
+      "ChecklistView" : {
+        "properties" : {
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ItemView"
+            },
+            "type" : "array"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "taskId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "CreateChecklistRequest" : {
+        "properties" : {
+          "name" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "name" ],
+        "type" : "object"
+      },
       "CreateInviteRequest" : {
         "properties" : {
           "email" : {
@@ -71,6 +104,29 @@
           }
         },
         "required" : [ "email", "role" ],
+        "type" : "object"
+      },
+      "CreateItemRequest" : {
+        "properties" : {
+          "afterId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "assigneeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "beforeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "text" : {
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "text" ],
         "type" : "object"
       },
       "CreateLocationRequest" : {
@@ -163,6 +219,15 @@
         "required" : [ "name" ],
         "type" : "object"
       },
+      "DuplicateTaskRequest" : {
+        "properties" : {
+          "listId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "GrantView" : {
         "properties" : {
           "createdAt" : {
@@ -228,6 +293,25 @@
           },
           "workspaceId" : {
             "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ItemView" : {
+        "properties" : {
+          "assigneeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "checked" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "text" : {
             "type" : "string"
           }
         },
@@ -314,6 +398,28 @@
         },
         "type" : "object"
       },
+      "MoveTaskRequest" : {
+        "properties" : {
+          "afterId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "beforeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "listId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "statusId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "listId" ],
+        "type" : "object"
+      },
       "PageGrantView" : {
         "properties" : {
           "items" : {
@@ -361,6 +467,20 @@
           "items" : {
             "items" : {
               "$ref" : "#/components/schemas/TaskView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PageTrashItem" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TrashItem"
             },
             "type" : "array"
           },
@@ -637,6 +757,30 @@
         },
         "type" : "object"
       },
+      "TrashItem" : {
+        "properties" : {
+          "deletedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "purgeAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "subtaskCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "task" : {
+            "$ref" : "#/components/schemas/TaskView"
+          },
+          "trashBatchId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "TreeNode" : {
         "properties" : {
           "archived" : {
@@ -661,6 +805,45 @@
           },
           "type" : {
             "enum" : [ "SPACE", "FOLDER", "LIST" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateChecklistRequest" : {
+        "properties" : {
+          "afterId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "beforeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateItemRequest" : {
+        "properties" : {
+          "afterId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "assigneeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "beforeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "checked" : {
+            "type" : "boolean"
+          },
+          "text" : {
             "type" : "string"
           }
         },
@@ -877,6 +1060,153 @@
         "tags" : [ "auth-controller" ]
       }
     },
+    "/api/v1/checklist-items/{id}" : {
+      "delete" : {
+        "operationId" : "deleteItem",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "checklist-controller" ]
+      },
+      "patch" : {
+        "operationId" : "updateItem",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateItemRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChecklistView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "checklist-controller" ]
+      }
+    },
+    "/api/v1/checklists/{id}" : {
+      "delete" : {
+        "operationId" : "delete_3",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "checklist-controller" ]
+      },
+      "patch" : {
+        "operationId" : "update_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateChecklistRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChecklistView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "checklist-controller" ]
+      }
+    },
+    "/api/v1/checklists/{id}/items" : {
+      "post" : {
+        "operationId" : "addItem",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateItemRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChecklistView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "checklist-controller" ]
+      }
+    },
     "/api/v1/invites/{token}" : {
       "get" : {
         "operationId" : "preview",
@@ -931,7 +1261,7 @@
     },
     "/api/v1/lists/{id}/tasks" : {
       "post" : {
-        "operationId" : "create_3",
+        "operationId" : "create_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -968,7 +1298,7 @@
     },
     "/api/v1/locations" : {
       "post" : {
-        "operationId" : "create_2",
+        "operationId" : "create_3",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -996,7 +1326,7 @@
     },
     "/api/v1/locations/{id}" : {
       "delete" : {
-        "operationId" : "delete_1",
+        "operationId" : "delete_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1103,7 +1433,7 @@
     },
     "/api/v1/locations/{id}/grants" : {
       "get" : {
-        "operationId" : "list_3",
+        "operationId" : "list_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1199,7 +1529,7 @@
     },
     "/api/v1/locations/{id}/move" : {
       "post" : {
-        "operationId" : "move",
+        "operationId" : "move_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1395,7 +1725,7 @@
     },
     "/api/v1/tasks" : {
       "get" : {
-        "operationId" : "list_2",
+        "operationId" : "list_3",
         "parameters" : [ {
           "in" : "query",
           "name" : "locationId",
@@ -1452,6 +1782,31 @@
       }
     },
     "/api/v1/tasks/{id}" : {
+      "delete" : {
+        "operationId" : "delete_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-tree-controller" ]
+      },
       "get" : {
         "operationId" : "get_2",
         "parameters" : [ {
@@ -1518,6 +1873,185 @@
           }
         },
         "tags" : [ "task-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}/checklists" : {
+      "get" : {
+        "operationId" : "list_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChecklistView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "checklist-controller" ]
+      },
+      "post" : {
+        "operationId" : "create_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateChecklistRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChecklistView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "checklist-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}/duplicate" : {
+      "post" : {
+        "operationId" : "duplicate",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DuplicateTaskRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TaskView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-tree-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}/move" : {
+      "post" : {
+        "operationId" : "move",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MoveTaskRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TaskView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-tree-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}/restore" : {
+      "post" : {
+        "operationId" : "restore",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TaskView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-tree-controller" ]
       }
     },
     "/api/v1/workspaces" : {
@@ -1930,6 +2464,48 @@
           }
         },
         "tags" : [ "task-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/trash" : {
+      "get" : {
+        "operationId" : "trash",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageTrashItem"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-tree-controller" ]
       }
     },
     "/api/v1/workspaces/{id}/tree" : {

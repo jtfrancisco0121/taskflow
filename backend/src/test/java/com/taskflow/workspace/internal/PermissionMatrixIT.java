@@ -294,4 +294,47 @@ class PermissionMatrixIT extends IntegrationTest {
           .isEqualTo(200);
     }
   }
+
+  @Test
+  void moveDuplicateDeleteRestoreTasksAndEditChecklists_ownerAdminMemberNotGuest() {
+    for (int i = 0; i < ROLES.size(); i++) {
+      Ws ws = workspaceWithAllRoles();
+      String role = ROLES.get(i);
+      UUID space = space(ws.owner(), ws.id(), "S");
+      UUID list = list(ws.owner(), space, "L");
+      UUID other = list(ws.owner(), space, "Other");
+      put("/api/v1/locations/" + space + "/grants/" + ws.guest().id(), ws.owner().token(), null);
+      UUID toMove = task(ws.owner(), list, "m");
+      UUID toCopy = task(ws.owner(), list, "c");
+      UUID toDelete = task(ws.owner(), list, "d");
+      UUID toCheck = task(ws.owner(), list, "k");
+      boolean ok = i < 3;
+      String token = ws.by(role).token();
+      assertThat(
+              post(
+                      "/api/v1/tasks/" + toMove + "/move",
+                      token,
+                      Map.of("listId", other),
+                      "If-Match",
+                      "\"1\"")
+                  .status())
+          .as("move as %s", role)
+          .isEqualTo(ok ? 200 : 403);
+      assertThat(post("/api/v1/tasks/" + toCopy + "/duplicate", token, Map.of()).status())
+          .as("duplicate as %s", role)
+          .isEqualTo(ok ? 201 : 403);
+      assertThat(delete("/api/v1/tasks/" + toDelete, token, "If-Match", "\"1\"").status())
+          .as("delete as %s", role)
+          .isEqualTo(ok ? 204 : 403);
+      assertThat(
+              post("/api/v1/tasks/" + toDelete + "/restore", token, null, "If-Match", "\"2\"")
+                  .status())
+          .as("restore as %s", role)
+          .isEqualTo(ok ? 200 : 403);
+      assertThat(
+              post("/api/v1/tasks/" + toCheck + "/checklists", token, Map.of("name", "c")).status())
+          .as("checklist as %s", role)
+          .isEqualTo(ok ? 201 : 403);
+    }
+  }
 }
