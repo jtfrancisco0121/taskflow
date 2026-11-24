@@ -70,7 +70,8 @@ class OpenApiContractIT {
           "/api/v1/workspaces/{id}/views",
           "/api/v1/views",
           "/api/v1/views/{id}",
-          "/api/v1/views/query");
+          "/api/v1/views/query",
+          "/api/v1/workspaces/{id}/search");
 
   private static final Path SPEC = Path.of("..", "docs", "api", "openapi.json");
 

@@ -49,7 +49,9 @@ adds detail.
     (`NULLS NOT DISTINCT`, partial), which replaces the virtual one. Deleting a stored default reverts to
     the virtual one. The strings `default-list` and `default-board` are frontend route ids and never reach
     an API path.
-13. **Search (AD-18).** See the migration `V202611250920__task_search.sql` for the column that was used.
+13. **Search (AD-18).** PostgreSQL 18 accepts `jsonb_path_query_array` (the immutable, non-`_tz` variant) in
+    the `STORED` generated column, so the `search_text` fallback was not needed. Search uses the `english`
+    configuration, `websearch_to_tsquery` and a keyset on `(ts_rank desc, id)`.
 14. **Frontend libraries.** Exact versions are pinned in `frontend/package-lock.json`; see the Versions
     section below.
 15. **Seed idempotency** looks entities up by stable name; `Idempotency-Key` is only a retry guard because
