@@ -54,7 +54,18 @@ cd backend && SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 cd frontend && npm ci && npm run dev
 ```
 
-The home page shows the backend version fetched from `GET /api/v1/meta`.
+Open http://localhost:5173, create an account (Sign up), then a Workspace, a Space and a List, and add tasks from the List view. The Task panel is at `/t/<task id>`, and a Space or List menu in the sidebar opens statuses, rename, privacy and move.
+
+### Frontend tests
+
+```bash
+cd frontend
+npm test                # Vitest + Testing Library: component tests, HTTP stubbed through the generated client
+npm run lint && npm run typecheck
+npm run test:e2e        # Playwright (Chromium): needs the infrastructure and the backend running, see below
+```
+
+The Playwright flows sign up a unique account per run and drive the real backend through the Vite `/api` proxy. Start the infrastructure and the backend as in steps 1 and 2 above (the backend with `SPRING_PROFILES_ACTIVE=dev`), install the browser once with `npx playwright install chromium`, then run `npm run test:e2e` (it starts Vite itself, or reuses one on :5173). CI runs the same flows in the `e2e` job. The refresh cookie is `Secure`; Chromium and Firefox accept it on `http://localhost`, Safari may not, so session restore after a reload can fail there in development.
 
 ### Backend settings
 

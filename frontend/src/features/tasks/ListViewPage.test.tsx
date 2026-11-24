@@ -69,6 +69,7 @@ describe('ListViewPage', () => {
     expect(within(row1).getByText('ACME-1')).toBeVisible()
     const request = stub.calls.find((c) => c.url.pathname === '/api/v1/tasks')!
     expect(request.url.searchParams.get('locationId')).toBe('s1')
+    expect(request.url.searchParams.has('workspaceId')).toBe(false) // the API accepts exactly one
     expect(request.url.searchParams.get('limit')).toBe('50')
     // one statuses request per distinct List
     expect(stub.calls.filter((c) => c.url.pathname.endsWith('/statuses')).length).toBe(2)
