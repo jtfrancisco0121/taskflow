@@ -9,6 +9,22 @@ import { createCachePatcher } from './cachePatcher'
 import { RealtimeContext } from './RealtimeContext'
 import { createRealtimeClient, topicsFor, type LiveEvent, type RealtimeClient } from './stompClient'
 
+/** True when the JWT's `exp` is past (or within 15s); an unreadable token counts as usable. */
+export function isExpiring(token: string, now = Date.now()): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return typeof payload.exp === 'number' && payload.exp * 1000 - now < 15000
+  } catch {
+    return false
+  }
+}
+
+/** The server closes the socket at token expiry, so a reconnect must not reuse an expired token. */
+export async function freshToken(): Promise<string | null> {
+  const token = getAccessToken()
+  return token && !isExpiring(token) ? token : await refreshSession()
+}
+
 const wsUrl = () =>
   `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`
 
@@ -35,7 +51,7 @@ export function LiveUpdates({
       createRealtimeClient({
         url: wsUrl(),
         clientId,
-        token: async () => getAccessToken() ?? (await refreshSession()),
+        token: freshToken,
       }),
     [],
   )
