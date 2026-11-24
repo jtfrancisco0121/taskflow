@@ -67,6 +67,13 @@ class EventRouter {
           out.add("/topic/workspace/" + workspaceId);
         }
       }
+      case "notification" -> {
+        // A notification reaches only its recipient: never a Workspace or Location topic (AD-12).
+        UUID recipient = uuid(payload.get("recipientId"));
+        if (recipient != null) {
+          out.add("/topic/user/" + recipient);
+        }
+      }
       case "automation" -> {
         // Rule changes follow the Location chain of the rule's Location (AD-12).
         UUID locationId = uuid(payload.get("locationId"));

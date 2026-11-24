@@ -78,5 +78,14 @@ class TransientFailuresTest {
         .isFalse();
     assertThat(TransientFailures.isTransient(new IllegalArgumentException("bad json"))).isFalse();
     assertThat(TransientFailures.isTransient(null)).isFalse();
+    // a message that cannot be converted fails the same way every time, wrapper included
+    var conversion =
+        new org.springframework.amqp.support.converter.MessageConversionException("bad");
+    assertThat(TransientFailures.isTransient(conversion)).isFalse();
+    assertThat(
+            TransientFailures.isTransient(
+                new org.springframework.amqp.rabbit.support.ListenerExecutionFailedException(
+                    "Failed to convert message", conversion)))
+        .isFalse();
   }
 }

@@ -4,6 +4,9 @@ import java.sql.SQLException;
 import java.sql.SQLRecoverableException;
 import java.sql.SQLTransientException;
 import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
+import org.springframework.amqp.rabbit.support.ListenerExecutionFailedException;
+import org.springframework.amqp.support.converter.MessageConversionException;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.dao.QueryTimeoutException;
@@ -48,7 +51,7 @@ public final class TransientFailures {
         || t instanceof QueryTimeoutException
         || t instanceof SQLTransientException
         || t instanceof SQLRecoverableException
-        || t instanceof AmqpException) {
+        || brokerFailure(t)) {
       return true;
     }
     if (t instanceof TransactionSystemException tse) {
@@ -56,6 +59,18 @@ public final class TransientFailures {
       return tse.getCause() != null && isTransientSql(tse.getCause());
     }
     return t instanceof SQLException sql && transientState(sql.getSQLState());
+  }
+
+  /**
+   * A broker or connection problem. The wrapper the container puts around a listener failure, a
+   * message that cannot be converted and an explicit reject are AMQP exceptions too, but say
+   * nothing about the broker: a retry would fail the same way.
+   */
+  private static boolean brokerFailure(Throwable t) {
+    return t instanceof AmqpException
+        && !(t instanceof ListenerExecutionFailedException
+            || t instanceof MessageConversionException
+            || t instanceof AmqpRejectAndDontRequeueException);
   }
 
   private static boolean isTransientSql(Throwable cause) {

@@ -63,7 +63,8 @@ Package root: `com.taskflow`. Each module owns its tables and exposes a small pu
 | `view` | Saved views and the query compiler that turns a view config into SQL |
 | `field` | Statuses and custom fields: definitions, inheritance, validation, value serialization |
 | `doc` | Docs and nested pages |
-| `automation` | Rule storage, trigger matching, action execution, scheduler |
+| `automation` | Rule storage, trigger matching, action execution, run log |
+| `notification` | Notifications, task watchers, the inbox, preferences, the email digest hook (decision 009) |
 | `timetracking` | Time entries, estimates, timesheets |
 | `realtime` | STOMP gateway, topic permission checks, presence |
 | `shared` | Outbox, event types, error handling, pagination, rate limiting |

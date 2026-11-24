@@ -12,6 +12,7 @@ import {
 } from '../dependencies'
 import { formatValue, useLocationFields } from '../fields'
 import { useLocationStatuses } from '../statuses'
+import { WatchControl } from '../notifications'
 import { useMembers } from '../workspace'
 import { ConflictBanner, type ConflictChange } from './ConflictBanner'
 import { CustomFieldsGroup } from './CustomFieldsGroup'
@@ -251,14 +252,17 @@ function TaskPanelBody({ task, panelRef, onClose, onKeyDown, children }: BodyPro
             </button>
           )}
         </span>
-        <button
-          type="button"
-          aria-label="Close task panel"
-          onClick={onClose}
-          className="rounded px-2 text-xl leading-none hover:bg-slate-100"
-        >
-          ×
-        </button>
+        <span className="flex items-center gap-2">
+          <WatchControl taskId={task.id!} />
+          <button
+            type="button"
+            aria-label="Close task panel"
+            onClick={onClose}
+            className="rounded px-2 text-xl leading-none hover:bg-slate-100"
+          >
+            ×
+          </button>
+        </span>
       </header>
       {conflict && (
         <ConflictBanner

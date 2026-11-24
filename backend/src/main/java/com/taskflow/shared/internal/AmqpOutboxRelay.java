@@ -48,6 +48,7 @@ class AmqpOutboxRelay {
       String payload,
       String actorType,
       UUID actorId,
+      UUID actorKeyId,
       Timestamp createdAt) {}
 
   private final JdbcTemplate jdbc;
@@ -115,7 +116,7 @@ class AmqpOutboxRelay {
                 + " (queue_claimed_until IS NULL OR queue_claimed_until < now())"
                 + " ORDER BY created_at, id LIMIT 500 FOR UPDATE SKIP LOCKED)"
                 + " RETURNING id, workspace_id, entity, entity_id, type, payload::text AS"
-                + " payload, actor_type, actor_id, created_at",
+                + " payload, actor_type, actor_id, actor_key_id, created_at",
             (rs, i) ->
                 new Row(
                     rs.getObject("id", UUID.class),
@@ -126,6 +127,7 @@ class AmqpOutboxRelay {
                     rs.getString("payload"),
                     rs.getString("actor_type"),
                     rs.getObject("actor_id", UUID.class),
+                    rs.getObject("actor_key_id", UUID.class),
                     rs.getTimestamp("created_at")),
             (double) leaseSeconds));
   }
@@ -191,6 +193,9 @@ class AmqpOutboxRelay {
       n.set("payload", mapper.readTree(r.payload()));
       n.put("actorType", r.actorType());
       n.put("actorId", r.actorId().toString());
+      if (r.actorKeyId() != null) {
+        n.put("actorKeyId", r.actorKeyId().toString());
+      }
       n.put("createdAt", r.createdAt().toInstant().toString());
       MessageProperties props = new MessageProperties();
       props.setMessageId(r.id().toString());

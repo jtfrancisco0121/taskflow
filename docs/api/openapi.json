@@ -2249,6 +2249,36 @@
         },
         "type" : "object"
       },
+      "WatchView" : {
+        "properties" : {
+          "count" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Watcher"
+            },
+            "type" : "array"
+          },
+          "watching" : {
+            "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
+      "Watcher" : {
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "WorkspaceView" : {
         "properties" : {
           "createdAt" : {
@@ -4107,6 +4137,85 @@
           }
         },
         "tags" : [ "task-tree-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}/watch" : {
+      "delete" : {
+        "operationId" : "unwatch",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WatchView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "watch-controller" ]
+      },
+      "put" : {
+        "operationId" : "watch",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WatchView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "watch-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}/watchers" : {
+      "get" : {
+        "operationId" : "watchers",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WatchView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "watch-controller" ]
       }
     },
     "/api/v1/views" : {

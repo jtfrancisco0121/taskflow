@@ -15,6 +15,7 @@ class ModularityTests {
           "doc",
           "field",
           "identity",
+          "notification",
           "realtime",
           "shared",
           "task",
@@ -23,7 +24,7 @@ class ModularityTests {
           "workspace");
 
   @Test
-  void modulesAreExactlyTheTenFromTheArchitecture() {
+  void modulesAreExactlyTheElevenFromTheArchitecture() {
     ApplicationModules modules = ApplicationModules.of(TaskflowApplication.class);
     assertThat(modules.stream().map(ApplicationModule::getIdentifier).map(Object::toString))
         .containsExactlyInAnyOrderElementsOf(EXPECTED);

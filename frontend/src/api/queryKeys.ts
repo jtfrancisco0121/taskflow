@@ -30,6 +30,8 @@ export const queryKeys = {
   /** Automation rules of a location (own and inherited), under ['location', id] so a location event refreshes them. */
   automations: (locationId: string) => ['location', locationId, 'automations'] as const,
   automationRuns: (ruleId: string) => ['automation', ruleId, 'runs'] as const,
+  /** Who watches a task, under ['task', id] so a task refresh reaches it. */
+  watchers: (taskId: string) => ['task', taskId, 'watchers'] as const,
   task: (taskId: string) => ['task', taskId] as const,
   taskAll: () => ['task'] as const,
   comments: (taskId: string) => ['task', taskId, 'comments'] as const,

@@ -168,4 +168,14 @@ class StompSecurityIT extends StompTestSupport {
       assertThat(c.awaitError(3000)).isNotNull();
     }
   }
+
+  @Test
+  void aUserSubscribesOnlyToTheirOwnNotificationTopic() throws Exception {
+    Fix f = fixture();
+    expectRefused(f.ws().member().token(), "/topic/user/" + f.ws().admin().id());
+    try (Conn own = connect(port, f.ws().member().token())) {
+      own.subscribe("/topic/user/" + f.ws().member().id());
+      assertThat(own.awaitError(800)).isNull();
+    }
+  }
 }
