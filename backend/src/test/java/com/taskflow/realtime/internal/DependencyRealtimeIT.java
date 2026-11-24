@@ -17,17 +17,21 @@ import org.springframework.test.context.TestPropertySource;
 @TestPropertySource(properties = "taskflow.outbox.enabled=true")
 class DependencyRealtimeIT extends StompTestSupport {
 
+  /** Every frame seen so far, so the order the relay delivers two events in does not matter. */
+  private final java.util.List<JsonNode> seen = new ArrayList<>();
+
   private JsonNode frameOfType(Conn c, String type, UUID entity, long millis) throws Exception {
     long deadline = System.currentTimeMillis() + millis;
     while (System.currentTimeMillis() < deadline) {
-      String raw = c.messages.poll(200, TimeUnit.MILLISECONDS);
-      if (raw == null) {
-        continue;
+      for (JsonNode m : seen) {
+        if (type.equals(m.get("type").asText())
+            && entity.toString().equals(m.get("entityId").asText())) {
+          return m;
+        }
       }
-      JsonNode m = mapper.readTree(raw);
-      if (type.equals(m.get("type").asText())
-          && entity.toString().equals(m.get("entityId").asText())) {
-        return m;
+      String raw = c.messages.poll(200, TimeUnit.MILLISECONDS);
+      if (raw != null) {
+        seen.add(mapper.readTree(raw));
       }
     }
     return null;
