@@ -1,7 +1,9 @@
 package com.taskflow.workspace.internal;
 
+import com.taskflow.identity.ServiceAccounts;
 import com.taskflow.identity.UserDirectory;
 import com.taskflow.identity.UserInfo;
+import com.taskflow.shared.ActorType;
 import com.taskflow.shared.CurrentActor;
 import com.taskflow.shared.EventRecorder;
 import com.taskflow.shared.Ids;
@@ -42,22 +44,26 @@ class WorkspaceService {
   private final PermissionService permissions;
   private final MembershipLookup memberships;
   private final UserDirectory users;
+  private final ServiceAccounts serviceAccounts;
 
   WorkspaceService(
       JdbcTemplate jdbc,
       EventRecorder events,
       PermissionService permissions,
       MembershipLookup memberships,
-      UserDirectory users) {
+      UserDirectory users,
+      ServiceAccounts serviceAccounts) {
     this.jdbc = jdbc;
     this.events = events;
     this.permissions = permissions;
     this.memberships = memberships;
     this.users = users;
+    this.serviceAccounts = serviceAccounts;
   }
 
   @Transactional
   WorkspaceView create(String name, String requestedKey) {
+    requireUser();
     UUID userId = CurrentActor.userId();
     String key = requestedKey != null ? requestedKey : deriveKey(name);
     UUID id = Ids.newId();
@@ -73,6 +79,15 @@ class WorkspaceService {
 
   @Transactional(readOnly = true)
   Page<WorkspaceView> list(String cursor, Integer requestedLimit) {
+    if (CurrentActor.require().type() != ActorType.USER) {
+      return new Page<>(
+          serviceAccounts
+              .workspaceOf(CurrentActor.userId())
+              .flatMap(w -> memberships.role(w, CurrentActor.userId()).map(r -> view(w, r)))
+              .stream()
+              .toList(),
+          null);
+    }
     int limit = PageCursor.limit(requestedLimit);
     List<String> after = PageCursor.decode(cursor, 1);
     List<WorkspaceView> rows =
@@ -196,6 +211,7 @@ class WorkspaceService {
 
   @Transactional
   void leave(UUID workspaceId) {
+    requireUser();
     UUID userId = CurrentActor.userId();
     permissions.roleInWorkspace(workspaceId);
     lockWorkspace(workspaceId);
@@ -248,18 +264,40 @@ class WorkspaceService {
     jdbc.query("SELECT 1 FROM workspace WHERE id = ? FOR UPDATE", rs -> {}, workspaceId);
   }
 
+  /** The caller's view of a Workspace; the role comes from roleOf, so agents resolve too. */
   private WorkspaceView view(UUID id, UUID userId) {
+    Role role =
+        memberships
+            .role(id, userId)
+            .orElseThrow(
+                () -> TaskflowException.notFound("workspace.not_found", "Workspace not found"));
+    return view(id, role);
+  }
+
+  private WorkspaceView view(UUID id, Role role) {
     return jdbc
         .query(
-            "SELECT w.id, w.name, w.key, w.created_at, m.role FROM workspace w JOIN workspace_member m"
-                + " ON m.workspace_id = w.id WHERE w.id = ? AND m.user_id = ? AND w.deleted_at IS NULL",
-            WORKSPACE,
-            id,
-            userId)
+            "SELECT id, name, key, created_at FROM workspace WHERE id = ? AND deleted_at IS NULL",
+            (rs, i) ->
+                new WorkspaceView(
+                    rs.getObject("id", UUID.class),
+                    rs.getString("name"),
+                    rs.getString("key"),
+                    role,
+                    rs.getTimestamp("created_at").toInstant()),
+            id)
         .stream()
         .findFirst()
         .orElseThrow(
             () -> TaskflowException.notFound("workspace.not_found", "Workspace not found"));
+  }
+
+  /** A service account belongs to one Workspace and cannot create, join or leave Workspaces. */
+  private static void requireUser() {
+    if (CurrentActor.require().type() != ActorType.USER) {
+      throw TaskflowException.forbidden(
+          "auth.forbidden", "Only a person can create or leave a Workspace");
+    }
   }
 
   static String deriveKey(String name) {

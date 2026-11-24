@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ActivityView } from '../../api/types'
-import { activitySentences, type NameLookup } from './activitySentence'
+import { actorLabel, activitySentences, type NameLookup } from './activitySentence'
 
 const lookup: NameLookup = {
   statusName: (id) => ({ s1: 'To do', s2: 'Done' })[id],
@@ -91,5 +91,29 @@ describe('activitySentences', () => {
       lookup,
     )
     expect(line).not.toMatch(UUID_RE)
+  })
+})
+
+describe('actorLabel', () => {
+  it('UJ-2: a service account is "name (key key-name)"', () => {
+    expect(
+      actorLabel({
+        actorType: 'SERVICE_ACCOUNT',
+        actorName: 'triage-agent',
+        actorKeyName: 'CI-1',
+      }),
+    ).toBe('triage-agent (key CI-1)')
+  })
+
+  it('a service account whose key has no name, a user and a missing name fall back', () => {
+    expect(actorLabel({ actorType: 'SERVICE_ACCOUNT', actorName: 'triage-agent' })).toBe(
+      'triage-agent',
+    )
+    expect(actorLabel({ actorType: 'USER', actorName: 'Maya Lopez' })).toBe('Maya Lopez')
+    expect(actorLabel({ actorType: 'USER' })).toBe('Someone')
+  })
+
+  it('a user without an email still has a display name to show', () => {
+    expect(actorLabel({ actorType: 'USER', actorName: 'Maya Lopez' })).not.toMatch(/@/)
   })
 })

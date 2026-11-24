@@ -47,6 +47,11 @@ taskflow:
     # Publishes committed outbox rows to Redis (AD-11).
     enabled: true
     interval-ms: 250
+  api-keys:
+    rate-limit:
+      # Calls per key per minute, by plan (PRD open question 6). Every Workspace is on "default".
+      plans:
+        default: 100
   app-url: ${TASKFLOW_APP_URL:http://localhost:5173}
   jwt:
     # No default outside the dev profile: startup fails when it is empty or shorter than 32 bytes.

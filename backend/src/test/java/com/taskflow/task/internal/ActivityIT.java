@@ -71,6 +71,21 @@ class ActivityIT extends TaskTestBase {
     assertThat(items.get(0).get("actorName").asText()).isEqualTo("Admin");
     assertThat(items.get(7).get("actorId").asText()).isEqualTo(m.id().toString());
     assertThat(items.get(7).get("actorName").asText()).isEqualTo("Member");
+    // A change made with a JWT carries no API key (S1).
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM activity_event WHERE entity_id = ? AND actor_key_id IS NOT"
+                    + " NULL",
+                Integer.class,
+                task))
+        .isZero();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM outbox_event WHERE entity_id = ? AND actor_key_id IS NOT"
+                    + " NULL",
+                Integer.class,
+                task))
+        .isZero();
     assertThat(items.get(5).get("payload").at("/changes/statusId/to").asText())
         .isEqualTo(statusId(f.space(), "in progress").toString());
     assertThat(items.get(6).get("payload").get("version").asLong()).isEqualTo(2);
@@ -94,5 +109,39 @@ class ActivityIT extends TaskTestBase {
     assertThat(first.at("/nextCursor").isNull()).isFalse();
     assertThat(get("/api/v1/tasks/" + task + "/activity?cursor=junk", m.token()).text("/code"))
         .isEqualTo("page.invalid_cursor");
+  }
+
+  @Test
+  void aKeyChangeNamesTheServiceAccountAndTheKey() {
+    Fix f = fixture();
+    TestUser admin = f.ws().admin();
+    UUID task = task(admin, f.list(), "T");
+    String base = "/api/v1/workspaces/" + f.ws().id() + "/service-accounts";
+    UUID account = post(base, admin.token(), Map.of("name", "triage-agent")).uuid("/id");
+    Resp created = post(base + "/" + account + "/api-keys", admin.token(), Map.of("name", "CI-2"));
+    String secret = created.text("/secret");
+    UUID ci2 = created.uuid("/key/id");
+    assertThat(
+            patch("/api/v1/tasks/" + task, secret, Map.of("title", "By agent"), "If-Match", "\"1\"")
+                .status())
+        .isEqualTo(200);
+
+    JsonNode entry = all(admin, task, 50).get(0);
+    assertThat(entry.get("type").asText()).isEqualTo("task.updated");
+    assertThat(entry.get("actorType").asText()).isEqualTo("SERVICE_ACCOUNT");
+    assertThat(entry.get("actorId").asText()).isEqualTo(account.toString());
+    assertThat(entry.get("actorName").asText()).isEqualTo("triage-agent");
+    assertThat(entry.get("actorKeyId").asText()).isEqualTo(ci2.toString());
+    assertThat(entry.get("actorKeyName").asText()).isEqualTo("CI-2");
+    // and the row carries the key id
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT actor_key_id FROM activity_event WHERE entity_id = ? AND type ="
+                    + " 'task.updated'",
+                UUID.class,
+                task))
+        .isEqualTo(ci2);
+    // a person's entries have no key
+    assertThat(all(admin, task, 50).get(1).get("actorKeyName").isNull()).isTrue();
   }
 }

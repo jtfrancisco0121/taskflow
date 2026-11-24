@@ -22,17 +22,26 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
 /** Stateless JWT resource server (AD-4, AD-5). Roles resolve per request, not from the token. */
 @Configuration
 @EnableMethodSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, ApiKeyProperties.class})
 class SecurityConfig {
 
   @Bean
   SecurityFilterChain securityFilterChain(
-      HttpSecurity http, JwtService jwt, ProblemResponseWriter problems) throws Exception {
+      HttpSecurity http,
+      JwtService jwt,
+      ProblemResponseWriter problems,
+      ApiKeyAuthenticator apiKeys,
+      ApiKeyAdmission admission,
+      ApiKeyUsageRecorder usage)
+      throws Exception {
     http.csrf(AbstractHttpConfigurer::disable)
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(a ->
@@ -68,8 +77,14 @@ class SecurityConfig {
                 .accessDeniedHandler((request, response, ex) ->
                     problems.write(
                         response, HttpStatus.FORBIDDEN, "auth.forbidden", "Access denied")))
+        // Not a bean on purpose: a Filter bean would also be registered with the servlet container
+        // and run (and rate-limit) a second time.
+        .addFilterBefore(
+            new ApiKeyAuthenticationFilter(apiKeys, admission, usage, problems),
+            BearerTokenAuthenticationFilter.class)
         .oauth2ResourceServer(o ->
-            o.jwt(j -> j.decoder(jwt.decoder()).jwtAuthenticationConverter(actorConverter()))
+            o.bearerTokenResolver(keyAwareBearerTokenResolver())
+                .jwt(j -> j.decoder(jwt.decoder()).jwtAuthenticationConverter(actorConverter()))
                 .authenticationEntryPoint((request, response, ex) ->
                     problems.write(
                         response,
@@ -77,6 +92,18 @@ class SecurityConfig {
                         "auth.unauthenticated",
                         "Missing, invalid or expired access token")));
     return http.build();
+  }
+
+  /**
+   * The default resolver, except that an API key is not a JWT: leave it to the key filter instead
+   * of failing it in the JWT decoder.
+   */
+  private static BearerTokenResolver keyAwareBearerTokenResolver() {
+    DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
+    return request -> {
+      String token = delegate.resolve(request);
+      return token != null && token.startsWith(ApiKeyAuthenticator.PREFIX) ? null : token;
+    };
   }
 
   /** The principal is an {@link Actor}; modules read it only through CurrentActor. */

@@ -1,5 +1,6 @@
 package com.taskflow.workspace.internal;
 
+import com.taskflow.identity.ServiceAccounts;
 import com.taskflow.workspace.Role;
 import com.taskflow.workspace.WorkspaceQuery;
 import java.util.Collection;
@@ -14,13 +15,39 @@ import org.springframework.stereotype.Component;
 class WorkspaceQueryImpl implements WorkspaceQuery {
 
   private final JdbcTemplate jdbc;
+  private final ServiceAccounts serviceAccounts;
 
-  WorkspaceQueryImpl(JdbcTemplate jdbc) {
+  WorkspaceQueryImpl(JdbcTemplate jdbc, ServiceAccounts serviceAccounts) {
     this.jdbc = jdbc;
+    this.serviceAccounts = serviceAccounts;
   }
 
+  /**
+   * A member has the role of their workspace_member row. A service account is never a member: it is
+   * ADMIN in the one Workspace it belongs to and has no role anywhere else (SA-2).
+   */
   @Override
   public Optional<Role> roleOf(UUID workspaceId, UUID userId) {
+    Optional<Role> member = memberRole(workspaceId, userId);
+    if (member.isPresent()) {
+      return member;
+    }
+    return serviceAccounts
+        .workspaceOf(userId)
+        .filter(workspaceId::equals)
+        .filter(this::isLive)
+        .map(w -> Role.ADMIN);
+  }
+
+  private boolean isLive(UUID workspaceId) {
+    return !jdbc.queryForList(
+            "SELECT 1 FROM workspace WHERE id = ? AND deleted_at IS NULL",
+            Integer.class,
+            workspaceId)
+        .isEmpty();
+  }
+
+  private Optional<Role> memberRole(UUID workspaceId, UUID userId) {
     return jdbc
         .queryForList(
             "SELECT m.role FROM workspace_member m JOIN workspace w ON w.id = m.workspace_id"

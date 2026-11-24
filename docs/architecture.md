@@ -171,7 +171,7 @@ Browsers receive only events they are allowed to see, so the subscription handle
 | Tasks | `GET /tasks?view=...`, `POST /lists/{id}/tasks`, `GET /tasks/{id}`, `PATCH /tasks/{id}`, `POST /tasks/{id}/move`, `DELETE /tasks/{id}` |
 | Views | `GET /locations/{id}/views`, `POST /views`, `GET /views/{id}/tasks` |
 | Comments and time | `GET` and `POST /tasks/{id}/comments`, `POST /tasks/{id}/time-entries` |
-| Service accounts and keys | `GET` and `POST /service-accounts`, `GET` and `POST /service-accounts/{id}/api-keys`, `DELETE /service-accounts/{id}/api-keys/{keyId}` |
+| Service accounts and keys | `GET` and `POST /workspaces/{id}/service-accounts`, `GET` and `PATCH .../{id}`, `POST .../{id}/disable` and `/enable`, `GET` and `POST .../{id}/api-keys`, `DELETE .../{id}/api-keys/{keyId}`, `GET .../{id}/audit` and `/activity` (people only) |
 
 ### Service accounts and API keys
 
@@ -180,12 +180,12 @@ Browsers receive only events they are allowed to see, so the subscription handle
 - A key carries the full access of its service account. There are no per-key scopes.
 - Authentication filter: read `Authorization`. If the value is `Bearer <key>` or a raw key starting with `tf_sk_`, hash it, look it up, check it is not revoked or expired and that the service account is not disabled, then build an authentication whose principal is the service account.
 - Every change is logged with the service account and the key as the actor, so the feed reads "changed by triage-agent (key CI-1)".
-- Rate limit per key per minute with a Redis token bucket. Responses carry `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`. Exceeding the limit returns HTTP 429. Limits are set per Workspace plan. There is no daily cap.
+- Rate limit per key per minute with a Redis fixed one-minute window (see [decision 005](decisions/005-agent-access.md)). Responses carry `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`. Exceeding the limit returns HTTP 429 with `Retry-After`. The default is 100 per minute, set per plan in `taskflow.api-keys.rate-limit.plans`. There is no daily cap.
 - A default expiry such as 90 days, and one switch for an admin to disable a service account and cut off all its keys at once.
 
 ### MCP server
 
-- An MCP endpoint inside the API (Spring AI's MCP server support or the MCP Java SDK, over streamable HTTP) exposes `search_tasks`, `get_task`, `create_task`, `update_task`, `move_task`, `delete_task`, `add_comment`, `list_locations` and `list_views`.
+- An MCP endpoint at `/api/v1/mcp` inside the API (the MCP Java SDK, stateless streamable HTTP, service-account keys only) exposes `search_tasks`, `get_task`, `create_task`, `update_task`, `move_task`, `delete_task`, `add_comment`, `list_locations` and `list_views`.
 - Each tool is a thin wrapper over an existing service method, authenticated by the same API key, so there is no second code path to secure.
 - REST and MCP calls from a key share one per-minute limit.
 - The key goes in the agent's MCP configuration or an environment variable, not in a chat prompt.
