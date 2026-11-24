@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Scans the full git history for secrets with gitleaks (config: .gitleaks.toml, optional .gitleaks-baseline.json).
+# Scans the checked-out branch's full history (HEAD, not every ref such as refs/original or other branches) for secrets with gitleaks (config: .gitleaks.toml, optional .gitleaks-baseline.json).
 # Uses a gitleaks binary on PATH, else the pinned Docker image. Exit 1 on findings.
 # Optional argument: another checkout to scan with this repo's config.
 # `--self-test` proves a newly committed secret fails the scan: it builds a throwaway repo inside the
@@ -25,12 +25,12 @@ root="$(cd "${1:-$here}" && pwd)"
 cd "$root"
 
 if command -v gitleaks >/dev/null 2>&1; then
-  args=(git --config "$here/.gitleaks.toml" --redact --no-banner --exit-code 1 --verbose)
+  args=(git --config "$here/.gitleaks.toml" --redact --no-banner --exit-code 1 --verbose --log-opts="--full-history HEAD")
   [ -f "$here/.gitleaks-baseline.json" ] && args+=(--baseline-path "$here/.gitleaks-baseline.json")
   gitleaks "${args[@]}" "$root"
 else
   command -v docker >/dev/null 2>&1 || { echo "secret-scan: neither gitleaks nor docker is available" >&2; exit 2; }
-  args=(git --config /here/.gitleaks.toml --redact --no-banner --exit-code 1 --verbose)
+  args=(git --config /here/.gitleaks.toml --redact --no-banner --exit-code 1 --verbose --log-opts="--full-history HEAD")
   [ -f "$here/.gitleaks-baseline.json" ] && args+=(--baseline-path /here/.gitleaks-baseline.json)
   # In a git worktree .git is a file pointing into the main checkout: mount the real git dir read-only too.
   common="$(git rev-parse --git-common-dir)"

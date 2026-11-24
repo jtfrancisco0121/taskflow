@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 jobs:
-  # Secret scan of the full history (scripts/secret-scan.sh, config .gitleaks.toml).
+  # Secret scan of the checked-out history (HEAD) (scripts/secret-scan.sh, config .gitleaks.toml).
   secrets:
     runs-on: ubuntu-latest
     steps:
