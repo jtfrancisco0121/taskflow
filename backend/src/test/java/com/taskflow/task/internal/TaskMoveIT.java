@@ -87,6 +87,21 @@ class TaskMoveIT extends TaskTestBase {
   }
 
   @Test
+  void aMoveAlsoCarriesATrashedSubtaskSoARestoreStaysInTheParentsList() {
+    Fix f = fixture();
+    TestUser m = f.ws().member();
+    UUID target = list(m, f.space(), "Target");
+    UUID parent = task(m, f.list(), "Parent");
+    UUID child = subtask(m, f.list(), parent, "Child");
+    assertThat(trash(m, child, 1).status()).isEqualTo(204);
+
+    Resp r = move(m, parent, 1, Map.of("listId", target));
+    assertThat(r.status()).as(r.raw()).isEqualTo(200);
+    assertThat(jdbc.queryForObject("SELECT list_id FROM task WHERE id = ?", UUID.class, child))
+        .isEqualTo(target);
+  }
+
+  @Test
   void anExplicitStatusIsUsedAndMustBeValidInTheTarget() {
     Fix f = fixture();
     TestUser m = f.ws().member();

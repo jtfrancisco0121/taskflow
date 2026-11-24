@@ -125,7 +125,7 @@ class TaskTreeService {
           Map.of("version", newVersion, "changes", changes));
       return repo.view(id);
     }
-    List<TaskRepository.SubRow> subtree = repo.subtree(id, true);
+    List<TaskRepository.SubRow> subtree = repo.subtree(id, false);
     Map<UUID, UUID> statusMap = new HashMap<>();
     UUID rootStatus =
         statusId != null ? statusId : mapStatus(task.statusId(), targetListId, statusMap);
