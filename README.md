@@ -13,8 +13,14 @@ A ClickUp-style work management app. One set of tasks, many views (List, Board, 
 ```
 backend/    Spring Boot modular monolith (API and workers)
 frontend/   React single-page app
-docs/       Architecture notes and decisions
+docs/       PRD, architecture and decisions
 ```
+
+## Docs
+
+- [Product requirements](docs/PRD.md)
+- [Architecture](docs/architecture.md)
+- [Guidance for AI agents](AGENTS.md)
 
 ## Roadmap
 
