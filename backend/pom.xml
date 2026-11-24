@@ -22,6 +22,9 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <spotless.version>3.12.0</spotless.version>
     <modulith.version>1.4.14</modulith.version>
+    <springdoc.version>2.10.1</springdoc.version>
+    <!-- Set -Dopenapi.update=true to rewrite docs/api/openapi.json instead of failing OpenApiContractIT. -->
+    <openapi.update>false</openapi.update>
   </properties>
 
   <dependencyManagement>
@@ -66,6 +69,11 @@
       <artifactId>spring-modulith-starter-core</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+      <version>${springdoc.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
       <scope>runtime</scope>
@@ -103,6 +111,13 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>build-info</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
 
       <!--
@@ -153,6 +168,9 @@
           <includes>
             <include>**/*IT.java</include>
           </includes>
+          <systemPropertyVariables>
+            <openapi.update>${openapi.update}</openapi.update>
+          </systemPropertyVariables>
         </configuration>
         <executions>
           <execution>
