@@ -219,4 +219,58 @@ class PermissionMatrixIT extends IntegrationTest {
                 .status())
         .isEqualTo(403);
   }
+
+  @Test
+  void defineOrResetStatuses_memberOnlyOnFolderAndList() {
+    for (int i = 0; i < ROLES.size(); i++) {
+      Ws ws = workspaceWithAllRoles();
+      String role = ROLES.get(i);
+      UUID space = space(ws.owner(), ws.id(), "S");
+      UUID folder = folder(ws.owner(), space, "F");
+      Resp set = get("/api/v1/locations/" + space + "/statuses", ws.owner().token());
+      java.util.List<Map<String, Object>> all = new java.util.ArrayList<>();
+      for (var s : set.at("/statuses")) {
+        all.add(
+            Map.of(
+                "id",
+                s.get("id").asText(),
+                "name",
+                s.get("name").asText(),
+                "group",
+                s.get("group").asText()));
+      }
+      Map<String, Object> keepAll = Map.of("statuses", all);
+      int onSpace = i < 2 ? 200 : (i == 2 ? 403 : 404);
+      int onFolder = i < 3 ? 200 : 404;
+      assertThat(
+              put("/api/v1/locations/" + space + "/statuses", ws.by(role).token(), keepAll)
+                  .status())
+          .as("define on Space as %s", role)
+          .isEqualTo(onSpace);
+      assertThat(
+              put(
+                      "/api/v1/locations/" + folder + "/statuses",
+                      ws.by(role).token(),
+                      Map.of(
+                          "statuses",
+                          java.util.List.of(
+                              Map.of("name", "a", "group", "NOT_STARTED"),
+                              Map.of("name", "b", "group", "DONE")),
+                          "remap",
+                          remapAll(all, "a", "b")))
+                  .status())
+          .as("define on Folder as %s", role)
+          .isEqualTo(onFolder);
+    }
+  }
+
+  private static java.util.List<Map<String, Object>> remapAll(
+      java.util.List<Map<String, Object>> set, String first, String last) {
+    java.util.List<Map<String, Object>> out = new java.util.ArrayList<>();
+    for (Map<String, Object> s : set) {
+      boolean start = "NOT_STARTED".equals(s.get("group")) || "ACTIVE".equals(s.get("group"));
+      out.add(Map.of("from", s.get("id"), "to", start ? first : last));
+    }
+    return out;
+  }
 }

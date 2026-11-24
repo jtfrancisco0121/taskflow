@@ -334,6 +334,20 @@
         },
         "type" : "object"
       },
+      "RemapRequest" : {
+        "properties" : {
+          "from" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "to" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "from", "to" ],
+        "type" : "object"
+      },
       "RenameWorkspaceRequest" : {
         "properties" : {
           "name" : {
@@ -343,6 +357,37 @@
           }
         },
         "required" : [ "name" ],
+        "type" : "object"
+      },
+      "ReplaceStatusesRequest" : {
+        "properties" : {
+          "remap" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RemapRequest"
+            },
+            "type" : "array"
+          },
+          "statuses" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StatusRequest"
+            },
+            "maxItems" : 30,
+            "minItems" : 1,
+            "type" : "array"
+          }
+        },
+        "required" : [ "statuses" ],
+        "type" : "object"
+      },
+      "ResetStatusesRequest" : {
+        "properties" : {
+          "remap" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RemapRequest"
+            },
+            "type" : "array"
+          }
+        },
         "type" : "object"
       },
       "SignInRequest" : {
@@ -379,6 +424,74 @@
           }
         },
         "required" : [ "displayName", "email", "password" ],
+        "type" : "object"
+      },
+      "StatusInfo" : {
+        "properties" : {
+          "color" : {
+            "type" : "string"
+          },
+          "definedAt" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "group" : {
+            "enum" : [ "NOT_STARTED", "ACTIVE", "DONE", "CLOSED" ],
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "StatusRequest" : {
+        "properties" : {
+          "color" : {
+            "type" : "string"
+          },
+          "group" : {
+            "enum" : [ "NOT_STARTED", "ACTIVE", "DONE", "CLOSED" ],
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "name" : {
+            "maxLength" : 50,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "group", "name" ],
+        "type" : "object"
+      },
+      "StatusSetView" : {
+        "properties" : {
+          "definedAt" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "inheritedFrom" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "locationId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "statuses" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StatusInfo"
+            },
+            "type" : "array"
+          }
+        },
         "type" : "object"
       },
       "TreeNode" : {
@@ -677,7 +790,7 @@
         "tags" : [ "location-controller" ]
       },
       "get" : {
-        "operationId" : "get_1",
+        "operationId" : "get_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -897,6 +1010,102 @@
         "tags" : [ "location-controller" ]
       }
     },
+    "/api/v1/locations/{id}/statuses" : {
+      "delete" : {
+        "operationId" : "reset",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ResetStatusesRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StatusSetView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "status-controller" ]
+      },
+      "get" : {
+        "operationId" : "get",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StatusSetView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "status-controller" ]
+      },
+      "put" : {
+        "operationId" : "replace",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReplaceStatusesRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StatusSetView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "status-controller" ]
+      }
+    },
     "/api/v1/locations/{id}/unarchive" : {
       "post" : {
         "operationId" : "unarchive",
@@ -1040,7 +1249,7 @@
         "tags" : [ "workspace-controller" ]
       },
       "get" : {
-        "operationId" : "get",
+        "operationId" : "get_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",

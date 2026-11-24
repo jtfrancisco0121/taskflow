@@ -123,7 +123,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_1"];
+        get: operations["get_2"];
         put?: never;
         post?: never;
         delete: operations["delete_1"];
@@ -191,6 +191,22 @@ export interface paths {
         put?: never;
         post: operations["move"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locations/{id}/statuses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get"];
+        put: operations["replace"];
+        post?: never;
+        delete: operations["reset"];
         options?: never;
         head?: never;
         patch?: never;
@@ -267,7 +283,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get"];
+        get: operations["get_1"];
         put?: never;
         post?: never;
         delete: operations["delete"];
@@ -503,8 +519,20 @@ export interface components {
             items?: components["schemas"]["WorkspaceView"][];
             nextCursor?: string;
         };
+        RemapRequest: {
+            /** Format: uuid */
+            from: string;
+            to: string;
+        };
         RenameWorkspaceRequest: {
             name: string;
+        };
+        ReplaceStatusesRequest: {
+            remap?: components["schemas"]["RemapRequest"][];
+            statuses: components["schemas"]["StatusRequest"][];
+        };
+        ResetStatusesRequest: {
+            remap?: components["schemas"]["RemapRequest"][];
         };
         SignInRequest: {
             email: string;
@@ -515,6 +543,33 @@ export interface components {
             /** Format: email */
             email: string;
             password: string;
+        };
+        StatusInfo: {
+            color?: string;
+            /** Format: uuid */
+            definedAt?: string;
+            /** @enum {string} */
+            group?: "NOT_STARTED" | "ACTIVE" | "DONE" | "CLOSED";
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+        };
+        StatusRequest: {
+            color?: string;
+            /** @enum {string} */
+            group: "NOT_STARTED" | "ACTIVE" | "DONE" | "CLOSED";
+            /** Format: uuid */
+            id?: string;
+            name: string;
+        };
+        StatusSetView: {
+            /** Format: uuid */
+            definedAt?: string;
+            /** Format: uuid */
+            inheritedFrom?: string;
+            /** Format: uuid */
+            locationId?: string;
+            statuses?: components["schemas"]["StatusInfo"][];
         };
         TreeNode: {
             archived?: boolean;
@@ -715,7 +770,7 @@ export interface operations {
             };
         };
     };
-    get_1: {
+    get_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -898,6 +953,80 @@ export interface operations {
             };
         };
     };
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StatusSetView"];
+                };
+            };
+        };
+    };
+    replace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReplaceStatusesRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StatusSetView"];
+                };
+            };
+        };
+    };
+    reset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ResetStatusesRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["StatusSetView"];
+                };
+            };
+        };
+    };
     unarchive: {
         parameters: {
             query?: never;
@@ -1007,7 +1136,7 @@ export interface operations {
             };
         };
     };
-    get: {
+    get_1: {
         parameters: {
             query?: never;
             header?: never;
