@@ -97,6 +97,18 @@ Every setting has a default in `backend/src/main/resources/application.yml`, exc
 | `TASKFLOW_MAIL_HOST`, `TASKFLOW_MAIL_PORT` | `localhost`, `1025` | SMTP for invite mail (Mailpit in development) |
 | `TASKFLOW_APP_URL` | `http://localhost:5173` | Base of the invite links |
 
+### Agent access (service accounts, API keys, MCP)
+
+An owner or admin creates an agent identity in the app: **Settings** (header) > **Create service account** > **Create key**. The key (`tf_sk_...`) is shown once; copy it into a secret manager. Keys can expire, be revoked on their own, and the whole account can be disabled. The detail page shows the **MCP URL**, calls per day for 30 days, and the account's recent changes (with Restore for deleted tasks). A service account is an admin of its one Workspace and cannot manage service accounts or keys.
+
+Connect an MCP client (streamable HTTP) with only a URL and the key in the `Authorization` header (`Bearer tf_sk_...` or the bare key):
+
+```bash
+claude mcp add --transport http taskflow http://localhost:5173/api/v1/mcp --header "Authorization: Bearer tf_sk_..."
+```
+
+Tools: `search_tasks`, `get_task`, `create_task`, `update_task`, `move_task`, `delete_task` (30-day trash), `add_comment`, `list_locations`, `list_views`. The same key works on REST (`curl -H "Authorization: Bearer tf_sk_..." http://localhost:8080/api/v1/workspaces`). Each key has a per-minute budget shared by REST and MCP (default 100, `taskflow.api-keys.rate-limit.plans.default`): responses carry `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`, and the call over the limit answers 429 with `Retry-After`. Every change an agent makes is attributed to the service account and the key. See [decision 005](docs/decisions/005-agent-access.md).
+
 ### Authentication
 
 `POST /api/v1/auth/signup` and `/signin` return a 15-minute access token in the body (send it as `Authorization: Bearer ...`) and set an HttpOnly, Secure, SameSite=Strict refresh cookie scoped to `/api/v1/auth`. `POST /api/v1/auth/refresh` rotates both; presenting an old refresh token revokes the whole session. Every other `/api/v1/**` endpoint needs the access token, except `GET /api/v1/meta` and `GET /api/v1/invites/{token}`. Roles are resolved per request, not stored in the token.
