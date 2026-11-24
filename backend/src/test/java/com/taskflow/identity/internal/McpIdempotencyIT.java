@@ -171,9 +171,13 @@ class McpIdempotencyIT extends McpTestBase {
     Setup s = setup();
     for (JsonNode t : rpc(s.agent().secret(), "tools/list", null).at("/result/tools")) {
       String name = t.get("name").asText();
-      // update_task joins the create tools in 3A: a replayed update applies once (decision 005.11)
+      // update_task joins the create tools in 3A: a replayed update applies once (decision 005.11);
+      // add_dependency is a create too (DEP-6)
       boolean creates =
-          name.equals("create_task") || name.equals("update_task") || name.equals("add_comment");
+          name.equals("create_task")
+              || name.equals("update_task")
+              || name.equals("add_comment")
+              || name.equals("add_dependency");
       assertThat(t.at("/inputSchema/properties/idempotencyKey").isMissingNode())
           .as(name)
           .isEqualTo(!creates);

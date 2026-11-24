@@ -110,3 +110,16 @@ where it differs or adds detail.
     `CustomFieldsMcpIT`.
     A People field takes user ids in `customFields` (a non-member is 400 `field.invalid_value` naming the
     field) and `search_tasks` conditions on it take user ids; `list_custom_fields` shows the type.
+16. **Relationships over MCP (3B, decision 008).** `add_dependency(taskId, version, otherTaskId | otherRef,
+    relation, idempotencyKey?)` and `remove_dependency(taskId, version, dependencyId)` call the same
+    `DependencyService` methods as `POST` and `DELETE /tasks/{id}/dependencies`, after the same
+    `Permissions.require` checks (Task edit on `taskId`, view on the other task). `relation` is seen from
+    `taskId`: `WAITING_ON` (alias `BLOCKED_BY`), `BLOCKING` or `LINKED`. `add_dependency` is wrapped with
+    `AgentTool.withIdempotencyKey` like `create_task`; errors are tool errors with the REST code
+    (`dependency.cycle` with the `path`, `dependency.exists`, `dependency.limit`, `dependency.self`,
+    `dependency.not_found`, `dependency.busy`, `task.version_conflict`). `get_task` returns the REST task
+    plus `dependencies` (the body of `GET /tasks/{id}/dependencies`; relationships to tasks the caller cannot
+    see are only counted in `hiddenCount`); `blocked` and `blockerCount` are on every task and every
+    `search_tasks` hit. `search_tasks` accepts `blocked: true | false`, alone or with `query`,
+    `locationId` and `customFields` (schema `anyOf` gains `{"required": ["blocked"]}`) and goes through
+    `TaskAgentSearch` with `BlockedSql`. Tests: `McpDependenciesIT`.

@@ -23,6 +23,14 @@ class TaskAgentToolsIT extends McpTestBase {
     return new Fix(ws, space, list, agent(ws.admin(), ws.id(), "triage-agent", "CI-1"));
   }
 
+  private static JsonNode withoutDependencies(JsonNode task) {
+    com.fasterxml.jackson.databind.node.ObjectNode copy =
+        ((com.fasterxml.jackson.databind.node.ObjectNode) task).deepCopy();
+    assertThat(copy.has("dependencies")).isTrue();
+    copy.remove("dependencies");
+    return copy;
+  }
+
   private JsonNode rest(Fix f, String path) {
     Resp r = get(path, f.ws().admin().token());
     assertThat(r.status()).as(path).isEqualTo(200);
@@ -54,10 +62,12 @@ class TaskAgentToolsIT extends McpTestBase {
         .isEqualTo("line two");
     assertThat(created.body().get("createdBy").asText()).isEqualTo(f.agent().id().toString());
 
-    assertThat(call(key, "get_task", Map.of("taskId", id.toString())).body())
+    // get_task is the REST task plus its relationships (DEP-6)
+    assertThat(withoutDependencies(call(key, "get_task", Map.of("taskId", id.toString())).body()))
         .isEqualTo(created.body());
     String ref = created.body().get("readableId").asText();
-    assertThat(call(key, "get_task", Map.of("ref", ref)).body()).isEqualTo(created.body());
+    assertThat(withoutDependencies(call(key, "get_task", Map.of("ref", ref)).body()))
+        .isEqualTo(created.body());
     assertThat(
             get(
                     "/api/v1/workspaces/" + f.ws().id() + "/tasks/by-ref/" + ref,
