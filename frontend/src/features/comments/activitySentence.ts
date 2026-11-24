@@ -62,6 +62,15 @@ function changesOf(entry: ActivityView): Changes {
   return payload?.changes && typeof payload.changes === 'object' ? payload.changes : {}
 }
 
+/** Who did it: a service account reads "triage-agent (key CI-1)", never a bare id. */
+export function actorLabel(entry: ActivityView): string {
+  const name = entry.actorName ?? 'Someone'
+  if (entry.actorType === 'SERVICE_ACCOUNT' && entry.actorKeyName) {
+    return `${name} (key ${entry.actorKeyName})`
+  }
+  return name
+}
+
 /** One sentence per changed field (a `task.updated` can carry several). */
 export function activitySentences(entry: ActivityView, lookup: NameLookup): string[] {
   switch (entry.type) {

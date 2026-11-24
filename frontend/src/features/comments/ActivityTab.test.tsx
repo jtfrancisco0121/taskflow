@@ -46,19 +46,25 @@ function serve(items: object[], extra: Record<string, never> = {}) {
 }
 
 describe('ActivityTab', () => {
-  it('FR-21: shows actor name, sentence and a badge for a service account', async () => {
+  it('FR-21: shows actor name, sentence and an Agent badge for a service account', async () => {
     serve([
       entry('a1', 'task.created', 'Maya Lopez', {}),
-      entry('a2', 'comment.created', 'CI bot', {}, { actorType: 'SERVICE_ACCOUNT' }),
+      entry(
+        'a2',
+        'comment.created',
+        'triage-agent',
+        {},
+        { actorType: 'SERVICE_ACCOUNT', actorKeyName: 'CI-1' },
+      ),
     ])
     renderWithProviders(<ActivityTab task={task} />)
 
     const created = (await screen.findByText('created this task')).closest('li')!
     expect(within(created).getByText('Maya Lopez')).toBeVisible()
     const bot = screen.getByText('commented').closest('li')!
-    expect(within(bot).getByText('CI bot')).toBeVisible()
-    expect(within(bot).getByText('Service account')).toBeVisible()
-    expect(within(created).queryByText('Service account')).not.toBeInTheDocument()
+    expect(within(bot).getByText('triage-agent (key CI-1)')).toBeVisible()
+    expect(within(bot).getByText('Agent')).toBeVisible()
+    expect(within(created).queryByText('Agent')).not.toBeInTheDocument()
   })
 
   it('FR-21: a status change with real UUIDs reads "changed status from To do to Done" with no UUID', async () => {

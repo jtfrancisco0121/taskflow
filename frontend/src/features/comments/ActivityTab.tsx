@@ -4,12 +4,11 @@ import { messageOf, unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
 import type { TaskView } from '../../api/types'
 import { formatDateTime, relativeTime } from '../../shared/dates'
+import { AgentBadge } from '../../shared/ui/AgentBadge'
 import { Button } from '../../shared/ui/Button'
 import { useLocationStatuses } from '../statuses'
 import { useMembers } from '../workspace'
-import { activitySentences, type NameLookup } from './activitySentence'
-
-const BADGE = { SERVICE_ACCOUNT: 'Service account', AUTOMATION: 'Automation' } as const
+import { actorLabel, activitySentences, type NameLookup } from './activitySentence'
 
 function useActivity(taskId: string) {
   return useInfiniteQuery({
@@ -57,11 +56,10 @@ export function ActivityTab({ task }: { task: TaskView }) {
       <ul className="m-0 flex list-none flex-col gap-2 p-0">
         {entries.map((entry) => (
           <li key={entry.id} className="text-sm">
-            <span className="font-medium">{entry.actorName ?? 'Someone'}</span>
-            {entry.actorType && entry.actorType !== 'USER' && (
-              <span className="ml-1 rounded bg-slate-200 px-1 text-xs">
-                {BADGE[entry.actorType]}
-              </span>
+            <span className="font-medium">{actorLabel(entry)}</span>
+            {entry.actorType === 'SERVICE_ACCOUNT' && <AgentBadge />}
+            {entry.actorType === 'AUTOMATION' && (
+              <span className="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs">Automation</span>
             )}
             {activitySentences(entry, lookup).map((sentence, index) => (
               <p key={index} className="m-0">
