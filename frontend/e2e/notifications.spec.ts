@@ -73,5 +73,20 @@ test('UJ-2: an assignment in A raises the bell in B within 2 seconds, and markin
   await pageB.getByRole('tab', { name: 'All' }).click()
   await expect(pageB.getByText('Alice Owner assigned you to')).toHaveCount(5)
 
+  // CAP-13: the popover's Settings link leads to the switches; a change survives a reload
+  await pageB.getByRole('button', { name: /^Notifications/ }).click()
+  await pageB
+    .getByRole('dialog', { name: 'Notifications' })
+    .getByRole('link', { name: 'Settings' })
+    .click()
+  await expect(pageB.getByRole('heading', { name: 'Notification settings' })).toBeVisible()
+  const statusSwitch = pageB.getByRole('switch', { name: 'Status changed: In app' })
+  await expect(statusSwitch).toBeChecked()
+  await statusSwitch.click()
+  await expect(statusSwitch).not.toBeChecked()
+  await snap(pageB, testInfo, 'notifications-settings')
+  await pageB.reload()
+  await expect(pageB.getByRole('switch', { name: 'Status changed: In app' })).not.toBeChecked()
+
   await contextB.close()
 })

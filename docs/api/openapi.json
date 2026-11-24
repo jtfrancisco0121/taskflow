@@ -1417,6 +1417,59 @@
         },
         "type" : "object"
       },
+      "Preference" : {
+        "properties" : {
+          "emailDigest" : {
+            "type" : "boolean"
+          },
+          "inApp" : {
+            "type" : "boolean"
+          },
+          "kind" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PreferenceItem" : {
+        "properties" : {
+          "emailDigest" : {
+            "type" : "boolean"
+          },
+          "inApp" : {
+            "type" : "boolean"
+          },
+          "kind" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "emailDigest", "inApp", "kind" ],
+        "type" : "object"
+      },
+      "PreferencesRequest" : {
+        "properties" : {
+          "kinds" : {
+            "items" : {
+              "$ref" : "#/components/schemas/PreferenceItem"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "kinds" ],
+        "type" : "object"
+      },
+      "PreferencesView" : {
+        "properties" : {
+          "kinds" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Preference"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "QueryResponse" : {
         "properties" : {
           "droppedFields" : {
@@ -2531,7 +2584,7 @@
         "tags" : [ "automation-controller" ]
       },
       "get" : {
-        "operationId" : "get_7",
+        "operationId" : "get_8",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2869,7 +2922,7 @@
         "tags" : [ "custom-field-controller" ]
       },
       "get" : {
-        "operationId" : "get_6",
+        "operationId" : "get_7",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3073,7 +3126,7 @@
         "tags" : [ "location-controller" ]
       },
       "get" : {
-        "operationId" : "get_5",
+        "operationId" : "get_6",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3521,7 +3574,7 @@
         "tags" : [ "status-controller" ]
       },
       "get" : {
-        "operationId" : "get",
+        "operationId" : "get_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3794,7 +3847,7 @@
         "tags" : [ "task-tree-controller" ]
       },
       "get" : {
-        "operationId" : "get_4",
+        "operationId" : "get_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -4418,7 +4471,7 @@
         "tags" : [ "view-controller" ]
       },
       "get" : {
-        "operationId" : "get_3",
+        "operationId" : "get_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -4558,7 +4611,7 @@
         "tags" : [ "workspace-controller" ]
       },
       "get" : {
-        "operationId" : "get_2",
+        "operationId" : "get_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -4854,6 +4907,68 @@
           }
         },
         "tags" : [ "workspace-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/notification-preferences" : {
+      "get" : {
+        "operationId" : "get",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PreferencesView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "preference-controller" ]
+      },
+      "put" : {
+        "operationId" : "put",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PreferencesRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PreferencesView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "preference-controller" ]
       }
     },
     "/api/v1/workspaces/{id}/notifications" : {
@@ -5243,7 +5358,7 @@
     },
     "/api/v1/workspaces/{workspaceId}/service-accounts/{id}" : {
       "get" : {
-        "operationId" : "get_1",
+        "operationId" : "get_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "workspaceId",

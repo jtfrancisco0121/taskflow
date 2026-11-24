@@ -3,6 +3,7 @@ package com.taskflow.notification.internal;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.taskflow.identity.UserDirectory;
 import com.taskflow.identity.UserInfo;
+import com.taskflow.notification.DigestHook;
 import com.taskflow.shared.Actor;
 import com.taskflow.shared.EventRecorder;
 import com.taskflow.shared.Ids;
@@ -48,6 +49,7 @@ class NotificationProcessor {
   private final UserDirectory users;
   private final EventRecorder events;
   private final PreferenceStore preferences;
+  private final DigestHook digest;
   private final MeterRegistry meters;
 
   NotificationProcessor(
@@ -57,6 +59,7 @@ class NotificationProcessor {
       UserDirectory users,
       EventRecorder events,
       PreferenceStore preferences,
+      DigestHook digest,
       MeterRegistry meters) {
     this.jdbc = jdbc;
     this.named = named;
@@ -64,6 +67,7 @@ class NotificationProcessor {
     this.users = users;
     this.events = events;
     this.preferences = preferences;
+    this.digest = digest;
     this.meters = meters;
   }
 
@@ -170,6 +174,9 @@ class NotificationProcessor {
         continue;
       }
       meters.counter("taskflow.notifications.created", "kind", kind).increment();
+      if (preferences.emailDigest(workspaceId, recipient, kind)) {
+        digest.accept(new DigestHook.Entry(id, workspaceId, recipient, kind, taskId));
+      }
       Map<String, Object> body = new LinkedHashMap<>();
       body.put("recipientId", recipient.toString());
       body.put("workspaceId", workspaceId.toString());

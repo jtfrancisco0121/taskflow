@@ -37,6 +37,7 @@ class OpenApiContractIT {
           "/api/v1/workspaces/{id}/notifications/unread-count",
           "/api/v1/workspaces/{id}/notifications/read-all",
           "/api/v1/notifications/{id}/read",
+          "/api/v1/workspaces/{id}/notification-preferences",
           "/api/v1/auth/signup",
           "/api/v1/auth/signin",
           "/api/v1/auth/refresh",
