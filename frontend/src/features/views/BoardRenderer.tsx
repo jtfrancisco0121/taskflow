@@ -18,15 +18,18 @@ import { useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { Link, useLocation } from 'react-router'
 import { api } from '../../api/client'
 import { queryKeys } from '../../api/queryKeys'
-import type { TaskView, ViewConfig, ViewQueryResponse } from '../../api/types'
+import type { FieldView, TaskView, ViewConfig, ViewQueryResponse } from '../../api/types'
 import { formatDay } from '../../shared/dates'
+import { ValueChip } from '../fields'
 import { useLocationStatuses } from '../statuses'
 import { PRIORITY_LABEL, initialsOf, useOptimisticTaskMutation } from '../tasks'
 import { useMembers } from '../workspace'
 import { insertItem, planDrop, removeItem, targetFields } from './boardPlan'
+import { ColumnsPicker } from './ColumnsPicker'
 import { groupLabel } from './groupLabels'
 import { scopeId, type ViewScope } from './scope'
-import { configHash } from './urlState'
+import { configHash, type Column as ConfigColumn, type UrlState } from './urlState'
+import { customColumns, useScopeFields } from './useScopeFields'
 import { useViewTasks } from './useViewTasks'
 
 const PRIORITY_CLASS: Record<string, string> = {
@@ -39,9 +42,19 @@ const PRIORITY_CLASS: Record<string, string> = {
 type Column = { key: string; label: string; count?: number }
 
 /** BOARD-1/2: columns by status, priority or assignee, dnd-kit drops, optimistic with rollback. */
-export function BoardRenderer({ scope, config }: { scope: ViewScope; config: ViewConfig }) {
+export function BoardRenderer({
+  scope,
+  config,
+  update,
+}: {
+  scope: ViewScope
+  config: ViewConfig
+  update?: (patch: Partial<UrlState>) => void
+}) {
   const queryClient = useQueryClient()
   const run = useOptimisticTaskMutation()
+  const scopeFields = useScopeFields(scope)
+  const chipFields = customColumns(config.columns, scopeFields.byId).map((c) => c.field)
   const boardConfig: ViewConfig = {
     ...config,
     group: config.group && config.group !== 'none' ? config.group : 'status',
@@ -166,39 +179,50 @@ export function BoardRenderer({ scope, config }: { scope: ViewScope; config: Vie
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCorners}
-      onDragEnd={onDragEnd}
-      accessibility={{
-        announcements: {
-          onDragStart: ({ active }) =>
-            `Picked up ${titleOf(active.id)}. It is in ${columnName(active.id)}. Use the arrow keys to move it, Space to drop, Escape to cancel.`,
-          onDragOver: ({ active, over }) =>
-            over ? `${titleOf(active.id)} is over ${columnName(over.id)}.` : undefined,
-          onDragEnd: ({ active, over }) =>
-            over
-              ? `${titleOf(active.id)} was dropped in ${columnName(over.id)}.`
-              : `${titleOf(active.id)} was dropped.`,
-          onDragCancel: ({ active }) => `Moving ${titleOf(active.id)} was cancelled.`,
-        },
-      }}
-    >
-      <div className="flex gap-3 overflow-x-auto pb-4" aria-label="Board">
-        {columns.map((column) => (
-          <BoardColumn
-            key={column.key}
-            column={column}
-            scope={scope}
-            config={boardConfig}
-            names={names}
-          />
-        ))}
-        {lead.isSuccess && columns.length === 0 && (
-          <p className="text-slate-600">No tasks in this view.</p>
-        )}
-      </div>
-    </DndContext>
+    <>
+      {update && (
+        <ColumnsPicker
+          columns={(config.columns as ConfigColumn[] | undefined) ?? [{ field: 'title' }]}
+          fields={scopeFields.fields}
+          builtIn={false}
+          onChange={(c) => update({ c })}
+        />
+      )}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragEnd={onDragEnd}
+        accessibility={{
+          announcements: {
+            onDragStart: ({ active }) =>
+              `Picked up ${titleOf(active.id)}. It is in ${columnName(active.id)}. Use the arrow keys to move it, Space to drop, Escape to cancel.`,
+            onDragOver: ({ active, over }) =>
+              over ? `${titleOf(active.id)} is over ${columnName(over.id)}.` : undefined,
+            onDragEnd: ({ active, over }) =>
+              over
+                ? `${titleOf(active.id)} was dropped in ${columnName(over.id)}.`
+                : `${titleOf(active.id)} was dropped.`,
+            onDragCancel: ({ active }) => `Moving ${titleOf(active.id)} was cancelled.`,
+          },
+        }}
+      >
+        <div className="flex gap-3 overflow-x-auto pb-4" aria-label="Board">
+          {columns.map((column) => (
+            <BoardColumn
+              key={column.key}
+              column={column}
+              scope={scope}
+              config={boardConfig}
+              names={names}
+              chipFields={chipFields}
+            />
+          ))}
+          {lead.isSuccess && columns.length === 0 && (
+            <p className="text-slate-600">No tasks in this view.</p>
+          )}
+        </div>
+      </DndContext>
+    </>
   )
 }
 
@@ -207,11 +231,13 @@ function BoardColumn({
   scope,
   config,
   names,
+  chipFields,
 }: {
   column: Column
   scope: ViewScope
   config: ViewConfig
   names: Map<string, string>
+  chipFields: FieldView[]
 }) {
   const query = useViewTasks(scope, config, { groupValue: column.key })
   const { setNodeRef, isOver } = useDroppable({ id: `col:${column.key}` })
@@ -232,7 +258,13 @@ function BoardColumn({
       >
         <ul className="flex min-h-12 flex-col gap-2">
           {tasks.map((task) => (
-            <Card key={task.id} id={`${column.key}|${task.id}`} task={task} names={names} />
+            <Card
+              key={task.id}
+              id={`${column.key}|${task.id}`}
+              task={task}
+              names={names}
+              chipFields={chipFields}
+            />
           ))}
         </ul>
       </SortableContext>
@@ -250,7 +282,17 @@ function BoardColumn({
   )
 }
 
-function Card({ id, task, names }: { id: string; task: TaskView; names: Map<string, string> }) {
+function Card({
+  id,
+  task,
+  names,
+  chipFields,
+}: {
+  id: string
+  task: TaskView
+  names: Map<string, string>
+  chipFields: FieldView[]
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   })
@@ -265,6 +307,12 @@ function Card({ id, task, names }: { id: string; task: TaskView; names: Map<stri
     opacity: isDragging ? 0.5 : 1,
   }
   const priority = task.priority ?? 'NONE'
+  // Up to three custom field chips of the view's columns; empty values are not drawn, "+N" for the rest.
+  const values = (task.customFields ?? {}) as Record<string, unknown>
+  const filled = chipFields.filter((f) => {
+    const v = values[f.id!]
+    return v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0)
+  })
   return (
     <li
       ref={setNodeRef}
@@ -299,6 +347,16 @@ function Card({ id, task, names }: { id: string; task: TaskView; names: Map<stri
           </span>
         ))}
       </div>
+      {filled.length > 0 && (
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          {filled.slice(0, 3).map((f) => (
+            <ValueChip key={f.id} field={f} value={values[f.id!]} />
+          ))}
+          {filled.length > 3 && (
+            <span className="text-xs text-slate-500">+{filled.length - 3}</span>
+          )}
+        </div>
+      )}
     </li>
   )
 }

@@ -89,4 +89,20 @@ describe('VIEW-3 URL state', () => {
     expect(configHash({ v: 1, group: 'a' })).toBe(configHash({ v: 1, group: 'a', mode: 'week' }))
     expect(configHash({ v: 1, group: 'a' })).not.toBe(configHash({ v: 1, group: 'b' }))
   })
+
+  it('FIELD-3: cf:<id> columns round-trip through c, with and without a width', () => {
+    const id = '11111111-1111-4111-8111-111111111111'
+    const columns = [
+      { field: 'title', width: 300 },
+      { field: `cf:${id}`, width: 160 },
+      { field: `cf:${id.replace(/1/g, '2')}` },
+    ]
+    const params = writeUrlState(new URLSearchParams(), { c: columns })
+    expect(parseUrlState(params)).toEqual({ state: { c: columns }, dropped: [] })
+  })
+
+  it('a malformed cf: column drops c like any invalid column', () => {
+    expect(parseUrlState(new URLSearchParams('c=title,cf:not-a-uuid')).dropped).toEqual(['c'])
+    expect(parseUrlState(new URLSearchParams('c=title,cf:')).dropped).toEqual(['c'])
+  })
 })

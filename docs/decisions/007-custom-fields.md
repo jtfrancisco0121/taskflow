@@ -71,3 +71,15 @@ Status: accepted (built in slices 3A S2..S8; this record grows with each). Conte
     transaction, so it blocks task writes while it builds: harmless at current sizes. A large deployment
     should build it out of band with `CREATE INDEX CONCURRENTLY` (`executeInTransaction=false`) first.
     Expression indexes are the follow-up if SM-2 (p95 under 300 ms with a custom filter and sort) fails.
+17. **Views show fields as `cf:<fieldId>` columns.** The URL `c` and a saved config carry the column as
+    `cf:<uuid>` (a width is a trailing `:<digits>`); `ViewConfigValidator` accepts a well-formed reference
+    (S5 adds the check that the field is live on the scope's branch). The Columns picker offers the fields
+    effective at the view's location, with where they come from; fields defined only on descendants of a
+    Space or Folder scope are not offered yet (deferred). Cells edit inline through the shared optimistic
+    task mutation (one update per edit, rollback and toast on 400 or 409); Board cards show up to three
+    chips of filled fields and "+N".
+18. **Fix found on the way: the Table view re-rendered in a loop in a real browser.** `TableRenderer` fed
+    TanStack Table a new `data` array on every render, so the table's auto-reset updated its state in a
+    loop (thousands of renders per second) and starved router transitions, so a URL parameter change such as
+    a new column never showed. `useViewTasks` now returns a memoised `items` array and the Table memoises
+    its task list.

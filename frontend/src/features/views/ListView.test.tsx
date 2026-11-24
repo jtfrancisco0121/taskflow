@@ -4,7 +4,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { ListRenderer } from './ListRenderer'
-import { baseRoutes, scope, task } from './testSupport'
+import { baseRoutes, customFieldIds, fieldRoutes, scope, task } from './testSupport'
 import { useViewStore } from './viewStore'
 
 const grouped = { v: 1, group: 'status' }
@@ -134,5 +134,35 @@ describe('LIST-1 List view', () => {
         screen.getAllByLabelText(/^Priority of ACME-/).map((el) => (el as HTMLSelectElement).value),
       ).toEqual(['HIGH', 'HIGH', 'HIGH']),
     )
+  })
+
+  it('FIELD-3: a custom field column is drawn and a cell is edited inline', async () => {
+    const stub = serve(
+      [task(1, { version: 2, customFields: { [customFieldIds.tier]: 'o-free' } })],
+      {
+        ...fieldRoutes,
+        'PATCH /api/v1/tasks/:id': (_r: Request, body: unknown) =>
+          json({ ...task(1, { version: 3 }), ...(body as object) }),
+      } as never,
+    )
+    const user = userEvent.setup()
+    renderWithProviders(
+      <ListRenderer
+        scope={scope}
+        config={{
+          ...grouped,
+          columns: [{ field: 'title' }, { field: `cf:${customFieldIds.tier}` }],
+        }}
+      />,
+    )
+
+    expect(await screen.findByRole('columnheader', { name: /Customer tier/ })).toBeVisible()
+    await user.click(await screen.findByRole('button', { name: 'Customer tier: Free' }))
+    await user.selectOptions(screen.getByLabelText('Customer tier for ACME-1'), 'Enterprise')
+
+    await waitFor(() => expect(stub.calls.some((c) => c.method === 'PATCH')).toBe(true))
+    const patch = stub.calls.find((c) => c.method === 'PATCH')!
+    expect(patch.body).toEqual({ customFields: { [customFieldIds.tier]: 'o-ent' } })
+    expect(patch.headers.get('If-Match')).toBe('"2"')
   })
 })

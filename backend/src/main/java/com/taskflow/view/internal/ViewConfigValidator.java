@@ -96,7 +96,7 @@ public final class ViewConfigValidator {
     if (config.columns() != null) {
       boolean title = false;
       for (ViewConfig.Column c : config.columns()) {
-        if (c == null || !COLUMNS.contains(c.field())) {
+        if (c == null || !(COLUMNS.contains(c.field()) || customReference(c.field()))) {
           throw invalid("Unknown column " + (c == null ? null : c.field()));
         }
         if (c.width() != null && (c.width() < MIN_WIDTH || c.width() > MAX_WIDTH)) {
@@ -229,6 +229,14 @@ public final class ViewConfigValidator {
     } catch (DateTimeParseException e) {
       throw invalid("Days are YYYY-MM-DD or today, this_week, next_7_days");
     }
+  }
+
+  /**
+   * A custom field column, {@code cf:<fieldId>} (AD-8); whether the field is live is checked by the
+   * caller's scope.
+   */
+  static boolean customReference(String field) {
+    return field != null && field.startsWith("cf:") && uuid(field.substring(3));
   }
 
   private static boolean uuid(String s) {

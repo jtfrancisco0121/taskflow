@@ -63,4 +63,19 @@ describe('useViewTasks (AD-5, AD-6)', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(stub.calls[0].body).toMatchObject({ scope: { workspaceId: 'w1' }, groupValue: 'URGENT' })
   })
+
+  it('returns the same items array between renders, so a Table fed with it cannot re-render in a loop', async () => {
+    installFetch({
+      'POST /api/v1/views/query': { items: [{ group: 'a', task: task(1) }] },
+    })
+    const queryClient = newQueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    const { result, rerender } = renderHook(() => useViewTasks(scope, { v: 1 }), { wrapper })
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+    const first = result.current.items
+    rerender()
+    expect(result.current.items).toBe(first)
+  })
 })

@@ -145,3 +145,13 @@ export async function createField(
   await dialog.getByRole('button', { name: 'Create field' }).click()
   await expect(dialog.getByRole('heading', { name: 'Fields here' })).toBeVisible()
 }
+
+/** Creates a saved view of the given type through the "+ View" form and waits for its tab. */
+export async function createView(page: Page, name: string, type: string) {
+  await page.getByRole('button', { name: '+ View' }).click()
+  const form = page.getByRole('form', { name: 'New view' })
+  await form.getByLabel('View name').fill(name)
+  await form.getByLabel('Type').selectOption({ label: type })
+  await form.getByRole('button', { name: 'Create view' }).click()
+  await expect(page.getByRole('tab', { name })).toBeVisible()
+}

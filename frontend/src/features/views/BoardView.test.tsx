@@ -6,7 +6,7 @@ import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { BoardRenderer } from './BoardRenderer'
 import { planDrop, targetFields } from './boardPlan'
-import { baseRoutes, scope, task } from './testSupport'
+import { baseRoutes, customFieldIds, fieldRoutes, scope, task } from './testSupport'
 
 const t = (n: number, extra: Record<string, unknown> = {}) => task(n, extra) as unknown as TaskView
 
@@ -179,5 +179,92 @@ describe('BOARD-1/2 Board view', () => {
       expect(useToastStore.getState().toasts.map((x) => x.message)).toContain('Boom'),
     )
     expect(screen.getByRole('region', { name: 'To do' })).toHaveTextContent('Task 1')
+  })
+})
+
+describe('FIELD-3 Board card chips (3A S4)', () => {
+  const chipConfig = {
+    ...config,
+    columns: [
+      { field: 'title' },
+      { field: `cf:${customFieldIds.tier}` },
+      { field: `cf:${customFieldIds.points}` },
+    ],
+  }
+
+  it('a card shows a chip per filled custom field of the view columns, none for empty ones', async () => {
+    installFetch({
+      ...baseRoutes,
+      ...fieldRoutes,
+      'POST /api/v1/views/query': (_r: Request, body: unknown) => {
+        const { groupValue } = body as { groupValue?: string }
+        return groupValue === 'to do'
+          ? json({
+              items: [
+                {
+                  group: 'to do',
+                  task: task(1, { customFields: { [customFieldIds.tier]: 'o-ent' } }),
+                },
+                { group: 'to do', task: task(2, { customFields: {} }) },
+              ],
+            })
+          : json({ items: [], groups: [{ key: 'to do', label: 'To do', count: 2 }] })
+      },
+    } as never)
+    renderWithProviders(<BoardRenderer scope={scope} config={chipConfig} />)
+
+    const chip = await screen.findByLabelText('Customer tier: Enterprise')
+    expect(chip).toBeVisible()
+    expect(screen.queryByLabelText(/Story points/)).not.toBeInTheDocument()
+    // Only the card with a value carries a chip.
+    expect(screen.getAllByLabelText(/^Customer tier:/)).toHaveLength(1)
+  })
+
+  it('shows at most three chips and "+N" for the rest', async () => {
+    const many = Array.from({ length: 5 }, (_, i) => ({
+      id: `3333333${i}-3333-4333-8333-333333333333`,
+      name: `Field ${i}`,
+      type: 'TEXT',
+      config: {},
+      options: [],
+      definedAt: 's1',
+      definedAtName: 'Engineering',
+      inherited: true,
+      hidden: false,
+      version: 1,
+    }))
+    installFetch({
+      ...baseRoutes,
+      'GET /api/v1/locations/:id/fields': { locationId: 'l1', canEdit: true, fields: many },
+      'POST /api/v1/views/query': (_r: Request, body: unknown) => {
+        const { groupValue } = body as { groupValue?: string }
+        return groupValue === 'to do'
+          ? json({
+              items: [
+                {
+                  group: 'to do',
+                  task: task(1, {
+                    customFields: Object.fromEntries(many.map((f, i) => [f.id, `v${i}`])),
+                  }),
+                },
+              ],
+            })
+          : json({ items: [], groups: [{ key: 'to do', label: 'To do', count: 1 }] })
+      },
+    } as never)
+    renderWithProviders(
+      <BoardRenderer
+        scope={scope}
+        config={{
+          ...config,
+          columns: [{ field: 'title' }, ...many.map((f) => ({ field: `cf:${f.id}` }))],
+        }}
+      />,
+    )
+
+    expect(await screen.findByLabelText('Field 0: v0')).toBeVisible()
+    expect(screen.getByLabelText('Field 2: v2')).toBeVisible()
+    expect(screen.queryByLabelText('Field 3: v3')).not.toBeInTheDocument()
+    expect(screen.getByText('+2')).toBeVisible()
   })
 })

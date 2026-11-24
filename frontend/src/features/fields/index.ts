@@ -1,6 +1,7 @@
 export { FieldManagerDialog, type FieldsLocation } from './FieldManagerDialog'
 export { OptionChip } from './OptionChip'
 export { ValueCell } from './ValueCell'
+export { ValueChip } from './ValueChip'
 export { ValueEditor, type ValueEditorProps } from './ValueEditor'
 export { formatValue, isEmpty } from './format'
 export { useLocationFields } from './useLocationFields'

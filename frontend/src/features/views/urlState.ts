@@ -44,6 +44,9 @@ export const COLUMN_FIELDS = [
   'createdAt',
   'updatedAt',
 ]
+/** AD-8: a custom field is `cf:<fieldId>` wherever a built-in key is allowed. */
+const CUSTOM_REF = /^cf:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+export const isCustomRef = (field: string) => CUSTOM_REF.test(field)
 export const MIN_WIDTH = 60
 export const MAX_WIDTH = 800
 
@@ -96,8 +99,11 @@ function decodeSort(text: string): Sort[] | undefined {
 function decodeColumns(text: string): Column[] | undefined {
   const out: Column[] = []
   for (const part of text.split(',')) {
-    const [field, width] = part.split(':')
-    if (!COLUMN_FIELDS.includes(field)) return undefined
+    // `cf:<id>` has a colon of its own, so a width is a trailing `:<digits>` only.
+    const sized = /^(.*):(\d+)$/.exec(part)
+    const field = sized ? sized[1] : part
+    const width = sized ? sized[2] : undefined
+    if (!COLUMN_FIELDS.includes(field) && !isCustomRef(field)) return undefined
     if (width !== undefined) {
       const w = Number(width)
       if (!Number.isInteger(w) || w < MIN_WIDTH || w > MAX_WIDTH) return undefined

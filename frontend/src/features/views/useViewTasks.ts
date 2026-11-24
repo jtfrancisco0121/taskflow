@@ -1,4 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
@@ -37,13 +38,17 @@ export function useViewTasks(
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   })
   // A task is shown once per group; across a page boundary the same (task, group) never repeats.
-  const seen = new Set<string>()
-  const items = (query.data?.pages.flatMap((page) => page.items ?? []) ?? []).filter((item) => {
-    const key = `${item.group ?? ''}|${item.task?.id}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+  // Memoized on the data, so consumers get a stable array between fetches.
+  const pages = query.data?.pages
+  const items = useMemo(() => {
+    const seen = new Set<string>()
+    return (pages?.flatMap((page) => page.items ?? []) ?? []).filter((item) => {
+      const key = `${item.group ?? ''}|${item.task?.id}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [pages])
   const groups = query.data?.pages[0]?.groups
   return { ...query, items, groups }
 }
