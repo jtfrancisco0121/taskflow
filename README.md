@@ -133,6 +133,16 @@ cd backend && ./mvnw verify                      # unit tests, integration tests
 cd frontend && npm run lint && npm run typecheck && npm test
 ```
 
+### Secret scan and local e2e
+
+```bash
+bash scripts/secret-scan.sh              # gitleaks over the full git history (binary on PATH, else a pinned Docker image); config in .gitleaks.toml
+bash scripts/secret-scan.sh --self-test  # proves a newly committed secret makes the scan fail (throwaway repo inside the container)
+bash scripts/e2e-local.sh                # compose up, reuse or start the backend (dev profile), run Playwright, stop what it started
+```
+
+CI runs the scan in the `secrets` job. `scripts/e2e-local.sh` is the local equivalent of the `e2e` job and writes the Playwright screenshots of the new screens to `docs/screenshots/` (`E2E_SCREENSHOTS_DIR`; specs call `snap()` from `frontend/e2e/screenshots.ts`). It needs the default Compose ports free (Postgres 5432, Redis 6379, ...).
+
 ### API contract
 
 `docs/api/openapi.json` is the contract the frontend generates its client from. After changing the API:

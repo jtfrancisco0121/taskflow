@@ -1,0 +1,20 @@
+# Secret scan configuration (S1, decision 006). Used by scripts/secret-scan.sh and the `secrets` CI job.
+title = "taskflow gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test fixtures, development defaults and documentation placeholders"
+paths = [
+  '''^backend/src/test/''',
+  '''^scripts/secret-scan\.sh$''',
+  '''^frontend/e2e/''',
+  '''^frontend/src/.*\.test\.tsx?$''',
+  '''^\.env\.example$''',
+  '''^deploy/compose\.yaml$''',
+  '''^backend/src/main/resources/application(-dev)?\.yml$''',
+]
+regexes = [
+  '''tf_sk_\.\.\.''',
+]

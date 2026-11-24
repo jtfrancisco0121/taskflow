@@ -12,6 +12,15 @@ permissions:
   contents: read
 
 jobs:
+  # Secret scan of the full history (scripts/secret-scan.sh, config .gitleaks.toml).
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: bash scripts/secret-scan.sh
+
   backend:
     runs-on: ubuntu-latest
     defaults:
