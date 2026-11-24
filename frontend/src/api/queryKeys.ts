@@ -32,6 +32,11 @@ export const queryKeys = {
   automationRuns: (ruleId: string) => ['automation', ruleId, 'runs'] as const,
   /** Who watches a task, under ['task', id] so a task refresh reaches it. */
   watchers: (taskId: string) => ['task', taskId, 'watchers'] as const,
+  /** Inbox (3C): every key starts with the Workspace, so one prefix clears the person's lists. */
+  notificationsAll: (wsId: string) => ['ws', wsId, 'notifications'] as const,
+  unreadCount: (wsId: string) => ['ws', wsId, 'notifications', 'unread-count'] as const,
+  inbox: (wsId: string, unread: boolean) =>
+    ['ws', wsId, 'notifications', 'list', unread ? 'unread' : 'all'] as const,
   task: (taskId: string) => ['task', taskId] as const,
   taskAll: () => ['task'] as const,
   comments: (taskId: string) => ['task', taskId, 'comments'] as const,

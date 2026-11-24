@@ -4,6 +4,7 @@ import { AutomationsPage } from '../features/automations'
 import { TaskTabs } from '../features/comments'
 import { TaskPanelRoute } from '../features/tasks'
 import { WorkspaceHomePage } from '../features/locations'
+import { InboxPage } from '../features/notifications'
 import { Presence } from '../features/realtime'
 import { ServiceAccountDetailPage, ServiceAccountsPage } from '../features/serviceAccounts'
 import { LocationViewRoute, ViewBackground, WorkspaceViewRoute } from '../features/views'
@@ -27,6 +28,7 @@ export const router = createBrowserRouter([
             path: '/w/:workspaceId',
             element: <WorkspaceHomePage populated={<WorkspaceViewRoute />} />,
           },
+          { path: '/w/:workspaceId/inbox', element: <InboxPage /> },
           { path: '/w/:workspaceId/settings/service-accounts', element: <ServiceAccountsPage /> },
           {
             path: '/w/:workspaceId/settings/service-accounts/:serviceAccountId',

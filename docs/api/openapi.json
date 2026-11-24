@@ -1131,6 +1131,51 @@
         "required" : [ "name" ],
         "type" : "object"
       },
+      "NotificationView" : {
+        "properties" : {
+          "actorName" : {
+            "type" : "string"
+          },
+          "actorType" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string"
+          },
+          "message" : {
+            "type" : "string"
+          },
+          "read" : {
+            "type" : "boolean"
+          },
+          "readAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "ruleName" : {
+            "type" : "string"
+          },
+          "taskId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "taskReadableId" : {
+            "type" : "string"
+          },
+          "taskTitle" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "OptionInfo" : {
         "properties" : {
           "color" : {
@@ -1239,6 +1284,20 @@
           "items" : {
             "items" : {
               "$ref" : "#/components/schemas/MemberView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PageNotificationView" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/NotificationView"
             },
             "type" : "array"
           },
@@ -1417,6 +1476,24 @@
           }
         },
         "required" : [ "config", "scope" ],
+        "type" : "object"
+      },
+      "ReadAllRequest" : {
+        "properties" : {
+          "upToId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ReadAllResult" : {
+        "properties" : {
+          "marked" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
         "type" : "object"
       },
       "RemapRequest" : {
@@ -1953,6 +2030,15 @@
           },
           "type" : {
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UnreadCount" : {
+        "properties" : {
+          "count" : {
+            "format" : "int64",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -3268,7 +3354,7 @@
     },
     "/api/v1/locations/{id}/grants" : {
       "get" : {
-        "operationId" : "list_9",
+        "operationId" : "list_10",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3585,9 +3671,47 @@
         "tags" : [ "meta-controller" ]
       }
     },
+    "/api/v1/notifications/{id}/read" : {
+      "delete" : {
+        "operationId" : "markUnread",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "inbox-controller" ]
+      },
+      "post" : {
+        "operationId" : "markRead",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "inbox-controller" ]
+      }
+    },
     "/api/v1/tasks" : {
       "get" : {
-        "operationId" : "list_8",
+        "operationId" : "list_9",
         "parameters" : [ {
           "in" : "query",
           "name" : "locationId",
@@ -4730,6 +4854,119 @@
           }
         },
         "tags" : [ "workspace-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/notifications" : {
+      "get" : {
+        "operationId" : "list_8",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "unread",
+          "required" : false,
+          "schema" : {
+            "default" : false,
+            "type" : "boolean"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageNotificationView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "inbox-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/notifications/read-all" : {
+      "post" : {
+        "operationId" : "readAll",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReadAllRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ReadAllResult"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "inbox-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/notifications/unread-count" : {
+      "get" : {
+        "operationId" : "unreadCount",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UnreadCount"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "inbox-controller" ]
       }
     },
     "/api/v1/workspaces/{id}/search" : {
