@@ -13,7 +13,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
  * With no trusted proxy (the default), X-Forwarded-For is ignored and the TCP peer is the client
- * (decision 006).
+ * (decision 005.14).
  */
 class SignInRateLimitUntrustedForwardIT extends IntegrationTest {
 

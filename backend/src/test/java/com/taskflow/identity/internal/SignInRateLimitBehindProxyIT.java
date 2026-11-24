@@ -10,7 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.TestPropertySource;
 
-/** The sign-in IP limit behind a trusted reverse proxy (decision 006). */
+/** The sign-in IP limit behind a trusted reverse proxy (decision 005.14). */
 @TestPropertySource(properties = "taskflow.http.trusted-proxies=127.0.0.1,::1")
 class SignInRateLimitBehindProxyIT extends IntegrationTest {
 

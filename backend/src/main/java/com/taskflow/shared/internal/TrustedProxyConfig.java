@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Which proxies may set the client IP through {@code X-Forwarded-For} (decision 006). {@code
+ * Which proxies may set the client IP through {@code X-Forwarded-For} (decision 005.14). {@code
  * server.forward-headers-strategy: native} installs Tomcat's {@link RemoteIpValve}; this limits the
  * proxies it trusts to the exact addresses in {@code taskflow.http.trusted-proxies}, by default
  * none. The valve reads the header right to left and stops at the first address that is not a
