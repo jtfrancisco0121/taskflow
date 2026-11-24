@@ -87,9 +87,12 @@ export function renderWithProviders(
   options: { route?: string; state?: object; queryClient?: QueryClient } = {},
 ) {
   const queryClient = options.queryClient ?? newQueryClient()
+  const [pathname, search] = (options.route ?? '/').split('?')
   const result = render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[{ pathname: options.route ?? '/', state: options.state }]}>
+      <MemoryRouter
+        initialEntries={[{ pathname, search: search ? `?${search}` : '', state: options.state }]}
+      >
         {ui}
       </MemoryRouter>
     </QueryClientProvider>,

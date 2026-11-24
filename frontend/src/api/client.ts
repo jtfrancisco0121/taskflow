@@ -1,4 +1,5 @@
 import createClient from 'openapi-fetch'
+import { clientId } from './clientId'
 import { clearSession, getAccessToken, refreshSession } from './session'
 import type { paths } from './schema'
 
@@ -28,6 +29,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
     onRequest({ request }) {
       const token = getAccessToken()
       if (token) request.headers.set('Authorization', `Bearer ${token}`)
+      request.headers.set('X-Client-Id', clientId)
       sent.set(request, { clone: request.clone(), token })
     },
     async onResponse({ request, response }) {

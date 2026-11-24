@@ -23,6 +23,7 @@ export function useCreateTask(workspaceId: string, listId: string) {
     onSuccess: async () => {
       keys.current.done()
       await queryClient.invalidateQueries({ queryKey: queryKeys.tasksAll(workspaceId) })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(workspaceId) })
     },
   })
 }

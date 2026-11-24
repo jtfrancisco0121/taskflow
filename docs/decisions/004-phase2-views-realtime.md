@@ -59,4 +59,25 @@ adds detail.
 
 ## Versions
 
-Recorded when the libraries were installed (S7).
+Pinned exactly in `frontend/package.json` when installed (S7), with React 19.3 and the Vitest and build
+checks as the compatibility proof:
+
+| Library | Version | Note |
+| --- | --- | --- |
+| `@dnd-kit/core` | 6.3.1 | Pointer sensor (5 px) and keyboard sensor; the Calendar adds a day-jumping keyboard getter |
+| `@dnd-kit/sortable` | 10.0.0 | Board columns |
+| `@tanstack/react-virtual` | 3.14.28 | List and Table rows; a size-observer fallback keeps jsdom and hidden tabs rendering |
+| `@tanstack/react-table` | 8.21.3 | The 9.x line was the latest at install; 8.x was pinned for its stable API |
+| `@stomp/stompjs` | 7.5.0 | Native WebSocket, no SockJS |
+
+The architecture's open question about React 19 compatibility is answered: all five install and run
+under the existing test suite and production build.
+
+## Frontend notes
+
+- `/t/:taskId` draws the view behind the panel through `ViewBackground`, which is passed in from
+  `app/router.tsx` as a render prop, so `features/tasks` never imports `features/views`. The
+  background keeps the view parameters of the place the user came from (`ViewParamsContext`).
+- Presence is rendered through the same `tabs` slot as the comments (the router composes both), so
+  `features/tasks` does not import `features/realtime`.
+- The Table uses TanStack Table for its column model; width and order live in the URL `c`.

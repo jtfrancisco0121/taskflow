@@ -9,6 +9,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8080',
+      // STOMP over native WebSocket (AD-13)
+      '/ws': { target: process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8080', ws: true },
     },
   },
   test: {

@@ -10,6 +10,13 @@ export const queryKeys = {
   statusesAll: (wsId: string) => ['ws', wsId, 'statuses'] as const,
   tasks: (wsId: string, locationId: string) => ['ws', wsId, 'tasks', locationId] as const,
   tasksAll: (wsId: string) => ['ws', wsId, 'tasks'] as const,
+  /** AD-19: one key per (Workspace, scope, config hash, group value). */
+  view: (wsId: string, scopeId: string, configHash: string, groupValue?: string) =>
+    ['ws', wsId, 'view', scopeId, configHash, groupValue ?? null] as const,
+  viewsAll: (wsId: string) => ['ws', wsId, 'view'] as const,
+  viewList: (wsId: string, scopeId: string) => ['ws', wsId, 'viewList', scopeId] as const,
+  viewListAll: (wsId: string) => ['ws', wsId, 'viewList'] as const,
+  search: (wsId: string, q: string) => ['ws', wsId, 'search', q] as const,
   task: (taskId: string) => ['task', taskId] as const,
   taskAll: () => ['task'] as const,
   comments: (taskId: string) => ['task', taskId, 'comments'] as const,
