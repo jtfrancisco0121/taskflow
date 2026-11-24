@@ -21,7 +21,20 @@
     <java.version>21</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <spotless.version>3.12.0</spotless.version>
+    <modulith.version>1.4.14</modulith.version>
   </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.modulith</groupId>
+        <artifactId>spring-modulith-bom</artifactId>
+        <version>${modulith.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
     <dependency>
@@ -49,6 +62,10 @@
       <artifactId>flyway-database-postgresql</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.springframework.modulith</groupId>
+      <artifactId>spring-modulith-starter-core</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
       <scope>runtime</scope>
@@ -57,6 +74,11 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.modulith</groupId>
+      <artifactId>spring-modulith-starter-test</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -83,6 +105,30 @@
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
 
+      <!--
+        Modulith imports classes with DoNotIncludeTests, which skips target/test-classes, so the
+        boundary-violation fixture (src/modulith-fixture/java) is compiled to its own folder.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>compile-modulith-fixture</id>
+            <phase>process-test-classes</phase>
+            <goals>
+              <goal>testCompile</goal>
+            </goals>
+            <configuration>
+              <compileSourceRoots>
+                <compileSourceRoot>${project.basedir}/src/modulith-fixture/java</compileSourceRoot>
+              </compileSourceRoots>
+              <outputDirectory>${project.build.directory}/modulith-fixture-classes</outputDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
       <!-- Unit tests: *Test (AD-7) -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -92,6 +138,10 @@
             <include>**/*Test.java</include>
             <include>**/*Tests.java</include>
           </includes>
+          <!-- Fixture classes for ModularityViolationTest, compiled below; never in the jar. -->
+          <additionalClasspathElements>
+            <additionalClasspathElement>${project.build.directory}/modulith-fixture-classes</additionalClasspathElement>
+          </additionalClasspathElements>
         </configuration>
       </plugin>
 
@@ -121,6 +171,11 @@
         <version>${spotless.version}</version>
         <configuration>
           <java>
+            <includes>
+              <include>src/main/java/**/*.java</include>
+              <include>src/test/java/**/*.java</include>
+              <include>src/modulith-fixture/java/**/*.java</include>
+            </includes>
             <googleJavaFormat/>
             <removeUnusedImports/>
           </java>
