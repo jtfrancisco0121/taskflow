@@ -68,6 +68,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/automations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_7"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_6"];
+        options?: never;
+        head?: never;
+        patch: operations["update_5"];
+        trace?: never;
+    };
     "/api/v1/checklist-items/{id}": {
         parameters: {
             query?: never;
@@ -189,7 +205,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_8"];
+        post: operations["create_9"];
         delete?: never;
         options?: never;
         head?: never;
@@ -244,6 +260,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/locations/{id}/automations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_7"];
+        put?: never;
+        post: operations["create_8"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/locations/{id}/fields": {
         parameters: {
             query?: never;
@@ -283,7 +315,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_8"];
+        get: operations["list_9"];
         put?: never;
         post?: never;
         delete?: never;
@@ -411,7 +443,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_7"];
+        get: operations["list_8"];
         put?: never;
         post?: never;
         delete?: never;
@@ -957,6 +989,20 @@ export interface components {
             payload?: components["schemas"]["JsonNode"];
             type?: string;
         };
+        Action: {
+            clearDueDate?: boolean;
+            /** Format: int32 */
+            daysAfter?: number;
+            message?: string;
+            personIds?: string[];
+            priority?: string;
+            recipients?: string[];
+            status?: string;
+            text?: string;
+            title?: string;
+            type?: string;
+            unassignAll?: boolean;
+        };
         ActivityView: {
             /** Format: uuid */
             actorId?: string;
@@ -1046,6 +1092,17 @@ export interface components {
             /** Format: uuid */
             taskId?: string;
         };
+        Condition: {
+            /** Format: uuid */
+            fieldId?: string;
+            operator?: string;
+            /** Format: uuid */
+            personId?: string;
+            tag?: string;
+            type?: string;
+            value?: unknown;
+            values?: string[];
+        };
         CreateChecklistRequest: {
             name: string;
         };
@@ -1086,6 +1143,13 @@ export interface components {
             type: "SPACE" | "FOLDER" | "LIST";
             /** Format: uuid */
             workspaceId?: string;
+        };
+        CreateRuleRequest: {
+            actions: components["schemas"]["Action"][];
+            conditions?: components["schemas"]["Condition"][];
+            enabled?: boolean;
+            name: string;
+            trigger: components["schemas"]["Trigger"];
         };
         CreateTaskRequest: {
             assigneeIds?: string[];
@@ -1270,6 +1334,14 @@ export interface components {
             name?: string;
             status?: string;
         };
+        LastRun: {
+            /** Format: date-time */
+            at?: string;
+            reason?: string;
+            status?: string;
+            /** Format: uuid */
+            taskId?: string;
+        };
         LocationView: {
             archived?: boolean;
             children?: components["schemas"]["LocationView"][];
@@ -1385,6 +1457,11 @@ export interface components {
             items?: components["schemas"]["WorkspaceView"][];
             nextCursor?: string;
         };
+        Person: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+        };
         QueryResponse: {
             droppedFields?: components["schemas"]["DroppedField"][];
             groups?: components["schemas"]["GroupInfo"][];
@@ -1419,6 +1496,37 @@ export interface components {
         };
         ResetStatusesRequest: {
             remap?: components["schemas"]["RemapRequest"][];
+        };
+        RuleListView: {
+            canEdit?: boolean;
+            /** Format: int32 */
+            limit?: number;
+            /** Format: uuid */
+            locationId?: string;
+            rules?: components["schemas"]["RuleView"][];
+        };
+        RuleView: {
+            actions?: components["schemas"]["Action"][];
+            conditions?: components["schemas"]["Condition"][];
+            /** Format: date-time */
+            createdAt?: string;
+            createdBy?: components["schemas"]["Person"];
+            /** Format: uuid */
+            definedAt?: string;
+            definedAtName?: string;
+            enabled?: boolean;
+            /** Format: uuid */
+            id?: string;
+            inherited?: boolean;
+            lastRun?: components["schemas"]["LastRun"];
+            /** Format: uuid */
+            locationId?: string;
+            name?: string;
+            trigger?: components["schemas"]["Trigger"];
+            /** Format: date-time */
+            updatedAt?: string;
+            /** Format: int64 */
+            version?: number;
         };
         SearchHit: {
             blocked?: boolean;
@@ -1550,6 +1658,15 @@ export interface components {
             /** @enum {string} */
             type?: "SPACE" | "FOLDER" | "LIST";
         };
+        Trigger: {
+            /** Format: uuid */
+            fieldId?: string;
+            fromStatuses?: string[];
+            /** Format: uuid */
+            personId?: string;
+            toStatuses?: string[];
+            type?: string;
+        };
         UpdateChecklistRequest: {
             /** Format: uuid */
             afterId?: string;
@@ -1582,6 +1699,13 @@ export interface components {
         UpdateLocationRequest: {
             isPrivate?: boolean;
             name?: string;
+        };
+        UpdateRuleRequest: {
+            actions?: components["schemas"]["Action"][];
+            conditions?: components["schemas"]["Condition"][];
+            enabled?: boolean;
+            name?: string;
+            trigger?: components["schemas"]["Trigger"];
         };
         UpdateTaskRequest: {
             assigneeIds?: string[];
@@ -1751,6 +1875,78 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["AuthResponse"];
+                };
+            };
+        };
+    };
+    get_7: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RuleView"];
+                };
+            };
+        };
+    };
+    delete_6: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_5: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RuleView"];
                 };
             };
         };
@@ -2035,7 +2231,7 @@ export interface operations {
             };
         };
     };
-    create_8: {
+    create_9: {
         parameters: {
             query?: never;
             header?: never;
@@ -2175,6 +2371,54 @@ export interface operations {
             };
         };
     };
+    list_7: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RuleListView"];
+                };
+            };
+        };
+    };
+    create_8: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RuleView"];
+                };
+            };
+        };
+    };
     list_6: {
         parameters: {
             query?: never;
@@ -2269,7 +2513,7 @@ export interface operations {
             };
         };
     };
-    list_8: {
+    list_9: {
         parameters: {
             query?: {
                 cursor?: string;
@@ -2520,7 +2764,7 @@ export interface operations {
             };
         };
     };
-    list_7: {
+    list_8: {
         parameters: {
             query?: {
                 locationId?: string;

@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router'
 import { SignInPage, SignUpPage } from '../features/auth'
+import { AutomationsPage } from '../features/automations'
 import { TaskTabs } from '../features/comments'
 import { TaskPanelRoute } from '../features/tasks'
 import { WorkspaceHomePage } from '../features/locations'
@@ -35,6 +36,7 @@ export const router = createBrowserRouter([
           // the existing List URL renders the Default List view (phase 1 links keep working)
           { path: '/w/:workspaceId/l/:locationId', element: <LocationViewRoute /> },
           { path: '/w/:workspaceId/l/:locationId/v/:viewId', element: <LocationViewRoute /> },
+          { path: '/w/:workspaceId/l/:locationId/automations', element: <AutomationsPage /> },
           {
             path: '/t/:taskId',
             element: (

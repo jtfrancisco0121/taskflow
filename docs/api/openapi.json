@@ -50,6 +50,52 @@
         },
         "type" : "object"
       },
+      "Action" : {
+        "properties" : {
+          "clearDueDate" : {
+            "type" : "boolean"
+          },
+          "daysAfter" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "message" : {
+            "type" : "string"
+          },
+          "personIds" : {
+            "items" : {
+              "format" : "uuid",
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "priority" : {
+            "type" : "string"
+          },
+          "recipients" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "text" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "unassignAll" : {
+            "type" : "boolean"
+          }
+        },
+        "type" : "object"
+      },
       "ActivityView" : {
         "properties" : {
           "actorId" : {
@@ -280,6 +326,35 @@
         },
         "type" : "object"
       },
+      "Condition" : {
+        "properties" : {
+          "fieldId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "operator" : {
+            "type" : "string"
+          },
+          "personId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "tag" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "value" : { },
+          "values" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "CreateChecklistRequest" : {
         "properties" : {
           "name" : {
@@ -393,6 +468,35 @@
           }
         },
         "required" : [ "name", "type" ],
+        "type" : "object"
+      },
+      "CreateRuleRequest" : {
+        "properties" : {
+          "actions" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Action"
+            },
+            "type" : "array"
+          },
+          "conditions" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Condition"
+            },
+            "type" : "array"
+          },
+          "enabled" : {
+            "type" : "boolean"
+          },
+          "name" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "trigger" : {
+            "$ref" : "#/components/schemas/Trigger"
+          }
+        },
+        "required" : [ "actions", "name", "trigger" ],
         "type" : "object"
       },
       "CreateTaskRequest" : {
@@ -867,6 +971,25 @@
         },
         "type" : "object"
       },
+      "LastRun" : {
+        "properties" : {
+          "at" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "taskId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "LocationView" : {
         "properties" : {
           "archived" : {
@@ -1199,6 +1322,18 @@
         },
         "type" : "object"
       },
+      "Person" : {
+        "properties" : {
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "QueryResponse" : {
         "properties" : {
           "droppedFields" : {
@@ -1312,6 +1447,90 @@
               "$ref" : "#/components/schemas/RemapRequest"
             },
             "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "RuleListView" : {
+        "properties" : {
+          "canEdit" : {
+            "type" : "boolean"
+          },
+          "limit" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "locationId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "rules" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RuleView"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "RuleView" : {
+        "properties" : {
+          "actions" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Action"
+            },
+            "type" : "array"
+          },
+          "conditions" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Condition"
+            },
+            "type" : "array"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "createdBy" : {
+            "$ref" : "#/components/schemas/Person"
+          },
+          "definedAt" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "definedAtName" : {
+            "type" : "string"
+          },
+          "enabled" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "inherited" : {
+            "type" : "boolean"
+          },
+          "lastRun" : {
+            "$ref" : "#/components/schemas/LastRun"
+          },
+          "locationId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "trigger" : {
+            "$ref" : "#/components/schemas/Trigger"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
           }
         },
         "type" : "object"
@@ -1639,6 +1858,34 @@
         },
         "type" : "object"
       },
+      "Trigger" : {
+        "properties" : {
+          "fieldId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "fromStatuses" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "personId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "toStatuses" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "UpdateChecklistRequest" : {
         "properties" : {
           "afterId" : {
@@ -1718,6 +1965,34 @@
             "maxLength" : 100,
             "minLength" : 1,
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateRuleRequest" : {
+        "properties" : {
+          "actions" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Action"
+            },
+            "type" : "array"
+          },
+          "conditions" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Condition"
+            },
+            "type" : "array"
+          },
+          "enabled" : {
+            "type" : "boolean"
+          },
+          "name" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "trigger" : {
+            "$ref" : "#/components/schemas/Trigger"
           }
         },
         "type" : "object"
@@ -2040,6 +2315,100 @@
           }
         },
         "tags" : [ "auth-controller" ]
+      }
+    },
+    "/api/v1/automations/{id}" : {
+      "delete" : {
+        "operationId" : "delete_6",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "automation-controller" ]
+      },
+      "get" : {
+        "operationId" : "get_7",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RuleView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "automation-controller" ]
+      },
+      "patch" : {
+        "operationId" : "update_5",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateRuleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RuleView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "automation-controller" ]
       }
     },
     "/api/v1/checklist-items/{id}" : {
@@ -2392,7 +2761,7 @@
     },
     "/api/v1/lists/{id}/tasks" : {
       "post" : {
-        "operationId" : "create_8",
+        "operationId" : "create_9",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2562,6 +2931,68 @@
         "tags" : [ "location-controller" ]
       }
     },
+    "/api/v1/locations/{id}/automations" : {
+      "get" : {
+        "operationId" : "list_7",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RuleListView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "automation-controller" ]
+      },
+      "post" : {
+        "operationId" : "create_8",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateRuleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RuleView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "automation-controller" ]
+      }
+    },
     "/api/v1/locations/{id}/fields" : {
       "get" : {
         "operationId" : "list_6",
@@ -2694,7 +3125,7 @@
     },
     "/api/v1/locations/{id}/grants" : {
       "get" : {
-        "operationId" : "list_8",
+        "operationId" : "list_9",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3013,7 +3444,7 @@
     },
     "/api/v1/tasks" : {
       "get" : {
-        "operationId" : "list_7",
+        "operationId" : "list_8",
         "parameters" : [ {
           "in" : "query",
           "name" : "locationId",

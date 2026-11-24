@@ -61,8 +61,16 @@ export function ViewPage({
           </span>
         )}
         {type && <span className="text-sm text-slate-500">{TYPE_NAME[type]}</span>}
+        {location.data && type && scope.locationId && (
+          <Link
+            to={`/w/${scope.workspaceId}/l/${scope.locationId}/automations`}
+            className="ml-auto rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-slate-100"
+          >
+            Automations
+          </Link>
+        )}
         {location.data && type && (
-          <Button ref={statusesButton} className="ml-auto" onClick={() => setStatusesOpen(true)}>
+          <Button ref={statusesButton} onClick={() => setStatusesOpen(true)}>
             Statuses
           </Button>
         )}
