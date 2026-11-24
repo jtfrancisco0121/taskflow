@@ -38,6 +38,19 @@ public class EventRecorder {
     String outboxJson;
     try {
       Map<String, Object> body = payload == null ? Map.of() : payload;
+      // While a rule runs, its cause rides on every event it makes, in both payloads (AD-5).
+      var cause = AutomationCause.current();
+      if (cause.isPresent()) {
+        Map<String, Object> withCause = new java.util.LinkedHashMap<>(body);
+        AutomationCause c = cause.get();
+        Map<String, Object> automation = new java.util.LinkedHashMap<>();
+        automation.put("ruleId", c.ruleId().toString());
+        automation.put("ruleName", c.ruleName());
+        automation.put("runId", c.runId() == null ? null : c.runId().toString());
+        automation.put("depth", c.depth());
+        withCause.put("automation", automation);
+        body = withCause;
+      }
       json = mapper.writeValueAsString(body);
       // The client id is a tab id, not activity: it rides on the outbox row only (AD-12).
       var clientId = ClientIdHolder.current();

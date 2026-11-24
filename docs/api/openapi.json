@@ -116,6 +116,13 @@
             "enum" : [ "USER", "SERVICE_ACCOUNT", "AUTOMATION" ],
             "type" : "string"
           },
+          "automationRuleId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "automationRuleName" : {
+            "type" : "string"
+          },
           "createdAt" : {
             "format" : "date-time",
             "type" : "string"
@@ -293,6 +300,9 @@
           "authorId" : {
             "format" : "uuid",
             "type" : "string"
+          },
+          "authorIsAutomation" : {
+            "type" : "boolean"
           },
           "authorName" : {
             "type" : "string"

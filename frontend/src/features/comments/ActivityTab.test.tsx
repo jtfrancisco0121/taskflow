@@ -225,3 +225,26 @@ describe('ActivityTab', () => {
     expect(document.body.textContent).not.toMatch(/secret/)
   })
 })
+
+describe('CAP-7 automation attribution', () => {
+  it('shows "by automation <rule>" with the badge, and the system without one', async () => {
+    serve([
+      entry(
+        'e1',
+        'task.status_changed',
+        'Done to QA',
+        { changes: {} },
+        {
+          actorType: 'AUTOMATION',
+          automationRuleName: 'Done to QA',
+        },
+      ),
+      entry('e2', 'task.due_reached', 'Taskflow', {}, { actorType: 'AUTOMATION' }),
+    ])
+    renderWithProviders(<ActivityTab task={task} />)
+    expect(await screen.findByText('by automation Done to QA')).toBeVisible()
+    expect(screen.getAllByText('Automation')).toHaveLength(1)
+    expect(screen.getByText('Taskflow')).toBeVisible()
+    expect(screen.getByText('Due date reached')).toBeVisible()
+  })
+})

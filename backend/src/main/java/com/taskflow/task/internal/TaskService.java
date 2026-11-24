@@ -81,6 +81,7 @@ class TaskService {
   private final RankScopeLock rankLock;
   private final RankAllocator ranks;
   private final BlockerTransitions blockers;
+  private final AuthorResolver authors;
 
   TaskService(
       TaskRepository repo,
@@ -94,7 +95,9 @@ class TaskService {
       WorkspaceQuery workspaces,
       RankScopeLock rankLock,
       RankAllocator ranks,
-      BlockerTransitions blockers) {
+      BlockerTransitions blockers,
+      AuthorResolver authors) {
+    this.authors = authors;
     this.blockers = blockers;
     this.repo = repo;
     this.jdbc = jdbc;
@@ -160,7 +163,7 @@ class TaskService {
         ts(in.startDate()),
         ts(in.dueDate()),
         rank,
-        CurrentActor.userId(),
+        authors.authorOf(list.workspaceId()),
         customJson(custom));
     repo.replaceAssignees(list.workspaceId(), id, assignees);
     repo.replaceTags(list.workspaceId(), id, tags);

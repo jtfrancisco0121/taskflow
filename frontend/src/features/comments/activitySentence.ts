@@ -82,6 +82,11 @@ function customFieldLines(entry: ActivityView): string[] {
 
 /** Who did it: a service account reads "triage-agent (key CI-1)", never a bare id. */
 export function actorLabel(entry: ActivityView): string {
+  // A rule's change reads "by automation <rule>"; an AUTOMATION actor without a rule is the system
+  // (a due-date event) and is just "Taskflow".
+  if (entry.actorType === 'AUTOMATION') {
+    return entry.automationRuleName ? `by automation ${entry.automationRuleName}` : 'Taskflow'
+  }
   const name = entry.actorName ?? 'Someone'
   if (entry.actorType === 'SERVICE_ACCOUNT' && entry.actorKeyName) {
     return `${name} (key ${entry.actorKeyName})`
@@ -157,6 +162,10 @@ export function activitySentences(entry: ActivityView, lookup: NameLookup): stri
       const line = `${other(lookup, payload.blockerId)} was ${what}`
       return [payload.stillBlocked ? `${line}; still waiting on other tasks` : line]
     }
+    case 'task.due_soon':
+      return ['Due date approaching']
+    case 'task.due_reached':
+      return ['Due date reached']
     case 'comment.created':
       return ['commented']
     case 'comment.edited':

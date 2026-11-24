@@ -4,6 +4,7 @@ import type { CommentView, TaskView } from '../../api/types'
 import { formatDateTime, relativeTime } from '../../shared/dates'
 import { isEmptyDoc, RichTextEditor, RichTextView, type RichDoc } from '../../shared/richtext'
 import { useToastStore } from '../../shared/toast-store'
+import { AutomationBadge } from '../../shared/ui/AutomationBadge'
 import { Button } from '../../shared/ui/Button'
 import { useSession } from '../auth'
 import { useMembers } from '../workspace'
@@ -123,6 +124,7 @@ function CommentItem({
     <li className="flex flex-col gap-1 rounded border border-slate-200 p-2">
       <div className="flex items-baseline gap-2 text-xs text-slate-600">
         <span className="font-medium text-slate-900">{comment.authorName}</span>
+        {comment.authorIsAutomation && <AutomationBadge />}
         <time dateTime={comment.createdAt} title={formatDateTime(comment.createdAt)}>
           {relativeTime(comment.createdAt)}
         </time>

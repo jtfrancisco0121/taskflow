@@ -1012,6 +1012,9 @@ export interface components {
             actorName?: string;
             /** @enum {string} */
             actorType?: "USER" | "SERVICE_ACCOUNT" | "AUTOMATION";
+            /** Format: uuid */
+            automationRuleId?: string;
+            automationRuleName?: string;
             /** Format: date-time */
             createdAt?: string;
             /** Format: uuid */
@@ -1080,6 +1083,7 @@ export interface components {
         CommentView: {
             /** Format: uuid */
             authorId?: string;
+            authorIsAutomation?: boolean;
             authorName?: string;
             body?: components["schemas"]["JsonNode"];
             /** Format: date-time */
