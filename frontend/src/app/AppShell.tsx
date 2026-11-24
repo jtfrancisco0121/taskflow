@@ -1,9 +1,13 @@
 import { Outlet } from 'react-router'
+import { useSession, useSignOut } from '../features/auth'
+import { Button } from '../shared/ui/Button'
 import { useUiStore } from '../shared/ui-store'
 
 export function AppShell() {
   const sidebarOpen = useUiStore((state) => state.sidebarOpen)
   const toggleSidebar = useUiStore((state) => state.toggleSidebar)
+  const session = useSession()
+  const signOut = useSignOut()
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
@@ -18,6 +22,10 @@ export function AppShell() {
           Menu
         </button>
         <span className="text-lg font-bold">Taskflow</span>
+        <div className="ml-auto flex items-center gap-3 text-sm">
+          {session.user?.displayName && <span>{session.user.displayName}</span>}
+          <Button onClick={() => void signOut()}>Sign out</Button>
+        </div>
       </header>
       <div className="flex flex-1">
         {sidebarOpen && (

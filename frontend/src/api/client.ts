@@ -19,6 +19,7 @@ type ApiClientOptions = {
  */
 export function createApiClient(options: ApiClientOptions = {}) {
   const send: Fetcher = options.fetch ?? ((request) => globalThis.fetch(request))
+  const refresh = () => refreshSession({ fetch: send, baseUrl: options.baseUrl })
   const client = createClient<paths>({ baseUrl: options.baseUrl ?? '', fetch: send })
   // A body can be read only once, so keep a clone and the token each request was sent with.
   const sent = new WeakMap<Request, { clone: Request; token: string | null }>()
@@ -38,10 +39,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       if (!record) return undefined
       const current = getAccessToken()
       // Another call already refreshed: retry with the current token, no second refresh.
-      const token =
-        current && current !== record.token
-          ? current
-          : await refreshSession({ fetch: send, baseUrl: options.baseUrl })
+      const token = current && current !== record.token ? current : await refresh()
       if (!token) {
         clearSession()
         return undefined
@@ -51,7 +49,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
       return send(retry)
     },
   })
-  return client
+  // The app boot calls api.refresh() so it goes through the same fetch as every other request.
+  return Object.assign(client, { refresh })
 }
 
 export const api = createApiClient()

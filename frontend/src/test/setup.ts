@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterEach, vi } from 'vitest'
-import { clearSession } from '../api/session'
+import { clearSession, resetSessionForTests } from '../api/session'
 import { useToastStore } from '../shared/toast-store'
 import { useUiStore } from '../shared/ui-store'
 
@@ -49,6 +49,7 @@ if (typeof window !== 'undefined' && !window.HTMLElement.prototype.scrollIntoVie
 afterEach(() => {
   cleanup()
   clearSession()
+  resetSessionForTests()
   if (typeof localStorage !== 'undefined') localStorage.clear()
   if (typeof sessionStorage !== 'undefined') sessionStorage.clear()
   useToastStore.setState({ toasts: [] })

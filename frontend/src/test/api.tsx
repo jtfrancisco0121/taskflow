@@ -84,12 +84,14 @@ export function newQueryClient() {
 
 export function renderWithProviders(
   ui: ReactElement,
-  options: { route?: string; queryClient?: QueryClient } = {},
+  options: { route?: string; state?: object; queryClient?: QueryClient } = {},
 ) {
   const queryClient = options.queryClient ?? newQueryClient()
   const result = render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[options.route ?? '/']}>{ui}</MemoryRouter>
+      <MemoryRouter initialEntries={[{ pathname: options.route ?? '/', state: options.state }]}>
+        {ui}
+      </MemoryRouter>
     </QueryClientProvider>,
   )
   return { ...result, queryClient }

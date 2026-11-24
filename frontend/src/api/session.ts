@@ -12,6 +12,7 @@ type Fetcher = (request: Request) => Promise<Response>
 
 let accessToken: string | null = null
 let user: SessionUser | null = null
+let booted = false
 let inflight: Promise<string | null> | null = null
 let sessionEndHook: (() => void) | null = null
 const listeners = new Set<() => void>()
@@ -26,6 +27,11 @@ export function getAccessToken(): string | null {
 
 export function getSessionUser(): SessionUser | null {
   return user
+}
+
+/** True once the first refresh settled (or a sign-in happened): the app knows whether it is signed in. */
+export function isBooted(): boolean {
+  return booted
 }
 
 export function subscribe(listener: () => void): () => void {
@@ -44,6 +50,7 @@ export function setSession(token: string, nextUser: SessionUser | null) {
   const changed = user?.id != null && nextUser?.id != null && user.id !== nextUser.id
   accessToken = token
   user = nextUser ?? user
+  booted = true
   if (changed) sessionEndHook?.()
   notify()
 }
@@ -86,6 +93,17 @@ export function refreshSession(options: RefreshOptions = {}): Promise<string | n
       : doRefresh(run, baseUrl))()
   inflight = promise.finally(() => {
     inflight = null
+    booted = true
+    notify()
   })
   return inflight
+}
+
+/** Test helper: back to the state of a freshly loaded page. */
+export function resetSessionForTests() {
+  accessToken = null
+  user = null
+  booted = false
+  inflight = null
+  sessionEndHook = null
 }
