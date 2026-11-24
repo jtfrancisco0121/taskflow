@@ -53,5 +53,5 @@ afterEach(() => {
   if (typeof localStorage !== 'undefined') localStorage.clear()
   if (typeof sessionStorage !== 'undefined') sessionStorage.clear()
   useToastStore.setState({ toasts: [] })
-  useUiStore.setState({ sidebarOpen: true, expanded: {} })
+  useUiStore.setState({ sidebarOpen: true, creatingSpace: false, expanded: {} })
 })

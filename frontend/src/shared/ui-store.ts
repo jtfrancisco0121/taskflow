@@ -24,6 +24,9 @@ function writeExpanded(workspaceId: string, ids: string[]) {
 type UiState = {
   sidebarOpen: boolean
   toggleSidebar: () => void
+  /** The sidebar's inline "new Space" field is open (also opened by the empty-tree prompt). */
+  creatingSpace: boolean
+  setCreatingSpace: (value: boolean) => void
   /** Expanded tree node ids per Workspace; loaded lazily from localStorage. */
   expanded: Record<string, string[]>
   loadExpanded: (workspaceId: string) => void
@@ -34,6 +37,9 @@ type UiState = {
 export const useUiStore = create<UiState>((set, get) => ({
   sidebarOpen: true,
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+  creatingSpace: false,
+  setCreatingSpace: (value) =>
+    set((state) => ({ creatingSpace: value, sidebarOpen: value ? true : state.sidebarOpen })),
   expanded: {},
   loadExpanded: (workspaceId) =>
     set((state) => ({ expanded: { ...state.expanded, [workspaceId]: readExpanded(workspaceId) } })),

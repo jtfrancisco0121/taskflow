@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router'
 import { SignInPage, SignUpPage } from '../features/auth'
+import { WorkspaceHomePage } from '../features/locations'
 import { SetupPage, WorkspaceRedirect } from '../features/workspace'
 import { AppShell } from './AppShell'
 import { RequireSession } from './RequireSession'
@@ -18,7 +19,7 @@ export const router = createBrowserRouter([
           { path: '/setup', element: <SetupPage /> },
           {
             path: '/w/:workspaceId',
-            element: <p className="text-slate-600">Pick a List in the sidebar.</p>,
+            element: <WorkspaceHomePage />,
           },
           { path: '/w/:workspaceId/l/:locationId', element: <p>List</p> },
         ],

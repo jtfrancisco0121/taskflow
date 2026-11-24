@@ -1,6 +1,14 @@
+import { useRef, useState, type KeyboardEvent } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router'
+import { messageOf } from '../../api/errors'
+import { useToastStore } from '../../shared/toast-store'
 import { useUiStore } from '../../shared/ui-store'
+import { InlineNameField } from './InlineNameField'
 import { LocationIcon, LockMarker } from './LocationIcon'
+import { MoveDialog } from './MoveDialog'
+import { type MenuAction } from './menuItems'
+import { TreeItemMenu } from './TreeItemMenu'
+import { useCreateLocation, useUpdateLocation } from './useLocationMutations'
 import { useTreeChildren, type TreeNode } from './useTreeChildren'
 
 type TreeItemProps = {
@@ -11,6 +19,9 @@ type TreeItemProps = {
   onFocusItem: (id: string) => void
 }
 
+type Mode =
+  null | { kind: 'create'; type: 'FOLDER' | 'LIST' } | { kind: 'rename' } | { kind: 'move' }
+
 function focusItem(element: Element | null | undefined) {
   if (element instanceof HTMLElement) element.focus()
 }
@@ -19,18 +30,46 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
   const navigate = useNavigate()
   const { locationId } = useParams()
   const id = node.id!
+  const itemRef = useRef<HTMLLIElement>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [mode, setMode] = useState<Mode>(null)
   const expandedIds = useUiStore((state) => state.expanded[workspaceId])
   const setExpanded = useUiStore((state) => state.setExpanded)
-  const expandable = node.hasChildren === true
+  const create = useCreateLocation(workspaceId)
+  const update = useUpdateLocation(workspaceId)
+  const showToast = useToastStore((state) => state.show)
+
+  const expandable = node.hasChildren === true || node.type !== 'LIST'
   const expanded = expandable && (expandedIds ?? []).includes(id)
-  const children = useTreeChildren(workspaceId, id, expanded)
+  const children = useTreeChildren(workspaceId, id, expanded && node.hasChildren === true)
   const label = `${node.name}${node.isPrivate ? ' (private)' : ''}`
+  const creating = mode?.kind === 'create' ? mode : null
 
-  const open = () => void navigate(`/w/${workspaceId}/l/${id}`)
+  function onAction(action: MenuAction) {
+    create.reset()
+    update.reset()
+    if (action === 'new-folder') setMode({ kind: 'create', type: 'FOLDER' })
+    else if (action === 'new-list') setMode({ kind: 'create', type: 'LIST' })
+    else if (action === 'rename') setMode({ kind: 'rename' })
+    else if (action === 'move') setMode({ kind: 'move' })
+    else {
+      update.mutate(
+        { id, parentId: node.parentId, isPrivate: !node.isPrivate },
+        { onError: (error) => showToast(messageOf(error), 'error') },
+      )
+    }
+    if (action === 'new-folder' || action === 'new-list') setExpanded(workspaceId, id, true)
+  }
 
-  function onKeyDown(event: React.KeyboardEvent<HTMLLIElement>) {
+  function onKeyDown(event: KeyboardEvent<HTMLLIElement>) {
     if (event.target !== event.currentTarget) return
     const item = event.currentTarget
+    if (event.key === 'F10' && event.shiftKey) {
+      setMenuOpen(true)
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
     const tree = item.closest('[role="tree"]')
     const items = tree ? Array.from(tree.querySelectorAll('[role="treeitem"]')) : []
     const index = items.indexOf(item)
@@ -57,7 +96,7 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
         else focusItem(item.parentElement?.closest('[role="treeitem"]'))
         break
       case 'Enter':
-        open()
+        void navigate(`/w/${workspaceId}/l/${id}`)
         break
       default:
         return
@@ -68,10 +107,11 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
 
   return (
     <li
+      ref={itemRef}
       role="treeitem"
       aria-label={label}
       aria-level={level}
-      aria-expanded={expandable ? expanded : undefined}
+      aria-expanded={expandable && node.hasChildren ? expanded : undefined}
       aria-selected={locationId === id}
       data-node-id={id}
       tabIndex={focusedId === id ? 0 : -1}
@@ -87,7 +127,7 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
         }`}
         style={{ paddingLeft: `${(level - 1) * 12 + 4}px` }}
       >
-        {expandable ? (
+        {node.hasChildren ? (
           <span
             aria-hidden="true"
             onClick={() => setExpanded(workspaceId, id, !expanded)}
@@ -99,24 +139,70 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
           <span className="w-4 shrink-0" aria-hidden="true" />
         )}
         <LocationIcon type={node.type} />
-        <NavLink
-          to={`/w/${workspaceId}/l/${id}`}
-          tabIndex={-1}
-          className="min-w-0 flex-1 truncate"
-          onClick={(event) => event.stopPropagation()}
-        >
-          {node.name}
-        </NavLink>
+        {mode?.kind === 'rename' ? (
+          <div className="min-w-0 flex-1">
+            <InlineNameField
+              label={`Rename ${node.name}`}
+              initial={node.name}
+              pending={update.isPending}
+              error={update.error}
+              onSave={(name) =>
+                update.mutate(
+                  { id, parentId: node.parentId, name },
+                  {
+                    onSuccess: () => {
+                      setMode(null)
+                      focusItem(itemRef.current)
+                    },
+                  },
+                )
+              }
+              onCancel={() => {
+                setMode(null)
+                focusItem(itemRef.current)
+              }}
+            />
+          </div>
+        ) : (
+          <NavLink
+            to={`/w/${workspaceId}/l/${id}`}
+            tabIndex={-1}
+            className="min-w-0 flex-1 truncate"
+          >
+            {node.name}
+          </NavLink>
+        )}
         {node.isPrivate && <LockMarker />}
+        <TreeItemMenu node={node} open={menuOpen} onOpenChange={setMenuOpen} onAction={onAction} />
       </div>
-      {expanded && (
+      {(expanded || creating) && (
         <ul role="group" className="m-0 p-0">
-          {children.isPending && (
+          {creating && (
+            <li role="none" className="list-none">
+              <InlineNameField
+                label={`New ${creating.type === 'FOLDER' ? 'Folder' : 'List'} name`}
+                withPrivate
+                pending={create.isPending}
+                error={create.error}
+                onSave={(name, isPrivate) =>
+                  create.mutate(
+                    { name, type: creating.type, parentId: id, isPrivate },
+                    { onSuccess: () => setMode(null) },
+                  )
+                }
+                onCancel={() => {
+                  setMode(null)
+                  focusItem(itemRef.current)
+                }}
+              />
+            </li>
+          )}
+          {expanded && children.isPending && node.hasChildren && (
             <li role="status" className="list-none py-1 pl-8 text-xs text-slate-500">
               Loading…
             </li>
           )}
-          {children.isError && (
+          {expanded && children.isError && (
             <li role="none" className="list-none py-1 pl-8 text-xs text-red-700">
               Couldn&apos;t load.{' '}
               <button type="button" className="underline" onClick={() => void children.refetch()}>
@@ -124,17 +210,26 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
               </button>
             </li>
           )}
-          {children.data?.map((child) => (
-            <TreeItem
-              key={child.id}
-              workspaceId={workspaceId}
-              node={child}
-              level={level + 1}
-              focusedId={focusedId}
-              onFocusItem={onFocusItem}
-            />
-          ))}
+          {expanded &&
+            children.data?.map((child) => (
+              <TreeItem
+                key={child.id}
+                workspaceId={workspaceId}
+                node={child}
+                level={level + 1}
+                focusedId={focusedId}
+                onFocusItem={onFocusItem}
+              />
+            ))}
         </ul>
+      )}
+      {mode?.kind === 'move' && (
+        <MoveDialog
+          workspaceId={workspaceId}
+          node={node}
+          onClose={() => setMode(null)}
+          restoreFocus={() => itemRef.current}
+        />
       )}
     </li>
   )

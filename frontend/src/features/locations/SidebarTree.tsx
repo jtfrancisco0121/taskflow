@@ -2,7 +2,10 @@ import { useIsFetching, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { queryKeys } from '../../api/queryKeys'
 import { useUiStore } from '../../shared/ui-store'
+import { Button } from '../../shared/ui/Button'
+import { InlineNameField } from './InlineNameField'
 import { TreeItem } from './TreeItem'
+import { useCreateLocation } from './useLocationMutations'
 import { useTreeChildren, type TreeNode } from './useTreeChildren'
 
 /** FR-8 to FR-10: lazy ARIA tree of the Workspace's Spaces, Folders and Lists. */
@@ -12,6 +15,9 @@ export function SidebarTree({ workspaceId }: { workspaceId: string }) {
   const expanded = useUiStore((state) => state.expanded[workspaceId])
   const loadExpanded = useUiStore((state) => state.loadExpanded)
   const dropExpanded = useUiStore((state) => state.dropExpanded)
+  const creatingSpace = useUiStore((state) => state.creatingSpace)
+  const setCreatingSpace = useUiStore((state) => state.setCreatingSpace)
+  const createSpace = useCreateLocation(workspaceId)
   const fetching = useIsFetching({ queryKey: queryKeys.treeAll(workspaceId) })
   const [focusedState, setFocused] = useState<string | null>(null)
   const items = root.data ?? []
@@ -55,17 +61,45 @@ export function SidebarTree({ workspaceId }: { workspaceId: string }) {
     )
   }
   return (
-    <ul role="tree" aria-label="Workspace tree" className="m-0 p-0">
-      {items.map((node) => (
-        <TreeItem
-          key={node.id}
-          workspaceId={workspaceId}
-          node={node}
-          level={1}
-          focusedId={focusedId}
-          onFocusItem={setFocused}
+    <div>
+      <div className="mb-2">
+        <Button
+          className="w-full"
+          onClick={() => {
+            createSpace.reset()
+            setCreatingSpace(true)
+          }}
+        >
+          New Space
+        </Button>
+      </div>
+      {creatingSpace && (
+        <InlineNameField
+          label="New Space name"
+          withPrivate
+          pending={createSpace.isPending}
+          error={createSpace.error}
+          onSave={(name, isPrivate) =>
+            createSpace.mutate(
+              { name, type: 'SPACE', isPrivate },
+              { onSuccess: () => setCreatingSpace(false) },
+            )
+          }
+          onCancel={() => setCreatingSpace(false)}
         />
-      ))}
-    </ul>
+      )}
+      <ul role="tree" aria-label="Workspace tree" className="m-0 p-0">
+        {items.map((node) => (
+          <TreeItem
+            key={node.id}
+            workspaceId={workspaceId}
+            node={node}
+            level={1}
+            focusedId={focusedId}
+            onFocusItem={setFocused}
+          />
+        ))}
+      </ul>
+    </div>
   )
 }
