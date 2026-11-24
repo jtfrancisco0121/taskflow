@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router'
 import { SignInPage, SignUpPage } from '../features/auth'
+import { ListViewPage } from '../features/tasks'
 import { WorkspaceHomePage } from '../features/locations'
 import { SetupPage, WorkspaceRedirect } from '../features/workspace'
 import { AppShell } from './AppShell'
@@ -21,7 +22,7 @@ export const router = createBrowserRouter([
             path: '/w/:workspaceId',
             element: <WorkspaceHomePage />,
           },
-          { path: '/w/:workspaceId/l/:locationId', element: <p>List</p> },
+          { path: '/w/:workspaceId/l/:locationId', element: <ListViewPage /> },
         ],
       },
     ],
