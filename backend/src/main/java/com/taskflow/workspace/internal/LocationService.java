@@ -197,8 +197,12 @@ class LocationService {
     return view(requireLive(id, row.workspaceId()));
   }
 
-  /** Hook for private-location grants (LOC-3); replaced when grants exist. */
-  void onPrivacyChanged(Row row, boolean nowPrivate) {}
+  /** A member who makes a location private keeps access to it: they are granted it. */
+  private void onPrivacyChanged(Row row, boolean nowPrivate) {
+    if (nowPrivate) {
+      grantToCreator(row.workspaceId(), row.id());
+    }
+  }
 
   @Transactional
   LocationView move(UUID id, UUID newParentId, UUID beforeId, UUID afterId) {
@@ -389,8 +393,26 @@ class LocationService {
     return view(requireLive(id, workspaceId));
   }
 
-  /** Hook for private-location grants (LOC-3): the creator keeps access to what they make. */
-  void onCreated(UUID workspaceId, UUID id, boolean isPrivate) {}
+  /** The creator keeps access to a private location they make. */
+  private void onCreated(UUID workspaceId, UUID id, boolean isPrivate) {
+    if (isPrivate) {
+      grantToCreator(workspaceId, id);
+    }
+  }
+
+  private void grantToCreator(UUID workspaceId, UUID locationId) {
+    UUID me = CurrentActor.userId();
+    Role role = memberships.role(workspaceId, me).orElseThrow();
+    if (!role.isAdminOrOwner()) {
+      jdbc.update(
+          "INSERT INTO location_grant (workspace_id, location_id, user_id, granted_by) VALUES (?, ?,"
+              + " ?, ?) ON CONFLICT DO NOTHING",
+          workspaceId,
+          locationId,
+          me,
+          me);
+    }
+  }
 
   private static RankAllocator.Scope scope(UUID workspaceId, UUID parentId) {
     return parentId == null

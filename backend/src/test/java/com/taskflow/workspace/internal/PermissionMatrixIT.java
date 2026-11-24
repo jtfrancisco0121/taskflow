@@ -178,4 +178,45 @@ class PermissionMatrixIT extends IntegrationTest {
           .isEqualTo(i < 3 ? 1 : 0);
     }
   }
+
+  @Test
+  void grantOrRevokePrivateAccess_ownerAndAdminOnly() {
+    for (int i = 0; i < ROLES.size(); i++) {
+      Ws ws = workspaceWithAllRoles();
+      String role = ROLES.get(i);
+      UUID space = space(ws.owner(), ws.id(), "S");
+      assertThat(
+              put(
+                      "/api/v1/locations/" + space + "/grants/" + ws.guest().id(),
+                      ws.owner().token(),
+                      null)
+                  .status())
+          .isEqualTo(204);
+      String path = "/api/v1/locations/" + space + "/grants/" + ws.member().id();
+      int expected = i < 2 ? 204 : 403;
+      assertThat(put(path, ws.by(role).token(), null).status())
+          .as("grant as %s", role)
+          .isEqualTo(expected);
+      assertThat(delete(path, ws.by(role).token()).status())
+          .as("revoke as %s", role)
+          .isEqualTo(expected);
+    }
+  }
+
+  @Test
+  void aGuestReadsOnlyWhatIsGranted() {
+    Ws ws = workspaceWithAllRoles();
+    UUID granted = space(ws.owner(), ws.id(), "Granted");
+    UUID notGranted = space(ws.owner(), ws.id(), "NotGranted");
+    put("/api/v1/locations/" + granted + "/grants/" + ws.guest().id(), ws.owner().token(), null);
+    assertThat(get("/api/v1/locations/" + granted, ws.guest().token()).status()).isEqualTo(200);
+    assertThat(get("/api/v1/locations/" + notGranted, ws.guest().token()).status()).isEqualTo(404);
+    assertThat(
+            post(
+                    "/api/v1/locations",
+                    ws.guest().token(),
+                    Map.of("type", "LIST", "parentId", granted, "name", "x"))
+                .status())
+        .isEqualTo(403);
+  }
 }
