@@ -1095,6 +1095,10 @@ export interface components {
             /** Format: date */
             day?: string;
         };
+        DroppedField: {
+            name?: string;
+            ref?: string;
+        };
         DuplicateTaskRequest: {
             /** Format: uuid */
             listId?: string;
@@ -1301,6 +1305,7 @@ export interface components {
             nextCursor?: string;
         };
         QueryResponse: {
+            droppedFields?: components["schemas"]["DroppedField"][];
             groups?: components["schemas"]["GroupInfo"][];
             items?: components["schemas"]["ViewItem"][];
             nextCursor?: string;

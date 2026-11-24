@@ -5,11 +5,13 @@ import static com.taskflow.view.internal.Schema.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.taskflow.field.CustomFieldSql;
 import com.taskflow.shared.PageCursor;
 import com.taskflow.shared.TaskflowException;
 import com.taskflow.view.ViewConfig;
 import com.taskflow.workspace.LocationAccess;
 import com.taskflow.workspace.Role;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -23,6 +25,7 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
@@ -46,7 +49,21 @@ final class ViewQueryCompiler {
   /** Who asks and where: the Workspace, the Location path (null at Workspace scope), the caller. */
   record Scope(UUID workspaceId, String path, UUID userId, Role role) {}
 
-  record Request(Scope scope, ViewConfig config, String groupValue, String cursor, int limit) {}
+  /**
+   * One page request. {@code custom} holds the bound custom fields of the config, keyed by their
+   * {@code cf:<id>} reference.
+   */
+  record Request(
+      Scope scope,
+      ViewConfig config,
+      String groupValue,
+      String cursor,
+      int limit,
+      Map<String, CustomFieldSql.Bound> custom) {
+    Request(Scope scope, ViewConfig config, String groupValue, String cursor, int limit) {
+      this(scope, config, groupValue, cursor, limit, Map.of());
+    }
+  }
 
   /** One ORDER BY column; {@code alias} names it in the select list. */
   record OrderCol(String alias, Field<?> expr, boolean asc) {}
@@ -64,10 +81,16 @@ final class ViewQueryCompiler {
 
   private final Clock clock;
   private final ObjectMapper mapper;
+  private final CustomFieldSql customSql;
 
   ViewQueryCompiler(Clock clock, ObjectMapper mapper) {
+    this(clock, mapper, null);
+  }
+
+  ViewQueryCompiler(Clock clock, ObjectMapper mapper, CustomFieldSql customSql) {
     this.clock = clock;
     this.mapper = mapper;
+    this.customSql = customSql;
   }
 
   // ---- public entry points ----
@@ -75,7 +98,7 @@ final class ViewQueryCompiler {
   Compiled compile(DSLContext dsl, Request r) {
     ViewConfig config = r.config();
     LocalDate today = today();
-    Grouping grouping = grouping(config.group(), today);
+    Grouping grouping = grouping(config.group(), today, r);
     if (r.groupValue() != null && grouping == null) {
       throw TaskflowException.badRequest(
           "view.invalid_group_value", "groupValue needs a grouping in the config");
@@ -107,12 +130,18 @@ final class ViewQueryCompiler {
         case "startDate" -> cols.add(new OrderCol("k" + n++, T_START, asc));
         case "createdAt" -> cols.add(new OrderCol("k" + n++, T_CREATED, asc));
         case "updatedAt" -> cols.add(new OrderCol("k" + n++, T_UPDATED, asc));
-        default -> throw ViewConfigValidator.invalid("Unknown sort " + s.key());
+        default -> {
+          CustomFieldSql.Bound b = r.custom().get(s.key());
+          if (b == null || customSql == null) {
+            throw ViewConfigValidator.invalid("Unknown sort " + s.key());
+          }
+          cols.add(new OrderCol("k" + n++, customSql.sortKey(b, "t", "l.path"), asc));
+        }
       }
     }
     cols.add(new OrderCol("k" + n, T_ID, true));
 
-    Condition where = base(r.scope()).and(filter(config.filter(), r.scope(), today));
+    Condition where = base(r.scope()).and(filter(config.filter(), r, today));
     if (r.groupValue() != null) {
       where = where.and(groupValue(grouping, config.group(), r.groupValue()));
     }
@@ -158,11 +187,11 @@ final class ViewQueryCompiler {
   Select<Record> groups(DSLContext dsl, Request r) {
     ViewConfig config = r.config();
     LocalDate today = today();
-    Grouping grouping = grouping(config.group(), today);
+    Grouping grouping = grouping(config.group(), today, r);
     if (grouping == null) {
       throw TaskflowException.badRequest("view.invalid_group_value", "The config has no grouping");
     }
-    Condition where = base(r.scope()).and(filter(config.filter(), r.scope(), today));
+    Condition where = base(r.scope()).and(filter(config.filter(), r, today));
     List<Field<?>> inner = new ArrayList<>();
     inner.add(grouping.key().as("gk"));
     inner.add(grouping.label().as("gl"));
@@ -219,9 +248,17 @@ final class ViewQueryCompiler {
 
   // ---- grouping ----
 
-  private Grouping grouping(String group, LocalDate today) {
+  private Grouping grouping(String group, LocalDate today, Request r) {
     if (group == null || group.equals("none")) {
       return null;
+    }
+    if (group.startsWith("cf:")) {
+      CustomFieldSql.Bound b = r.custom().get(group);
+      if (b == null || customSql == null) {
+        throw ViewConfigValidator.invalid("Unknown grouping " + group);
+      }
+      CustomFieldSql.Group g = customSql.group(b, "t", "l.path", today);
+      return new Grouping(g.key(), g.label(), g.order(), false, false);
     }
     switch (group) {
       case "status" -> {
@@ -320,18 +357,26 @@ final class ViewQueryCompiler {
 
   // ---- filters ----
 
-  private Condition filter(ViewConfig.Filter f, Scope scope, LocalDate today) {
+  private Condition filter(ViewConfig.Filter f, Request r, LocalDate today) {
+    Scope scope = r.scope();
     if (f == null) {
       return DSL.noCondition();
     }
     if (f.items() != null) {
       List<Condition> parts = new ArrayList<>();
       for (ViewConfig.Filter child : f.items()) {
-        parts.add(filter(child, scope, today));
+        parts.add(filter(child, r, today));
       }
       return "OR".equals(f.op()) ? DSL.or(parts) : DSL.and(parts);
     }
     JsonNode v = f.value();
+    if (f.field() != null && f.field().startsWith("cf:")) {
+      CustomFieldSql.Bound b = r.custom().get(f.field());
+      if (b == null || customSql == null) {
+        throw ViewConfigValidator.invalid("Unknown filter field " + f.field());
+      }
+      return customSql.filter(b, f.op(), v, scope.userId(), d -> range(d, today), "t", "l.path");
+    }
     switch (f.field()) {
       case "title" -> {
         Condition c = T_TITLE.containsIgnoreCase(v.asText());
@@ -574,6 +619,8 @@ final class ViewQueryCompiler {
         return DSL.val(UUID.fromString(text));
       } else if (type == Integer.class) {
         return DSL.val(Integer.valueOf(text));
+      } else if (type == BigDecimal.class) {
+        return DSL.val(new BigDecimal(text));
       } else if (type == OffsetDateTime.class) {
         return DSL.val(utc(Instant.parse(text)));
       }
@@ -589,6 +636,9 @@ final class ViewQueryCompiler {
     }
     if (v instanceof java.sql.Timestamp t) {
       return t.toInstant().toString();
+    }
+    if (v instanceof BigDecimal d) {
+      return d.toPlainString();
     }
     return v.toString();
   }

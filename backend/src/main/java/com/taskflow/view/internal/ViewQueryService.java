@@ -1,6 +1,7 @@
 package com.taskflow.view.internal;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.taskflow.field.CustomFieldSql;
 import com.taskflow.shared.CurrentActor;
 import com.taskflow.shared.PageCursor;
 import com.taskflow.shared.TaskflowException;
@@ -39,7 +40,14 @@ class ViewQueryService {
 
   record GroupInfo(String key, String label, long count) {}
 
-  record QueryResponse(List<ViewItem> items, String nextCursor, List<GroupInfo> groups) {}
+  /** A {@code cf:<id>} reference the query dropped because the field is not live here. */
+  record DroppedField(String ref, String name) {}
+
+  record QueryResponse(
+      List<ViewItem> items,
+      String nextCursor,
+      List<GroupInfo> groups,
+      List<DroppedField> droppedFields) {}
 
   private final DSLContext dsl;
   private final ViewQueryCompiler compiler;
@@ -47,6 +55,7 @@ class ViewQueryService {
   private final Permissions permissions;
   private final LocationTree tree;
   private final WorkspaceQuery workspaces;
+  private final CustomFieldRefs customFields;
 
   ViewQueryService(
       DSLContext dsl,
@@ -54,9 +63,12 @@ class ViewQueryService {
       Permissions permissions,
       LocationTree tree,
       WorkspaceQuery workspaces,
+      CustomFieldRefs customFields,
+      CustomFieldSql customSql,
       ObjectMapper mapper) {
     this.dsl = dsl;
-    this.compiler = new ViewQueryCompiler(Clock.systemUTC(), mapper);
+    this.compiler = new ViewQueryCompiler(Clock.systemUTC(), mapper, customSql);
+    this.customFields = customFields;
     this.tasks = tasks;
     this.permissions = permissions;
     this.tree = tree;
@@ -73,6 +85,7 @@ class ViewQueryService {
     }
     UUID workspaceId;
     String path = null;
+    LocationInfo scopeLocation = null;
     if (s.locationId() != null) {
       permissions.require(Permissions.LOCATION, s.locationId(), Action.VIEW);
       LocationInfo location =
@@ -81,6 +94,7 @@ class ViewQueryService {
                   () -> TaskflowException.notFound("location.not_found", "Location not found"));
       workspaceId = location.workspaceId();
       path = location.path();
+      scopeLocation = location;
     } else {
       permissions.require(Permissions.WORKSPACE, s.workspaceId(), Action.VIEW);
       workspaceId = s.workspaceId();
@@ -92,13 +106,17 @@ class ViewQueryService {
             .orElseThrow(
                 () -> TaskflowException.notFound("workspace.not_found", "Workspace not found"));
     int limit = PageCursor.limit(request.limit());
+    // AD-8: references to fields that are not live are dropped and named, never an error.
+    CustomFieldRefs.Prepared prepared =
+        customFields.prepare(request.config(), scopeLocation, workspaceId);
     ViewQueryCompiler.Request r =
         new ViewQueryCompiler.Request(
             new ViewQueryCompiler.Scope(workspaceId, path, userId, role),
-            request.config(),
+            prepared.config(),
             request.groupValue(),
             request.cursor(),
-            limit);
+            limit,
+            prepared.bound());
     ViewQueryCompiler.Compiled compiled = compiler.compile(dsl, r);
     List<Record> rows = compiled.select().fetch();
     boolean more = rows.size() > limit;
@@ -127,6 +145,8 @@ class ViewQueryService {
             new GroupInfo(g.get(0, String.class), g.get(1, String.class), g.get(2, Long.class)));
       }
     }
-    return new QueryResponse(items, next, groups);
+    List<DroppedField> dropped =
+        prepared.dropped().stream().map(d -> new DroppedField(d.ref(), d.name())).toList();
+    return new QueryResponse(items, next, groups, dropped);
   }
 }

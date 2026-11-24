@@ -511,6 +511,17 @@
         },
         "type" : "object"
       },
+      "DroppedField" : {
+        "properties" : {
+          "name" : {
+            "type" : "string"
+          },
+          "ref" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "DuplicateTaskRequest" : {
         "properties" : {
           "listId" : {
@@ -1063,6 +1074,12 @@
       },
       "QueryResponse" : {
         "properties" : {
+          "droppedFields" : {
+            "items" : {
+              "$ref" : "#/components/schemas/DroppedField"
+            },
+            "type" : "array"
+          },
           "groups" : {
             "items" : {
               "$ref" : "#/components/schemas/GroupInfo"
