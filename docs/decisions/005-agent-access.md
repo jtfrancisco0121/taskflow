@@ -58,7 +58,7 @@ where it differs or adds detail.
 10. **Plain-text tool inputs (AD-12).** `description` and `text` are plain text, one rich-text paragraph
     per line, validated by `RichText.validate`.
 11. **MCP creates take an optional `idempotencyKey` argument** (updated after the Phase 3 review;
-    first shipped as deferred). `create_task` and `add_comment` accept it; the MCP endpoint adds it to
+    first shipped as deferred; `update_task` joined in 3A, item 15). `create_task` and `add_comment` accept it; the MCP endpoint adds it to
     their schema and description and runs the call through `shared.IdempotentCalls`, which uses the
     same `idempotency_record` table and rules as the REST `Idempotency-Key` filter: the record and the
     effect commit together, only a success is stored, the same key and arguments return the first
@@ -89,3 +89,22 @@ where it differs or adds detail.
   audit view.
 - Migrations only add (new tables, nullable columns, relaxed `NOT NULL` with a check), so the previous
   build still runs on the new schema.
+15. **Custom fields over MCP (3A, decision 007).** `list_custom_fields(locationId)` returns the body of
+    `GET /locations/{id}/fields` (each field with `id`, `name`, `type`, `config`, `options`, `definedAt` and
+    `inherited`). `create_task` and `update_task` accept `customFields: {fieldId or field name: value}`
+    through the same `TaskService` methods as REST: a Dropdown or Labels value may be an Option name, `null`
+    clears a field, and an unknown Option or field answers 400 `field.invalid_value` or
+    `field.not_available` naming the field and the valid Option names. `get_task` returns `customFields`.
+    `update_task` is wrapped with `AgentTool.withIdempotencyKey` like `create_task`, so it takes the same
+    optional `idempotencyKey`: a retry of the same update replays the first result (even if another edit
+    came in between, as for REST `Idempotency-Key`), and the same key with other arguments fails with
+    `idempotency.key_reused`. No new idempotency store. `search_tasks` accepts optional `locationId` and
+    `customFields: [{fieldId, op, value}]`; `query` is optional when conditions are present (schema `anyOf`;
+    a call with neither is refused by the service as well). A call with only `query` goes to
+    `TaskSearchService` unchanged (REST `/search` is untouched). Any call with `locationId` or conditions
+    goes to `TaskAgentSearch`: one jOOQ query over `task t JOIN location l` with the same base filters as the
+    text search (Workspace, no trashed task, no archived List, `LocationAccess`), the scope-guarded
+    `CustomFieldSql` conditions and bind values only. With `query` it ranks and pages by `(ts_rank, id)`;
+    without it, by `updated_at DESC, id` with a cursor tagged `u`, so a ranked cursor is refused with
+    `page.invalid_cursor`. A retired Option or a hidden or left-behind value never matches. Tests:
+    `CustomFieldsMcpIT`.

@@ -469,6 +469,64 @@ public class CustomFieldSql {
     return new Group(key, key, List.of(order));
   }
 
+  /**
+   * A day value as the UTC range [start, end): a calendar day, or today, the week (Monday to
+   * Sunday) or the next 7 days. The same rule as the built-in date filters.
+   */
+  public static Instant[] dayRange(String value, LocalDate today) {
+    LocalDate from;
+    LocalDate to;
+    switch (value) {
+      case "today" -> {
+        from = today;
+        to = today.plusDays(1);
+      }
+      case "this_week" -> {
+        from = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        to = from.plusDays(7);
+      }
+      case "next_7_days" -> {
+        from = today;
+        to = today.plusDays(7);
+      }
+      default -> {
+        try {
+          from = LocalDate.parse(value);
+        } catch (java.time.format.DateTimeParseException e) {
+          throw TaskflowException.badRequest(
+              "view.invalid_config", "Days are YYYY-MM-DD or today, this_week, next_7_days");
+        }
+        to = from.plusDays(1);
+      }
+    }
+    return new Instant[] {
+      from.atStartOfDay().toInstant(ZoneOffset.UTC), to.atStartOfDay().toInstant(ZoneOffset.UTC)
+    };
+  }
+
+  /**
+   * Throws when a Dropdown, Labels or People value names an Option that does not exist, listing the
+   * valid ones (agents need the names; a saved view must keep working after an Option is retired,
+   * so views do not call this).
+   */
+  public static void requireKnownOptions(
+      FieldInfo f, JsonNode v, Function<String, TaskflowException> invalid) {
+    if (v == null || !v.isArray() || !f.type().hasOptions()) {
+      return;
+    }
+    List<String> names = f.options().stream().map(OptionInfo::name).toList();
+    for (JsonNode n : v) {
+      String s = n.asText().trim();
+      boolean known =
+          f.options().stream()
+              .anyMatch(o -> o.id().toString().equalsIgnoreCase(s) || o.name().equalsIgnoreCase(s));
+      if (!known) {
+        throw invalid.apply(
+            f.name() + " has no option '" + s + "'. Pick one of: " + String.join(", ", names));
+      }
+    }
+  }
+
   private static OffsetDateTime utc(Instant i) {
     return OffsetDateTime.ofInstant(i, ZoneOffset.UTC);
   }

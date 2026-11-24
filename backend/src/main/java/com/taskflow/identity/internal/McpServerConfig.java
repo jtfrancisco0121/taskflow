@@ -46,8 +46,8 @@ class McpServerConfig {
   private static final Logger log = LoggerFactory.getLogger(McpServerConfig.class);
 
   static final String IDEMPOTENCY_HINT =
-      " Send idempotencyKey (a new UUID for each new create) so a retry cannot create a duplicate:"
-          + " the same key and arguments return the first result, the same key with other"
+      " Send idempotencyKey (a new UUID for each new create or update) so a retry cannot repeat the"
+          + " change: the same key and arguments return the first result, the same key with other"
           + " arguments fails with idempotency.key_reused.";
 
   /** Sorted keys at every level, so the request hash does not depend on argument order. */
@@ -70,8 +70,10 @@ class McpServerConfig {
         .instructions(
             "Taskflow work management. Use list_locations to find Lists, then create, read, update,"
                 + " move, comment on and delete tasks. Pass the task version you last read when"
-                + " updating. Send an idempotencyKey with create_task and add_comment so a retry"
-                + " does not create a duplicate.")
+                + " updating. Custom fields: list_custom_fields shows a location's fields; pass"
+                + " customFields to create_task and update_task and filter with customFields in"
+                + " search_tasks. Send an idempotencyKey with create_task, update_task and"
+                + " add_comment so a retry does not repeat the change.")
         .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build())
         .tools(tools.stream().map(t -> specification(t, mapper, idempotentCalls)).toList())
         .immediateExecution(true)

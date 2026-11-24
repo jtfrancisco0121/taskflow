@@ -127,9 +127,9 @@ Requirement IDs are stable. Agents and tests should reference them.
 
 **FIELD: Custom fields**
 
-- FIELD-1: Types: text, long text, number, dropdown, labels, date, checkbox, URL, email, people, rating, progress. Formula fields come later. Status: definitions done (3A S2); values for 11 types done (3A S3); people in S8.
-- FIELD-2: A field defined at a location applies to every task below it. Definitions are inherited. A lower location can hide an inherited field but not redefine its type. Status: definitions and inheritance done (3A S2); live updates done (3A S6).
-- FIELD-3: Filter, sort, group and show fields in views. Status: show in views done (3A S4); filter, sort, group done (3A S5); live updates done (3A S6).
+- FIELD-1: Types: text, long text, number, dropdown, labels, date, checkbox, URL, email, people, rating, progress. Formula fields come later. Status: definitions done (3A S2); values for 11 types done (3A S3); MCP done (3A S7); people in S8.
+- FIELD-2: A field defined at a location applies to every task below it. Definitions are inherited. A lower location can hide an inherited field but not redefine its type. Status: definitions and inheritance done (3A S2); live updates done (3A S6); MCP done (3A S7).
+- FIELD-3: Filter, sort, group and show fields in views. Status: show in views done (3A S4); filter, sort, group done (3A S5); live updates done (3A S6); MCP done (3A S7).
 
 **DEP: Dependencies**
 
@@ -187,7 +187,7 @@ This is modelled on ClickUp's personal API key, which carries its owner's full a
 ### 8.3 MCP server
 
 - MCP-1: An MCP endpoint (streamable HTTP) inside the API, authenticated by the same API key.
-- MCP-2: Tools: `search_tasks`, `get_task`, `create_task`, `update_task`, `move_task`, `delete_task`, `add_comment`, `list_locations`, `list_views`. Each is a thin wrapper over an existing service method.
+- MCP-2: Tools: `search_tasks`, `get_task`, `create_task`, `update_task`, `move_task`, `delete_task`, `add_comment`, `list_locations`, `list_views`, `list_custom_fields`. Each is a thin wrapper over an existing service method; `create_task` and `update_task` take custom field values, and `search_tasks` filters on them.
 - MCP-3: REST and MCP calls from a key share one per-minute limit.
 - MCP-4: `delete_task` moves a task to the 30-day trash.
 - MCP-5 (later): an OAuth flow so an agent can get a key after a user approves a consent screen.

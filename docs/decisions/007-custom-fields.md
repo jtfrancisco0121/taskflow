@@ -113,3 +113,10 @@ Status: accepted (built in slices 3A S2..S8; this record grows with each). Conte
     ignores an older or replayed one; a `custom_field.*` event invalidates the field lists, the task caches
     and the views, and announces "Fields changed." once for a burst. The Activity tab renders the
     write-time snapshots as "set <field> to <value>" / "cleared <field>".
+24. **MCP (3A S7, decision 005 item 15).** `list_custom_fields`, `customFields` on `create_task` and
+    `update_task`, values in `get_task` and conditions in `search_tasks` go through the same services as REST.
+    A conditions search never reuses `TaskSearchService`'s SQL string: `TaskAgentSearch` builds its own jOOQ
+    query with the same base filters (Workspace, no trashed task, no archived List, `LocationAccess`), which
+    closes the risk review's LOW 2, and `CustomFieldsMcpIT` has a trashed task and an archived List that
+    match the conditions but are not returned. A field key may be an id or a name and an Option a name; the
+    lookup is by the List's effective fields only, so a hidden or foreign field is `field.not_available`.

@@ -34,6 +34,7 @@ class TaskAgentTools {
   private final TaskTreeService tree;
   private final CommentService comments;
   private final TaskSearchService search;
+  private final TaskAgentSearch agentSearch;
   private final Permissions permissions;
   private final ServiceAccounts serviceAccounts;
   private final ObjectMapper mapper;
@@ -43,6 +44,7 @@ class TaskAgentTools {
       TaskTreeService tree,
       CommentService comments,
       TaskSearchService search,
+      TaskAgentSearch agentSearch,
       Permissions permissions,
       ServiceAccounts serviceAccounts,
       ObjectMapper mapper) {
@@ -50,6 +52,7 @@ class TaskAgentTools {
     this.tree = tree;
     this.comments = comments;
     this.search = search;
+    this.agentSearch = agentSearch;
     this.permissions = permissions;
     this.serviceAccounts = serviceAccounts;
     this.mapper = mapper;
@@ -65,30 +68,98 @@ class TaskAgentTools {
       "dueDate": {"type": "string", "format": "date-time"},
       "assigneeIds": {"type": "array", "items": {"type": "string", "format": "uuid"}},
       "tags": {"type": "array", "items": {"type": "string", "maxLength": 50}},
-      "parentTaskId": {"type": "string", "format": "uuid"}
+      "parentTaskId": {"type": "string", "format": "uuid"},
+      "customFields": {"type": "object", "additionalProperties": true, "description":
+        "Custom field values as {field id or name: value}. A Dropdown or Labels value may be an Option name. null clears a field. See list_custom_fields."}
       """;
 
   @Bean
   AgentTool searchTasksTool() {
     return AgentTool.of(
         "search_tasks",
-        "Search the tasks of your Workspace by words in the title or description.",
+        "Search the tasks of your Workspace by words in the title or description, and/or filter them"
+            + " on custom field values (see list_custom_fields). Pass query, customFields, or both;"
+            + " locationId limits the search to a Space, Folder or List. With a query results are"
+            + " ranked by relevance; with only conditions the most recently updated come first."
+            + " Operators by type: text contains, not_contains, is_set, is_empty; number eq, neq, gt,"
+            + " gte, lt, lte, between, is_set, is_empty; date before, after, on, between, is_set,"
+            + " is_empty; dropdown any_of, none_of, is_set, is_empty (values are Option names); labels"
+            + " also all_of; checkbox is_checked, is_unchecked; rating eq, gte, lte; progress gte,"
+            + " lte, between.",
         """
-        {"type": "object", "required": ["query"], "properties": {
+        {"type": "object", "properties": {
           "query": {"type": "string", "minLength": 1, "maxLength": 200},
+          "locationId": {"type": "string", "format": "uuid"},
+          "customFields": {"type": "array", "maxItems": 10, "items": {
+            "type": "object", "required": ["fieldId", "op"], "properties": {
+              "fieldId": {"type": "string", "format": "uuid"},
+              "op": {"type": "string"},
+              "value": {}
+            }}},
           "cursor": {"type": "string", "description": "nextCursor of the previous page"},
           "limit": {"type": "integer", "minimum": 1}
-        }}
+        }, "anyOf": [{"required": ["query"]}, {"required": ["customFields"]}]}
         """,
         args -> {
           UUID workspace = workspaceOfCaller();
           permissions.require(Permissions.WORKSPACE, workspace, Action.VIEW);
-          return search.search(
+          String query = AgentToolArgs.optText(args, "query");
+          UUID locationId = AgentToolArgs.optUuid(args, "locationId");
+          List<TaskAgentSearch.Cond> conditions = conditions(args);
+          boolean hasQuery = query != null && !query.isBlank();
+          if (!hasQuery && conditions.isEmpty()) {
+            throw AgentToolArgs.invalid("Pass a query or at least one customFields condition");
+          }
+          if (locationId == null && conditions.isEmpty()) {
+            // The plain text search, unchanged (REST /search uses it too).
+            return search.search(
+                workspace,
+                query,
+                AgentToolArgs.optText(args, "cursor"),
+                AgentToolArgs.optInt(args, "limit"));
+          }
+          if (locationId != null) {
+            permissions.require(Permissions.LOCATION, locationId, Action.VIEW);
+          }
+          return agentSearch.search(
               workspace,
-              AgentToolArgs.text(args, "query"),
+              locationId,
+              query,
+              conditions,
               AgentToolArgs.optText(args, "cursor"),
               AgentToolArgs.optInt(args, "limit"));
         });
+  }
+
+  private static List<TaskAgentSearch.Cond> conditions(JsonNode args) {
+    JsonNode v = args.get("customFields");
+    if (v == null || v.isNull()) {
+      return List.of();
+    }
+    if (!v.isArray()) {
+      throw AgentToolArgs.invalid("customFields must be an array of {fieldId, op, value}");
+    }
+    List<TaskAgentSearch.Cond> out = new ArrayList<>();
+    for (JsonNode c : v) {
+      out.add(
+          new TaskAgentSearch.Cond(
+              AgentToolArgs.uuid(c, "fieldId"), AgentToolArgs.text(c, "op"), c.get("value")));
+    }
+    return out;
+  }
+
+  /** The {@code customFields} argument of create_task and update_task, as an object or absent. */
+  private static Map<String, JsonNode> customFields(JsonNode args) {
+    JsonNode v = args.get("customFields");
+    if (v == null || v.isNull()) {
+      return null;
+    }
+    if (!v.isObject()) {
+      throw AgentToolArgs.invalid("customFields must be an object of field -> value");
+    }
+    Map<String, JsonNode> out = new LinkedHashMap<>();
+    v.fields().forEachRemaining(e -> out.put(e.getKey(), e.getValue()));
+    return out;
   }
 
   @Bean
@@ -152,17 +223,22 @@ class TaskAgentTools {
                   uuids(args, "assigneeIds"),
                   strings(args, "tags"),
                   AgentToolArgs.optUuid(args, "parentTaskId"),
-                  null));
+                  customFields(args)));
         });
   }
 
   @Bean
   AgentTool updateTaskTool() {
+    return AgentTool.withIdempotencyKey(updateTask());
+  }
+
+  private AgentTool updateTask() {
     return AgentTool.of(
         "update_task",
         "Change fields of a task. version must be the task's current version (from get_task); a"
             + " stale one fails with task.version_conflict and the current task. Absent fields are"
-            + " left alone; description null clears it.",
+            + " left alone; description null clears it; a customFields value null clears that"
+            + " field.",
         "{\"type\": \"object\", \"required\": [\"taskId\", \"version\"], \"properties\": {"
             + "\"taskId\": {\"type\": \"string\", \"format\": \"uuid\"},"
             + "\"version\": {\"type\": \"integer\"},"
@@ -185,7 +261,8 @@ class TaskAgentTools {
                   "dueDate",
                   "assigneeIds",
                   "tags",
-                  "parentTaskId")) {
+                  "parentTaskId",
+                  "customFields")) {
             if (args.has(field)) {
               patch.set(field, args.get(field));
             }
