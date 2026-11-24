@@ -24,6 +24,13 @@ public abstract class IntegrationTest {
   @Autowired protected ObjectMapper mapper;
   @Autowired protected JdbcTemplate jdbc;
 
+  @org.springframework.beans.factory.annotation.Value("${taskflow.test.mailpit-api}")
+  private String mailpitApi;
+
+  protected Mailpit mailpit() {
+    return new Mailpit(mailpitApi);
+  }
+
   public record Resp(int status, JsonNode json, HttpHeaders headers, String raw) {
     public JsonNode at(String pointer) {
       return json.at(pointer);

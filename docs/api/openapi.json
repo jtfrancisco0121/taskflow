@@ -1,6 +1,22 @@
 {
   "components" : {
     "schemas" : {
+      "Accepted" : {
+        "properties" : {
+          "alreadyMember" : {
+            "type" : "boolean"
+          },
+          "role" : {
+            "enum" : [ "OWNER", "ADMIN", "MEMBER", "GUEST" ],
+            "type" : "string"
+          },
+          "workspaceId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AppMeta" : {
         "properties" : {
           "name" : {
@@ -41,6 +57,22 @@
         "required" : [ "role" ],
         "type" : "object"
       },
+      "CreateInviteRequest" : {
+        "properties" : {
+          "email" : {
+            "format" : "email",
+            "maxLength" : 254,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "role" : {
+            "enum" : [ "OWNER", "ADMIN", "MEMBER", "GUEST" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "email", "role" ],
+        "type" : "object"
+      },
       "CreateWorkspaceRequest" : {
         "properties" : {
           "key" : {
@@ -54,6 +86,53 @@
           }
         },
         "required" : [ "name" ],
+        "type" : "object"
+      },
+      "InvitePreview" : {
+        "properties" : {
+          "email" : {
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "role" : {
+            "enum" : [ "OWNER", "ADMIN", "MEMBER", "GUEST" ],
+            "type" : "string"
+          },
+          "workspaceName" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "InviteView" : {
+        "properties" : {
+          "email" : {
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "role" : {
+            "enum" : [ "OWNER", "ADMIN", "MEMBER", "GUEST" ],
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "PENDING", "ACCEPTED", "REVOKED", "EXPIRED" ],
+            "type" : "string"
+          },
+          "workspaceId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "MemberView" : {
@@ -74,6 +153,20 @@
           },
           "userId" : {
             "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PageInviteView" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/InviteView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
             "type" : "string"
           }
         },
@@ -308,6 +401,58 @@
         "tags" : [ "auth-controller" ]
       }
     },
+    "/api/v1/invites/{token}" : {
+      "get" : {
+        "operationId" : "preview",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "token",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InvitePreview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "invite-controller" ]
+      }
+    },
+    "/api/v1/invites/{token}/accept" : {
+      "post" : {
+        "operationId" : "accept",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "token",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Accepted"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "invite-controller" ]
+      }
+    },
     "/api/v1/me" : {
       "get" : {
         "operationId" : "me",
@@ -482,6 +627,111 @@
           }
         },
         "tags" : [ "workspace-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/invites" : {
+      "get" : {
+        "operationId" : "list_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageInviteView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "invite-controller" ]
+      },
+      "post" : {
+        "operationId" : "create_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateInviteRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InviteView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "invite-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/invites/{inviteId}" : {
+      "delete" : {
+        "operationId" : "revoke",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "inviteId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "invite-controller" ]
       }
     },
     "/api/v1/workspaces/{id}/leave" : {
