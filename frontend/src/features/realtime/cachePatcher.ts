@@ -88,6 +88,18 @@ export function createCachePatcher(
       options.announce?.('The workspace structure changed.')
       return 'invalidated'
     }
+    if (event.entity === 'automation') {
+      // A rule changed or ran (3C): refresh the rule lists and their run histories.
+      void queryClient.invalidateQueries({
+        predicate: (q) => q.queryKey[0] === 'location' && q.queryKey[2] === 'automations',
+      })
+      void queryClient.invalidateQueries({ queryKey: ['automation'] })
+      return 'invalidated'
+    }
+    if (event.entity === 'notification') {
+      // Per-person events (3C) are handled by the notifications feature, not here.
+      return 'invalidated'
+    }
     if (event.entity !== 'task') {
       void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces() })
       return 'invalidated'
@@ -98,6 +110,11 @@ export function createCachePatcher(
     if (event.type === 'task.dependency_added' || event.type === 'task.dependency_removed') {
       // The relationship list of either end changed; the task itself follows the version rules.
       void queryClient.invalidateQueries({ queryKey: queryKeys.dependencies(event.entityId) })
+    }
+    if (event.type.startsWith('comment.')) {
+      // A comment does not change the task's version: refresh its tabs before the version check.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.comments(event.entityId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activity(event.entityId) })
     }
     const cached = cachedVersion(queryClient, workspaceId, event.entityId)
     if (cached != null && event.version != null && event.version <= cached) return 'stale'

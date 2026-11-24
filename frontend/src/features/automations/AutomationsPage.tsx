@@ -10,6 +10,7 @@ import { useLocationInfo } from '../locations'
 import { useMembers } from '../workspace'
 import { RuleBuilder } from './RuleBuilder'
 import { RuleCard } from './RuleCard'
+import { RunsSheet } from './RunsSheet'
 import { useAutomations, useDeleteAutomation, useToggleAutomation } from './useAutomations'
 
 /** `/w/:ws/l/:loc/automations`: the rules of a Location, own and inherited (CAP-8). */
@@ -24,6 +25,7 @@ export function AutomationsPage() {
   const toast = useToastStore((s) => s.show)
   const [builder, setBuilder] = useState<{ rule?: RuleView } | null>(null)
   const [confirm, setConfirm] = useState<RuleView | null>(null)
+  const [history, setHistory] = useState<RuleView | null>(null)
   const newButton = useRef<HTMLButtonElement>(null)
 
   const names = {
@@ -111,6 +113,7 @@ export function AutomationsPage() {
               onToggle={(enabled) => onToggle(rule, enabled)}
               onEdit={() => setBuilder({ rule })}
               onDelete={() => setConfirm(rule)}
+              onHistory={() => setHistory(rule)}
             />
           </li>
         ))}
@@ -124,6 +127,7 @@ export function AutomationsPage() {
           restoreFocus={() => newButton.current}
         />
       )}
+      {history && <RunsSheet rule={history} onClose={() => setHistory(null)} />}
       {confirm && (
         <Dialog title="Delete rule" onClose={() => setConfirm(null)}>
           <p className="mb-4 text-sm">

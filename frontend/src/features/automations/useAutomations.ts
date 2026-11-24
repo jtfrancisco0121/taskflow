@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef } from 'react'
 import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
@@ -108,5 +108,21 @@ export function useDeleteAutomation() {
       ),
     onSuccess: refresh,
     onError: refresh,
+  })
+}
+
+/** The run history of a rule, newest first, paged with a keyset cursor (FR-12). */
+export function useAutomationRuns(ruleId: string | undefined) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.automationRuns(ruleId ?? ''),
+    enabled: !!ruleId,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      unwrap(
+        api.GET('/api/v1/automations/{id}/runs', {
+          params: { path: { id: ruleId! }, query: { cursor: pageParam, limit: 20 } },
+        }),
+      ),
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   })
 }

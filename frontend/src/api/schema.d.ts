@@ -84,6 +84,22 @@ export interface paths {
         patch: operations["update_5"];
         trace?: never;
     };
+    "/api/v1/automations/{id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/checklist-items/{id}": {
         parameters: {
             query?: never;
@@ -1437,6 +1453,10 @@ export interface components {
             items?: components["schemas"]["MemberView"][];
             nextCursor?: string;
         };
+        PageRunView: {
+            items?: components["schemas"]["RunView"][];
+            nextCursor?: string;
+        };
         PageSearchHit: {
             items?: components["schemas"]["SearchHit"][];
             nextCursor?: string;
@@ -1531,6 +1551,26 @@ export interface components {
             updatedAt?: string;
             /** Format: int64 */
             version?: number;
+        };
+        RunView: {
+            /** Format: int32 */
+            attempt?: number;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: int32 */
+            depth?: number;
+            error?: string;
+            /** Format: uuid */
+            id?: string;
+            reason?: string;
+            retryable?: boolean;
+            status?: string;
+            /** Format: uuid */
+            taskId?: string;
+            taskReadableId?: string;
+            taskTitle?: string;
+            /** Format: date-time */
+            updatedAt?: string;
         };
         SearchHit: {
             blocked?: boolean;
@@ -1951,6 +1991,31 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["RuleView"];
+                };
+            };
+        };
+    };
+    runs: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageRunView"];
                 };
             };
         };

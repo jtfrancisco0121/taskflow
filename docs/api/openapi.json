@@ -1248,6 +1248,20 @@
         },
         "type" : "object"
       },
+      "PageRunView" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RunView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "PageSearchHit" : {
         "properties" : {
           "items" : {
@@ -1541,6 +1555,53 @@
           "version" : {
             "format" : "int64",
             "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "RunView" : {
+        "properties" : {
+          "attempt" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "depth" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "error" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "retryable" : {
+            "type" : "boolean"
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "taskId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "taskReadableId" : {
+            "type" : "string"
+          },
+          "taskTitle" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
           }
         },
         "type" : "object"
@@ -2419,6 +2480,48 @@
           }
         },
         "tags" : [ "automation-controller" ]
+      }
+    },
+    "/api/v1/automations/{id}/runs" : {
+      "get" : {
+        "operationId" : "runs",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageRunView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "automation-run-controller" ]
       }
     },
     "/api/v1/checklist-items/{id}" : {

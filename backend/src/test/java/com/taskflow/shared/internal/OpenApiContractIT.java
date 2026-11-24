@@ -30,6 +30,7 @@ class OpenApiContractIT {
           "/api/v1/meta",
           "/api/v1/locations/{id}/automations",
           "/api/v1/automations/{id}",
+          "/api/v1/automations/{id}/runs",
           "/api/v1/auth/signup",
           "/api/v1/auth/signin",
           "/api/v1/auth/refresh",

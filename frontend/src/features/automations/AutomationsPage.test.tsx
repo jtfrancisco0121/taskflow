@@ -174,4 +174,46 @@ describe('CAP-8 Automations page', () => {
       await screen.findByText("This location doesn't exist or you don't have access."),
     ).toBeVisible()
   })
+
+  it('opens the run history with outcome, task link, reason and the error of a failed run', async () => {
+    const run = (id: string, extra: Record<string, unknown>) => ({
+      id,
+      taskId: 't1',
+      taskReadableId: 'ACME-1',
+      taskTitle: 'Ship it',
+      status: 'SUCCEEDED',
+      attempt: 1,
+      depth: 1,
+      createdAt: new Date().toISOString(),
+      ...extra,
+    })
+    const stub = serve(
+      { locationId: 'l1', canEdit: false, limit: 50, rules: [rule()] },
+      {
+        'GET /api/v1/automations/:id/runs': (request) =>
+          new URL(request.url).searchParams.get('cursor')
+            ? json({ items: [run('r3', { status: 'SKIPPED', reason: 'conditions_not_met' })] })
+            : json({
+                items: [
+                  run('r1', {}),
+                  run('r2', { status: 'FAILED', attempt: 3, error: 'database blip' }),
+                ],
+                nextCursor: 'c2',
+              }),
+      },
+    )
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'History' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('Succeeded')).toBeVisible()
+    expect(within(dialog).getAllByRole('link', { name: 'ACME-1 Ship it' })[0]).toHaveAttribute(
+      'href',
+      '/t/t1',
+    )
+    expect(within(dialog).getByText('database blip')).toBeVisible()
+    await user.click(within(dialog).getByRole('button', { name: 'Load more' }))
+    expect(await within(dialog).findByText(/Conditions not met/)).toBeVisible()
+    expect(stub.count('GET', /\/runs$/)).toBe(2)
+  })
 })
