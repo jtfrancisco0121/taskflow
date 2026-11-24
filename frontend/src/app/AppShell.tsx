@@ -4,6 +4,7 @@ import { SidebarTree } from '../features/locations'
 import { useSession, useSignOut } from '../features/auth'
 import { LiveUpdates } from '../features/realtime'
 import { SearchBox } from '../features/search'
+import { ServiceAccountsLink } from '../features/serviceAccounts'
 import { useRememberWorkspace, WorkspaceSwitcher } from '../features/workspace'
 import { Button } from '../shared/ui/Button'
 import { useUiStore } from '../shared/ui-store'
@@ -36,6 +37,7 @@ export function AppShell() {
           <WorkspaceSwitcher currentId={workspaceId} />
           {workspaceId && <SearchBox workspaceId={workspaceId} />}
           <div className="ml-auto flex items-center gap-3 text-sm">
+            {workspaceId && <ServiceAccountsLink workspaceId={workspaceId} />}
             {session.user?.displayName && <span>{session.user.displayName}</span>}
             <Button onClick={() => void signOut()}>Sign out</Button>
           </div>

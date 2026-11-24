@@ -15,6 +15,7 @@ const features = [
   'views',
   'realtime',
   'search',
+  'serviceAccounts',
 ]
 const deepOf = (name, relative) => [
   { group: [`**/features/${name}/**`, `!**/features/${name}/index*`] },

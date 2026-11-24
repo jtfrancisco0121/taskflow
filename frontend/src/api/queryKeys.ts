@@ -17,6 +17,14 @@ export const queryKeys = {
   viewList: (wsId: string, scopeId: string) => ['ws', wsId, 'viewList', scopeId] as const,
   viewListAll: (wsId: string) => ['ws', wsId, 'viewList'] as const,
   search: (wsId: string, q: string) => ['ws', wsId, 'search', q] as const,
+  /** Agent access (SA-1..4, KEY-1..7): every key starts with the Workspace, so one prefix clears it. */
+  serviceAccountsAll: (wsId: string) => ['ws', wsId, 'serviceAccounts'] as const,
+  serviceAccounts: (wsId: string) => ['ws', wsId, 'serviceAccounts', 'list'] as const,
+  serviceAccount: (wsId: string, id: string) => ['ws', wsId, 'serviceAccounts', id] as const,
+  apiKeys: (wsId: string, id: string) => ['ws', wsId, 'serviceAccounts', id, 'keys'] as const,
+  saAudit: (wsId: string, id: string) => ['ws', wsId, 'serviceAccounts', id, 'audit'] as const,
+  saActivity: (wsId: string, id: string) =>
+    ['ws', wsId, 'serviceAccounts', id, 'activity'] as const,
   task: (taskId: string) => ['task', taskId] as const,
   taskAll: () => ['task'] as const,
   comments: (taskId: string) => ['task', taskId, 'comments'] as const,
