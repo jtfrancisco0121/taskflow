@@ -1,6 +1,6 @@
 # Taskflow
 
-A ClickUp-style work management app. One set of tasks, many views (List, Board, Table, Calendar, and later Gantt), with statuses and custom fields inherited down a Workspace > Space > Folder > List tree. Admins can create service accounts with API keys, and an MCP server lets AI agents view, create, update and delete tickets.
+A ClickUp-style work management app. One set of tasks, many views (List, Board, Table, Calendar, and later Gantt), with statuses and custom fields (twelve types: text, long text, number, date, dropdown, labels, checkbox, URL, email, people, rating, progress) inherited down a Workspace > Space > Folder > List tree. Admins can create service accounts with API keys, and an MCP server lets AI agents view, create, update and delete tickets.
 
 ## Stack
 

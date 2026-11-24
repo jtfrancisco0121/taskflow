@@ -573,4 +573,50 @@ class TaskCustomFieldsIT extends ServiceAccountTestBase {
     assertThat(row.get("actor_type")).isEqualTo("SERVICE_ACCOUNT");
     assertThat(row.get("actor_key_id")).isEqualTo(agent.keyId());
   }
+
+  // ---------------------------------------------------------------- People (3A S8)
+
+  @Test
+  void aPeopleValueNeedsCurrentMembersAndAFormerMembersValueStays() {
+    Fix f = fixture();
+    UUID reviewer = field(f.ws().owner(), f.space(), "Reviewer", "PEOPLE");
+    UUID task = task(f.ws().member(), f.list(), "T");
+    TestUser outsider = signUp("Outsider");
+
+    // A non-member is refused with 400 field.invalid_value naming the field.
+    Resp refused = setValue(f.ws().member(), task, reviewer, List.of(outsider.id().toString()));
+    assertThat(refused.status()).isEqualTo(400);
+    assertThat(refused.text("/code")).isEqualTo("field.invalid_value");
+    assertThat(refused.text("/detail")).contains("Reviewer");
+    assertThat(setValue(f.ws().member(), task, reviewer, "not-a-list").status()).isEqualTo(400);
+    assertThat(setValue(f.ws().member(), task, reviewer, List.of("nope")).status()).isEqualTo(400);
+
+    // Members (duplicates folded) are stored as ids and read back as ids.
+    Resp ok =
+        setValue(
+            f.ws().member(),
+            task,
+            reviewer,
+            List.of(
+                f.ws().admin().id().toString(),
+                f.ws().owner().id().toString(),
+                f.ws().admin().id().toString()));
+    assertThat(ok.status()).as(ok.raw()).isEqualTo(200);
+    assertThat(ok.at("/customFields/" + reviewer).size()).isEqualTo(2);
+    assertThat(ok.at("/customFields/" + reviewer + "/0").asText())
+        .isEqualTo(f.ws().admin().id().toString());
+
+    // A member who later left stays in the stored value and is read back as an id.
+    jdbc.update(
+        "DELETE FROM workspace_member WHERE workspace_id = ? AND user_id = ?",
+        f.ws().id(),
+        f.ws().admin().id());
+    JsonNode read = read(f.ws().member(), task);
+    assertThat(read.at("/customFields/" + reviewer).size()).isEqualTo(2);
+    assertThat(stored(task).get(reviewer.toString()).toString())
+        .contains(f.ws().admin().id().toString());
+    // Clearing works; an empty list clears too.
+    assertThat(setValue(f.ws().member(), task, reviewer, List.of()).status()).isEqualTo(200);
+    assertThat(stored(task).has(reviewer.toString())).isFalse();
+  }
 }

@@ -444,4 +444,26 @@ class CustomFieldsMcpIT extends McpTestBase {
         search(f, Map.of("customFields", List.of(cond(tier, "any_of", List.of("x') OR 1=1 --")))));
     assertThat(injected.isError()).isTrue();
   }
+
+  @Test
+  void aPeopleValueIsGivenAsUserIdsAndFoundBySearch() {
+    Fix f = fixture();
+    UUID reviewer = createField(f.ws(), f.space(), "Reviewer", "PEOPLE");
+    String member = f.ws().member().id().toString();
+    ToolResult fields =
+        call(f.agent().secret(), "list_custom_fields", Map.of("locationId", f.list().toString()));
+    assertThat(fields.body().toString()).contains("\"type\":\"PEOPLE\"");
+    ToolResult created = create(f, f.list(), "Reviewed", Map.of("Reviewer", List.of(member)));
+    assertThat(created.isError()).as(created.body().toString()).isFalse();
+    assertThat(created.body().at("/customFields/" + reviewer + "/0").asText()).isEqualTo(member);
+    ToolResult bad =
+        create(f, f.list(), "Bad", Map.of("Reviewer", List.of(UUID.randomUUID().toString())));
+    assertThat(bad.isError()).isTrue();
+    assertThat(bad.body().toString()).contains("Reviewer");
+    assertThat(
+            titles(
+                search(
+                    f, Map.of("customFields", List.of(cond(reviewer, "any_of", List.of(member)))))))
+        .containsExactly("Reviewed");
+  }
 }

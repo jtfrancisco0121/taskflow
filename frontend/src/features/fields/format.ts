@@ -39,7 +39,7 @@ export function formatValue(field: FieldView, value: unknown): string {
     case 'PROGRESS':
       return `${value} percent`
     case 'PEOPLE':
-      return `${(value as unknown[]).length} selected`
+      return `${(value as unknown[]).length} ${(value as unknown[]).length === 1 ? 'person' : 'people'}`
     default:
       return String(value)
   }

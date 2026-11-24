@@ -19,8 +19,11 @@ export function FieldCell({ field, task }: { field: FieldView; task: TaskView })
 
   useEffect(() => () => clearTimeout(timer.current), [])
 
+  // A multi-pick editor stays open so several picks can be made; it closes on blur or Escape.
+  const multi = field.type === 'LABELS' || field.type === 'PEOPLE'
+
   async function commit(next: unknown) {
-    setEditing(false)
+    if (!multi) setEditing(false)
     timer.current = setTimeout(() => setSaving(true), 300)
     try {
       await actions.setCustomField(task, field.id!, next)
@@ -28,7 +31,7 @@ export function FieldCell({ field, task }: { field: FieldView; task: TaskView })
       clearTimeout(timer.current)
       setSaving(false)
     }
-    button.current?.focus()
+    if (!multi) button.current?.focus()
   }
 
   if (field.type === 'CHECKBOX') {
@@ -38,6 +41,7 @@ export function FieldCell({ field, task }: { field: FieldView; task: TaskView })
           field={field}
           value={value}
           label={label}
+          workspaceId={task.workspaceId}
           onCommit={(next) => void commit(next)}
         />
       </span>
@@ -62,6 +66,7 @@ export function FieldCell({ field, task }: { field: FieldView; task: TaskView })
           field={field}
           value={value}
           label={label}
+          workspaceId={task.workspaceId}
           autoFocus
           onCommit={(next) => void commit(next)}
           onCancel={() => setEditing(false)}
@@ -88,7 +93,7 @@ export function FieldCell({ field, task }: { field: FieldView; task: TaskView })
       }}
       className="flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-left text-sm hover:bg-slate-100 focus:outline-2 focus:outline-blue-600"
     >
-      <ValueCell field={field} value={value} />
+      <ValueCell field={field} value={value} workspaceId={task.workspaceId} />
       {saving && (
         <span
           aria-hidden="true"

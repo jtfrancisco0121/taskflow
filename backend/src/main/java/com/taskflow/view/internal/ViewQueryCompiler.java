@@ -77,7 +77,17 @@ final class ViewQueryCompiler {
       Field<String> label,
       List<Field<?>> order,
       boolean needsStatus,
-      boolean needsAssignee) {}
+      boolean needsAssignee,
+      Table<?> extraJoin) {
+    Grouping(
+        Field<String> key,
+        Field<String> label,
+        List<Field<?>> order,
+        boolean needsStatus,
+        boolean needsAssignee) {
+      this(key, label, order, needsStatus, needsAssignee, null);
+    }
+  }
 
   private final Clock clock;
   private final ObjectMapper mapper;
@@ -243,6 +253,9 @@ final class ViewQueryCompiler {
     if (grouping != null && grouping.needsAssignee()) {
       out = out.leftJoin(GROUP_ASSIGNEE).on(GA_TASK.eq(T_ID));
     }
+    if (grouping != null && grouping.extraJoin() != null) {
+      out = out.leftJoin(grouping.extraJoin()).on(DSL.trueCondition());
+    }
     return out;
   }
 
@@ -258,7 +271,7 @@ final class ViewQueryCompiler {
         throw ViewConfigValidator.invalid("Unknown grouping " + group);
       }
       CustomFieldSql.Group g = customSql.group(b, "t", "l.path", today);
-      return new Grouping(g.key(), g.label(), g.order(), false, false);
+      return new Grouping(g.key(), g.label(), g.order(), false, false, g.join());
     }
     switch (group) {
       case "status" -> {

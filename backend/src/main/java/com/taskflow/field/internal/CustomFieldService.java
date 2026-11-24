@@ -128,11 +128,6 @@ class CustomFieldService {
   FieldView create(UUID locationId, CreateInput in) {
     LocationInfo location = location(locationId);
     FieldType type = type(in.type());
-    if (type == FieldType.PEOPLE) {
-      // Built in 3A S8: the column CHECK already allows it, the API does not yet.
-      throw TaskflowException.badRequest(
-          "field.invalid_type", "The People field type is not available yet");
-    }
     String name = cleanName(in.name());
     Map<String, Object> config = config(type, in.config());
     List<OptionDraft> options = options(type, in.options(), Set.of(), null);

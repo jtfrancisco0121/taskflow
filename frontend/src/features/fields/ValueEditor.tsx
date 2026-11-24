@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import type { FieldView } from '../../api/types'
 import { toApiDate, toInputDay } from '../../shared/dates'
 import { isEmpty } from './format'
+import { PeopleEditor } from './People'
 
 export type ValueEditorProps = {
   field: FieldView
@@ -11,6 +12,8 @@ export type ValueEditorProps = {
   /** Commit a new value; {@code null} clears. Called once per edit (Enter, blur or a pick). */
   onCommit: (value: unknown) => void
   disabled?: boolean
+  /** The Workspace, for the member picker of a People field. */
+  workspaceId?: string
   autoFocus?: boolean
   /** Called when an open editor is dismissed without a change (Escape). */
   onCancel?: () => void
@@ -161,6 +164,17 @@ export function ValueEditor(props: ValueEditorProps) {
         </div>
       )
     }
+    case 'PEOPLE':
+      return (
+        <PeopleEditor
+          workspaceId={props.workspaceId}
+          field={field}
+          value={value}
+          label={label}
+          disabled={disabled}
+          onCommit={onCommit}
+        />
+      )
     case 'CHECKBOX':
       return (
         <input

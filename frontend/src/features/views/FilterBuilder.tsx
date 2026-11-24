@@ -244,6 +244,7 @@ function ConditionRow({
           op={node.op ?? ''}
           value={node.value}
           onChange={(value) => withValue(value)}
+          people={[{ value: 'me', label: 'Me' }, ...options.members]}
         />
       )}
       {!custom && !valueless && spec.kind === 'text' && (

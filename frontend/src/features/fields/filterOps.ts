@@ -50,7 +50,7 @@ const SORTABLE = new Set<FieldType>([
   'RATING',
   'PROGRESS',
 ])
-const GROUPABLE = new Set<FieldType>(['DATE', 'DROPDOWN', 'CHECKBOX', 'RATING'])
+const GROUPABLE = new Set<FieldType>(['DATE', 'DROPDOWN', 'CHECKBOX', 'RATING', 'PEOPLE'])
 
 export const operatorsFor = (field: FieldView): string[] => OPS[field.type ?? 'TEXT']
 export const canSort = (field: FieldView) => SORTABLE.has(field.type ?? 'TEXT')
@@ -65,6 +65,7 @@ export function defaultValue(field: FieldView, op: string): unknown {
   if (op === 'between') return field.type === 'DATE' ? ['today', 'next_7_days'] : [0, 100]
   if (['before', 'after', 'on'].includes(op)) return 'today'
   if (['any_of', 'all_of', 'none_of'].includes(op)) {
+    if (field.type === 'PEOPLE') return ['me']
     const first = field.options?.[0]?.id
     return first ? [first] : []
   }

@@ -1,8 +1,9 @@
 import type { FieldView } from '../../api/types'
 import { formatValue, isEmpty, optionName, safeHref } from './format'
 import { OptionChip } from './OptionChip'
+import { PeopleCell } from './People'
 
-type ValueCellProps = { field: FieldView; value: unknown }
+type ValueCellProps = { field: FieldView; value: unknown; workspaceId?: string }
 
 function maxOf(field: FieldView) {
   const v = field.config?.max
@@ -10,7 +11,7 @@ function maxOf(field: FieldView) {
 }
 
 /** The read-only rendering of a value: text as text, URLs as links only when http(s) (AD-12). */
-export function ValueCell({ field, value }: ValueCellProps) {
+export function ValueCell({ field, value, workspaceId }: ValueCellProps) {
   if (isEmpty(value)) {
     return (
       <span className="text-slate-400">
@@ -30,6 +31,8 @@ export function ValueCell({ field, value }: ValueCellProps) {
           ))}
         </span>
       )
+    case 'PEOPLE':
+      return <PeopleCell workspaceId={workspaceId} value={value} />
     case 'CHECKBOX':
       return <span>Checked</span>
     case 'URL': {

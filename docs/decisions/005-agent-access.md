@@ -108,3 +108,5 @@ where it differs or adds detail.
     without it, by `updated_at DESC, id` with a cursor tagged `u`, so a ranked cursor is refused with
     `page.invalid_cursor`. A retired Option or a hidden or left-behind value never matches. Tests:
     `CustomFieldsMcpIT`.
+    A People field takes user ids in `customFields` (a non-member is 400 `field.invalid_value` naming the
+    field) and `search_tasks` conditions on it take user ids; `list_custom_fields` shows the type.

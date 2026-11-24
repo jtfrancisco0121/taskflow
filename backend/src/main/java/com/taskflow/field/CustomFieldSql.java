@@ -51,13 +51,27 @@ public class CustomFieldSql {
           FieldType.RATING,
           FieldType.PROGRESS);
   private static final Set<FieldType> GROUPABLE =
-      Set.of(FieldType.DATE, FieldType.DROPDOWN, FieldType.CHECKBOX, FieldType.RATING);
+      Set.of(
+          FieldType.DATE,
+          FieldType.DROPDOWN,
+          FieldType.CHECKBOX,
+          FieldType.RATING,
+          FieldType.PEOPLE);
 
   /** A field with the paths its scope guard needs, resolved once per request. */
   public record Bound(FieldInfo field, String definedAtPath, List<String> hidingPaths) {}
 
   /** A grouping: the key, its display label and the columns that order the groups. */
-  public record Group(Field<String> key, Field<String> label, List<Field<?>> order) {}
+  public record Group(
+      Field<String> key,
+      Field<String> label,
+      List<Field<?>> order,
+      /** A join that expands one task into one row per group (People), or null. */
+      org.jooq.Table<?> join) {
+    public Group(Field<String> key, Field<String> label, List<Field<?>> order) {
+      this(key, label, order, null);
+    }
+  }
 
   private final JdbcTemplate jdbc;
   private final LocationTree tree;
@@ -236,8 +250,8 @@ public class CustomFieldSql {
             Instant[] r = days.apply(v.asText());
             yield date(b, taskAlias).ge(utc(r[0])).and(date(b, taskAlias).lt(utc(r[1])));
           }
-          case "any_of", "none_of" -> anyOf(b, taskAlias, optionIds(f, v));
-          case "all_of" -> allOf(b, taskAlias, optionIds(f, v));
+          case "any_of", "none_of" -> anyOf(b, taskAlias, optionIds(f, v, me));
+          case "all_of" -> allOf(b, taskAlias, optionIds(f, v, me));
           default ->
               throw TaskflowException.badRequest(
                   "view.invalid_config", "Unknown operator " + op + " for " + f.name());
@@ -264,6 +278,11 @@ public class CustomFieldSql {
         yield any.isEmpty() ? DSL.falseCondition() : DSL.or(any);
       }
       case CHECKBOX -> contains(b, taskAlias, keyed(b, "true"));
+      case PEOPLE ->
+          DSL.condition(
+              "coalesce(jsonb_array_length(CASE WHEN jsonb_typeof({0} -> {1}) = 'array' THEN {0} ->"
+                  + " {1} END), 0) > 0",
+              custom(taskAlias), DSL.val(b.field().id().toString()));
       default -> text(b, taskAlias).isNotNull();
     };
   }
@@ -292,8 +311,24 @@ public class CustomFieldSql {
   /**
    * Option ids named by ids or names (ignoring case) that are live; unknown values match nothing.
    */
-  private static List<String> optionIds(FieldInfo f, JsonNode v) {
+  private static List<String> optionIds(FieldInfo f, JsonNode v, UUID me) {
     List<String> out = new ArrayList<>();
+    if (f.type() == FieldType.PEOPLE) {
+      // People values are user ids; "me" is the caller.
+      for (JsonNode n : v) {
+        String s = n.asText().trim();
+        if (s.equalsIgnoreCase("me")) {
+          out.add(me.toString());
+        } else {
+          try {
+            out.add(UUID.fromString(s).toString());
+          } catch (IllegalArgumentException e) {
+            // not a user id: matches nobody
+          }
+        }
+      }
+      return out;
+    }
     for (JsonNode n : v) {
       String s = n.asText().trim();
       Optional<OptionInfo> match =
@@ -413,6 +448,7 @@ public class CustomFieldSql {
         yield new Group(key, key, List.of(order));
       }
       case DATE -> dateGroup(b, taskAlias, g, today);
+      case PEOPLE -> peopleGroup(b, taskAlias, g);
       default ->
           throw TaskflowException.badRequest(
               "view.invalid_config", f.name() + " cannot be used to group");
@@ -439,6 +475,23 @@ public class CustomFieldSql {
       when = when == null ? step.when(id, i) : when.when(id, i);
     }
     return when == null ? DSL.inline(999) : when.else_(DSL.inline(999));
+  }
+
+  /**
+   * One group per person: the array is expanded with a lateral join, so a task appears under each
+   * person (like assignee); a task with nobody (or outside the scope) is under {@code none}.
+   */
+  private static Group peopleGroup(Bound b, String taskAlias, Condition g) {
+    Field<?> array =
+        DSL.field(
+            "CASE WHEN {0} AND jsonb_typeof({1} -> {2}) = 'array' THEN {1} -> {2} END",
+            g, custom(taskAlias), DSL.val(b.field().id().toString()));
+    org.jooq.Table<?> join =
+        DSL.lateral(DSL.table("jsonb_array_elements_text({0})", array)).as("gp", "person");
+    Field<String> person = DSL.field(DSL.name("gp", "person"), String.class);
+    Field<String> key = DSL.coalesce(person, DSL.inline("none"));
+    Field<Integer> order = DSL.case_().when(person.isNull(), 1).else_(0);
+    return new Group(key, key, List.of(order), join);
   }
 
   private static Group dateGroup(Bound b, String taskAlias, Condition g, LocalDate today) {

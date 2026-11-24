@@ -7,6 +7,8 @@ type FilterInputProps = {
   op: string
   value: unknown
   onChange: (value: unknown) => void
+  /** The Workspace's members plus "Me", for a People field. */
+  people?: Array<{ value: string; label: string }>
 }
 
 const input = 'rounded border border-slate-300 px-1 py-0.5 text-sm'
@@ -86,7 +88,7 @@ function DayInput({
 }
 
 /** The value input of a custom field filter condition (AD-12), by the field's type and operator. */
-export function FilterInput({ field, op, value, onChange }: FilterInputProps) {
+export function FilterInput({ field, op, value, onChange, people }: FilterInputProps) {
   if (isValueless(op)) return null
   const list = Array.isArray(value) ? value : []
   if (['contains', 'not_contains'].includes(op)) {
@@ -103,20 +105,23 @@ export function FilterInput({ field, op, value, onChange }: FilterInputProps) {
     const selected = list as string[]
     return (
       <span role="group" aria-label="Filter value" className="flex flex-wrap gap-2">
-        {field.options?.map((option) => (
-          <label key={option.id} className="flex items-center gap-1">
+        {(field.type === 'PEOPLE'
+          ? (people ?? [])
+          : (field.options ?? []).map((o) => ({ value: o.id!, label: o.name ?? '' }))
+        ).map((option) => (
+          <label key={option.value} className="flex items-center gap-1">
             <input
               type="checkbox"
-              checked={selected.includes(option.id!)}
+              checked={selected.includes(option.value)}
               onChange={(event) =>
                 onChange(
                   event.target.checked
-                    ? [...selected, option.id!]
-                    : selected.filter((id) => id !== option.id),
+                    ? [...selected, option.value]
+                    : selected.filter((id) => id !== option.value),
                 )
               }
             />
-            {option.name}
+            {option.label}
           </label>
         ))}
       </span>

@@ -45,8 +45,8 @@ Status: accepted (built in slices 3A S2..S8; this record grows with each). Conte
    types `custom_field.created|updated|retired|hidden|unhidden` and payload `{fieldId, parentId, path}`.
 10. **Option colors are a ten-name palette** (gray, red, orange, amber, green, teal, blue, indigo, purple,
     pink), never arbitrary hex; the UI draws them as a dot only.
-11. **The People type is built last (3A S8).** The `custom_field.type` CHECK lists all twelve types, so no
-    later migration is needed; until S8 the API answers 400 `field.invalid_type` for it.
+11. **The People type was built last (3A S8).** The `custom_field.type` CHECK listed all twelve types from the
+    start, so no later migration was needed (see item 25).
 12. **Deviation: no request-scoped catalog cache.** The effective set is one query; the task projection
     (S3) resolves it once per distinct List, which is where repeated lookups would happen.
 13. **Values: key-level merge only (AD-2).** `task.custom` holds `{fieldId: value}`. A write is
@@ -120,3 +120,13 @@ Status: accepted (built in slices 3A S2..S8; this record grows with each). Conte
     closes the risk review's LOW 2, and `CustomFieldsMcpIT` has a trashed task and an archived List that
     match the conditions but are not returned. A field key may be an id or a name and an Option a name; the
     lookup is by the List's effective fields only, so a hidden or foreign field is `field.not_available`.
+25. **Final type list: twelve types.** Text, Long text, Number, Date, Dropdown, Labels, Checkbox, URL, Email,
+    People, Rating, Progress (field-types.md). A People value is an array of 1 to 50 user ids, each a
+    current member of the Workspace (the rule assignees follow; duplicates are folded; 400
+    `field.invalid_value` otherwise). A member who later leaves stays in the stored value: reads return the
+    id and the UI shows "Former member". Filters: `any_of`, `all_of`, `none_of`, `is_set`, `is_empty`, with
+    the value `me` for the caller; no sort. Grouping is per person like assignee: a lateral
+    `jsonb_array_elements_text` join puts a task under each of its people (and under `none` when it has
+    nobody or is out of scope), so a grouped list can show one task more than once. Activity text for a
+    People change reads "N people" (the field module has no user-name lookup: adding one would be a new module
+    edge, which this feature avoids).

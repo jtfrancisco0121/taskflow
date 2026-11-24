@@ -41,7 +41,7 @@ export const FIELD_TYPES: Record<FieldType, TypeEntry> = {
   PROGRESS: { label: 'Progress', icon: '%', hasOptions: false },
 }
 
-/** The types the field editor offers (People joins in 3A S8). */
+/** The types the field editor offers. */
 export const CREATABLE_TYPES: FieldType[] = [
   'TEXT',
   'LONG_TEXT',
@@ -52,6 +52,7 @@ export const CREATABLE_TYPES: FieldType[] = [
   'CHECKBOX',
   'URL',
   'EMAIL',
+  'PEOPLE',
   'RATING',
   'PROGRESS',
 ]

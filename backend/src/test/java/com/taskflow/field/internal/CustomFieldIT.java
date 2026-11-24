@@ -157,8 +157,7 @@ class CustomFieldIT extends ServiceAccountTestBase {
 
     assertThat(patchField(ws.member(), id, 2, Map.of("config", Map.of("max", 3))).text("/code"))
         .isEqualTo("field.invalid_config");
-    assertThat(create(ws.member(), list, "P", "PEOPLE").text("/code"))
-        .isEqualTo("field.invalid_type");
+    assertThat(create(ws.member(), list, "Reviewer", "PEOPLE").status()).isEqualTo(201);
     assertThat(create(ws.member(), list, "P", "NOPE").text("/code"))
         .isEqualTo("field.invalid_type");
     assertThat(create(ws.member(), list, "  ", "TEXT").status()).isEqualTo(400);

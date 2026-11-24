@@ -702,4 +702,72 @@ class ViewCustomFieldQueryIT extends ViewTestBase {
                     ws.member(), list, cfg(where(cond(notes, "contains", "'; DROP")), null, null))))
         .containsExactly("a");
   }
+
+  // ---------------------------------------------------------------- People (3A S8)
+
+  @Test
+  void peopleOperatorsAndPerPersonGrouping() {
+    Ws ws = workspaceWithAllRoles();
+    UUID space = space(ws.owner(), ws.id(), "S");
+    UUID list = list(ws.member(), space, "L");
+    UUID reviewer = field(ws.owner(), space, "Reviewer", "PEOPLE");
+    String me = ws.member().id().toString();
+    String admin = ws.admin().id().toString();
+    String owner = ws.owner().id().toString();
+    task(ws.member(), list, "t1", Map.of(reviewer.toString(), List.of(me)));
+    task(ws.member(), list, "t2", Map.of(reviewer.toString(), List.of(me, admin)));
+    task(ws.member(), list, "t3", Map.of(reviewer.toString(), List.of(admin, owner)));
+    task(ws.member(), list, "t4", Map.of());
+    Map<String, Object> byTitle = Map.of("key", "title", "dir", "asc");
+
+    Object[][] cases = {
+      {"any_of", List.of(admin), List.of("t2", "t3")},
+      {"any_of", List.of("me"), List.of("t1", "t2")},
+      {"all_of", List.of(me, admin), List.of("t2")},
+      {"none_of", List.of(admin), List.of("t1", "t4")},
+      {"is_set", null, List.of("t1", "t2", "t3")},
+      {"is_empty", null, List.of("t4")},
+    };
+    for (Object[] c : cases) {
+      assertThat(
+              titles(
+                  query(
+                      ws.member(),
+                      list,
+                      cfg(where(cond(reviewer, (String) c[0], c[1])), null, List.of(byTitle)))))
+          .as("%s %s", c[0], c[1])
+          .containsExactlyElementsOf((List<String>) c[2]);
+    }
+    // People cannot be sorted.
+    Resp sort =
+        query(
+            ws.member(),
+            list,
+            cfg(null, null, List.of(Map.of("key", "cf:" + reviewer, "dir", "asc"))));
+    assertThat(sort.status()).isEqualTo(400);
+
+    // Grouped per person: a task sits under each of its people, the rest under "none".
+    Resp grouped = query(ws.member(), list, cfg(null, "cf:" + reviewer, List.of(byTitle)));
+    assertThat(grouped.status()).as(grouped.raw()).isEqualTo(200);
+    Map<String, Integer> counts = new LinkedHashMap<>();
+    grouped.at("/groups").forEach(g -> counts.put(g.get("key").asText(), g.get("count").asInt()));
+    assertThat(counts)
+        .containsEntry(me, 2)
+        .containsEntry(admin, 2)
+        .containsEntry(owner, 1)
+        .containsEntry("none", 1);
+    assertThat(counts.keySet().stream().reduce((a, b) -> b).orElseThrow()).isEqualTo("none");
+    List<String> inAdmin =
+        titles(
+            query(
+                ws.member(),
+                list,
+                cfg(null, "cf:" + reviewer, List.of(byTitle)),
+                "groupValue",
+                admin));
+    assertThat(inAdmin).containsExactly("t2", "t3");
+    // A task with two people appears twice in the unfiltered grouped list, once per group.
+    List<String> all = titles(grouped);
+    assertThat(all.stream().filter(t -> t.equals("t2")).count()).isEqualTo(2);
+  }
 }

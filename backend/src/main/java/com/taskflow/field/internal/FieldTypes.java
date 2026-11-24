@@ -16,7 +16,9 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -36,6 +38,7 @@ final class FieldTypes {
   static final int MAX_URL = 2000;
   static final int MAX_EMAIL = 254;
   static final int MAX_LABELS = 50;
+  static final int MAX_PEOPLE = 50;
   static final double MAX_ABS_NUMBER = 1e15;
   private static final DateTimeFormatter DAY =
       DateTimeFormatter.ofPattern("yyyy-MM-dd'T'00:00:00'Z'");
@@ -46,7 +49,13 @@ final class FieldTypes {
    * The value to store, or {@code null} when the request clears the field. Throws 400
    * field.invalid_value naming the field.
    */
-  static JsonNode normalize(FieldInfo f, JsonNode raw) {
+  /** Which of these users are current members of the Workspace (the rule assignees follow). */
+  @FunctionalInterface
+  interface Members {
+    Set<UUID> among(UUID workspaceId, Collection<UUID> userIds);
+  }
+
+  static JsonNode normalize(FieldInfo f, JsonNode raw, Members members) {
     if (raw == null || raw.isNull() || raw.isMissingNode()) {
       return null;
     }
@@ -62,7 +71,7 @@ final class FieldTypes {
       case EMAIL -> email(f, raw);
       case RATING -> rating(f, raw);
       case PROGRESS -> progress(f, raw);
-      case PEOPLE -> throw invalid(f, "People values are not available yet");
+      case PEOPLE -> people(f, raw, members);
     };
   }
 
@@ -194,6 +203,36 @@ final class FieldTypes {
       }
       out.add(option.id().toString());
     }
+    return out;
+  }
+
+  /** 1 to 50 user ids, each a current member of the Workspace; duplicates are folded. */
+  private static JsonNode people(FieldInfo f, JsonNode raw, Members members) {
+    if (!raw.isArray()) {
+      throw invalid(f, "expects a list of user ids");
+    }
+    if (raw.isEmpty()) {
+      return null;
+    }
+    Set<UUID> ids = new LinkedHashSet<>();
+    for (JsonNode n : raw) {
+      try {
+        ids.add(UUID.fromString(n.asText().trim()));
+      } catch (IllegalArgumentException e) {
+        throw invalid(f, "expects a list of user ids");
+      }
+    }
+    if (ids.size() > MAX_PEOPLE) {
+      throw invalid(f, "takes at most " + MAX_PEOPLE + " people");
+    }
+    Set<UUID> current = members.among(f.workspaceId(), ids);
+    for (UUID id : ids) {
+      if (!current.contains(id)) {
+        throw invalid(f, "has " + id + ", who is not a member of this Workspace");
+      }
+    }
+    ArrayNode out = JsonNodeFactory.instance.arrayNode();
+    ids.forEach(id -> out.add(id.toString()));
     return out;
   }
 

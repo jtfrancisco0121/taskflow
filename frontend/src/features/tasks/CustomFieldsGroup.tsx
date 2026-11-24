@@ -65,6 +65,7 @@ export function CustomFieldsGroup({ task, hints, save }: Props) {
               field={field}
               value={field.id! in pending ? pending[field.id!].value : values[field.id!]}
               label={label}
+              workspaceId={task.workspaceId}
               onCommit={(value) => commit(field.id!, field.name ?? 'custom field', value)}
             />
             <span id={`${key}-origin`} className="text-xs text-slate-500">

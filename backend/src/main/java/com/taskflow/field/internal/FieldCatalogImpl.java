@@ -11,6 +11,7 @@ import com.taskflow.field.ValidatedValues;
 import com.taskflow.shared.TaskflowException;
 import com.taskflow.workspace.LocationInfo;
 import com.taskflow.workspace.LocationTree;
+import com.taskflow.workspace.WorkspaceQuery;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,8 +44,11 @@ class FieldCatalogImpl implements FieldCatalog {
   private final JdbcTemplate jdbc;
   private final LocationTree tree;
   private final ObjectMapper mapper;
+  private final WorkspaceQuery workspaces;
 
-  FieldCatalogImpl(JdbcTemplate jdbc, LocationTree tree, ObjectMapper mapper) {
+  FieldCatalogImpl(
+      JdbcTemplate jdbc, LocationTree tree, ObjectMapper mapper, WorkspaceQuery workspaces) {
+    this.workspaces = workspaces;
     this.jdbc = jdbc;
     this.tree = tree;
     this.mapper = mapper;
@@ -83,7 +87,7 @@ class FieldCatalogImpl implements FieldCatalog {
         throw TaskflowException.badRequest("field.invalid_value", field.name() + " is given twice")
             .with("fieldId", field.id().toString());
       }
-      JsonNode value = FieldTypes.normalize(field, entry.getValue());
+      JsonNode value = FieldTypes.normalize(field, entry.getValue(), workspaces::membersAmong);
       if (value == null) {
         cleared.add(field.id());
       } else {
