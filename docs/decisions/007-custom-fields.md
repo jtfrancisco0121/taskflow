@@ -106,3 +106,10 @@ Status: accepted (built in slices 3A S2..S8; this record grows with each). Conte
 22. **Deviation: the Table view has no grouping.** The existing Table renderer ignores grouping (the toolbar
     offers none for it), so "group by" a custom field is shown in the List view, where grouped rows exist;
     Board columns stay status, priority or assignee. Filter and sort work in every view type.
+23. **Live updates add no event type.** A value change is the existing `task.updated`/`task.created`; a
+    definition change is a `location` event of type `custom_field.*` (decision 007.9). The STOMP frame stays
+    ids, type and version only (`FieldRealtimeIT` asserts no value or name in it), while the outbox payload
+    keeps `changes.customFields` for consumers. The cache patcher refetches a task on a newer version and
+    ignores an older or replayed one; a `custom_field.*` event invalidates the field lists, the task caches
+    and the views, and announces "Fields changed." once for a burst. The Activity tab renders the
+    write-time snapshots as "set <field> to <value>" / "cleared <field>".

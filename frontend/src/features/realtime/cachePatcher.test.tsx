@@ -119,4 +119,61 @@ describe('RT-3 cache patcher', () => {
     expect(keys).toContain(JSON.stringify(queryKeys.treeAll('w1')))
     patcher.dispose()
   })
+
+  it('FIELD: a value change refetches the task and a replayed event with an old version changes nothing', async () => {
+    const { patcher, stub, title } = setup()
+    // a value change rides on task.updated: a newer version is applied ...
+    expect(await patcher.handle('w1', event({ version: 5 }))).toBe('applied')
+    expect(title()).toBe('Changed')
+    const calls = stub.calls.length
+    // ... and the same event again (an outbox replay) is stale: no fetch, no change
+    expect(await patcher.handle('w1', event({ version: 5 }))).toBe('stale')
+    expect(await patcher.handle('w1', event({ version: 4 }))).toBe('stale')
+    expect(stub.calls).toHaveLength(calls)
+    patcher.dispose()
+  })
+
+  it('FIELD: a definition event refreshes the field lists, tasks and views and announces once', async () => {
+    const queryClient = newQueryClient()
+    const announce = vi.fn()
+    const patcher = createCachePatcher(queryClient, { clientId: OWN, debounceMs: 500, announce })
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    const created = {
+      type: 'custom_field.created',
+      entity: 'location',
+      entityId: 'l1',
+      clientId: 'someone-else',
+    }
+
+    expect(await patcher.handle('w1', created)).toBe('invalidated')
+    expect(await patcher.handle('w1', { ...created, type: 'custom_field.updated' })).toBe(
+      'invalidated',
+    )
+
+    const keys = invalidate.mock.calls.map(([f]) => JSON.stringify(f?.queryKey ?? 'predicate'))
+    expect(keys).toContain(JSON.stringify(queryKeys.taskAll()))
+    expect(keys).toContain(JSON.stringify(queryKeys.tasksAll('w1')))
+    // the field list predicate matches ['location', id, 'fields'] only
+    const predicate = invalidate.mock.calls.map(([f]) => f?.predicate).find(Boolean)!
+    expect(predicate({ queryKey: queryKeys.fields('l1') } as never)).toBe(true)
+    expect(predicate({ queryKey: queryKeys.location('l1') } as never)).toBe(false)
+    // a burst of definition events is announced once
+    expect(announce.mock.calls.filter(([m]) => m === 'Fields changed.')).toHaveLength(1)
+    patcher.dispose()
+  })
+
+  it('FIELD: a definition event with the tab’s own client id changes nothing', async () => {
+    const queryClient = newQueryClient()
+    const patcher = createCachePatcher(queryClient, { clientId: OWN })
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    expect(
+      await patcher.handle('w1', {
+        type: 'custom_field.created',
+        entity: 'location',
+        entityId: 'l1',
+        clientId: OWN,
+      }),
+    ).toBe('own')
+    expect(invalidate).not.toHaveBeenCalled()
+  })
 })

@@ -116,4 +116,58 @@ describe('actorLabel', () => {
   it('a user without an email still has a display name to show', () => {
     expect(actorLabel({ actorType: 'USER', actorName: 'Maya Lopez' })).not.toMatch(/@/)
   })
+
+  it('FIELD-3: custom field changes read "set <field> to <value>" and "cleared <field>"', () => {
+    const lines = activitySentences(
+      entry('task.updated', {
+        changes: {
+          customFields: {
+            'f-1': {
+              from: null,
+              to: 'o2',
+              field: 'Customer tier',
+              fromText: '',
+              toText: 'Enterprise',
+            },
+            'f-2': { from: 5, to: null, field: 'Story points', fromText: '5', toText: '' },
+          },
+        },
+      }),
+      lookup,
+    )
+    expect(lines).toEqual(['set Customer tier to Enterprise', 'cleared Story points'])
+    expect(lines.join(' ')).not.toMatch(UUID_RE)
+  })
+
+  it('custom field lines come after the other changes, and a created task lists the values it started with', () => {
+    expect(
+      activitySentences(
+        entry('task.updated', {
+          changes: {
+            title: { from: 'A', to: 'B' },
+            customFields: { 'f-1': { field: 'Notes', toText: 'call back' } },
+          },
+        }),
+        lookup,
+      ),
+    ).toEqual(['changed title from A to B', 'set Notes to call back'])
+    expect(
+      activitySentences(
+        entry('task.created', {
+          changes: { customFields: { 'f-1': { field: 'Customer tier', toText: 'Enterprise' } } },
+        }),
+        lookup,
+      ),
+    ).toEqual(['created this task', 'set Customer tier to Enterprise'])
+  })
+
+  it('an actor that is a service account reads "name (key K)"', () => {
+    expect(
+      actorLabel({
+        actorName: 'triage-agent',
+        actorType: 'SERVICE_ACCOUNT',
+        actorKeyName: 'CI-1',
+      } as ActivityView),
+    ).toBe('triage-agent (key CI-1)')
+  })
 })

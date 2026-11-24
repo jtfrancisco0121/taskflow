@@ -57,9 +57,22 @@ function value(field: string, raw: unknown, lookup: NameLookup): string {
 
 type Changes = Record<string, { from?: unknown; to?: unknown }>
 
+/** The write-time snapshot of one custom field change (AD-7); names and texts, never ids. */
+type CustomChange = { field?: string; fromText?: string; toText?: string }
+
 function changesOf(entry: ActivityView): Changes {
   const payload = entry.payload as { changes?: Changes } | null | undefined
   return payload?.changes && typeof payload.changes === 'object' ? payload.changes : {}
+}
+
+/** "set <field> to <value>" or "cleared <field>", one per custom field the entry changed. */
+function customFieldLines(entry: ActivityView): string[] {
+  const raw = changesOf(entry).customFields as unknown
+  if (!raw || typeof raw !== 'object') return []
+  return Object.values(raw as Record<string, CustomChange>).map((c) => {
+    const name = c.field || 'a custom field'
+    return c.toText ? `set ${name} to ${c.toText}` : `cleared ${name}`
+  })
 }
 
 /** Who did it: a service account reads "triage-agent (key CI-1)", never a bare id. */
@@ -75,16 +88,17 @@ export function actorLabel(entry: ActivityView): string {
 export function activitySentences(entry: ActivityView, lookup: NameLookup): string[] {
   switch (entry.type) {
     case 'task.created':
-      return ['created this task']
+      return ['created this task', ...customFieldLines(entry)]
     case 'task.status_changed':
     case 'task.updated': {
       const lines = Object.entries(changesOf(entry))
-        .filter(([field]) => field !== 'rank')
+        .filter(([field]) => field !== 'rank' && field !== 'customFields')
         .map(([field, change]) =>
           field === 'description'
             ? 'changed the description'
             : `changed ${FIELD_NAME[field] ?? 'a field'} from ${value(field, change?.from, lookup)} to ${value(field, change?.to, lookup)}`,
         )
+      lines.push(...customFieldLines(entry))
       return lines.length ? lines : ['changed this task']
     }
     case 'task.moved':

@@ -128,8 +128,8 @@ Requirement IDs are stable. Agents and tests should reference them.
 **FIELD: Custom fields**
 
 - FIELD-1: Types: text, long text, number, dropdown, labels, date, checkbox, URL, email, people, rating, progress. Formula fields come later. Status: definitions done (3A S2); values for 11 types done (3A S3); people in S8.
-- FIELD-2: A field defined at a location applies to every task below it. Definitions are inherited. A lower location can hide an inherited field but not redefine its type. Status: definitions and inheritance done (3A S2).
-- FIELD-3: Filter, sort, group and show fields in views. Status: show in views done (3A S4); filter, sort, group done (3A S5).
+- FIELD-2: A field defined at a location applies to every task below it. Definitions are inherited. A lower location can hide an inherited field but not redefine its type. Status: definitions and inheritance done (3A S2); live updates done (3A S6).
+- FIELD-3: Filter, sort, group and show fields in views. Status: show in views done (3A S4); filter, sort, group done (3A S5); live updates done (3A S6).
 
 **DEP: Dependencies**
 

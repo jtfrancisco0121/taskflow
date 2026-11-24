@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { api, apiSignUp, inviteTokenFor, signInThroughTheUi } from './helpers'
+import { snap } from './screenshots'
 
 type Id = { id: string }
 type StatusSet = { statuses: Array<Id & { name: string }> }
@@ -76,5 +77,75 @@ test('RT-1 / RT-2 / FR-20: a change and a viewer show up in a second browser wit
   })
 
   await contextA.close()
+  await contextB.close()
+})
+
+test('FIELD live (3A S6): a value change and a new field show in a second browser without a reload, and the Activity tab names the actor', async ({
+  browser,
+  request,
+}, testInfo) => {
+  const a = await apiSignUp(request, 'Alice Owner')
+  const b = await apiSignUp(request, 'Bob Member')
+  const workspace = await api<Id>(request, a, 'POST', '/workspaces', { name: 'Live Fields Co' })
+  const space = await api<Id>(request, a, 'POST', '/locations', {
+    type: 'SPACE',
+    workspaceId: workspace.id,
+    name: 'Shared',
+  })
+  const list = await api<Id>(request, a, 'POST', '/locations', {
+    type: 'LIST',
+    parentId: space.id,
+    name: 'Fields list',
+  })
+  const tier = await api<Id>(request, a, 'POST', `/locations/${list.id}/fields`, {
+    name: 'Customer tier',
+    type: 'DROPDOWN',
+    options: [{ name: 'Free' }, { name: 'Pro' }, { name: 'Enterprise' }],
+  })
+  const task = await api<Id>(request, a, 'POST', `/lists/${list.id}/tasks`, {
+    title: 'Live fields',
+  })
+  await api(request, a, 'POST', `/workspaces/${workspace.id}/invites`, {
+    email: b.email,
+    role: 'MEMBER',
+  })
+  await api(request, b, 'POST', `/invites/${await inviteTokenFor(request, b.email)}/accept`)
+
+  const contextB = await browser.newContext()
+  const pageB = await contextB.newPage()
+  await signInThroughTheUi(pageB, b)
+  await pageB.goto(`/t/${task.id}`)
+  const panel = pageB.getByRole('complementary', { name: /^Task / })
+  await expect(panel.getByLabel(/^Customer tier for /)).toBeVisible()
+
+  // A sets a value over the API; B's open panel shows it within 2 seconds.
+  const current = await api<{ version: number }>(request, a, 'GET', `/tasks/${task.id}`)
+  await api(
+    request,
+    a,
+    'PATCH',
+    `/tasks/${task.id}`,
+    { customFields: { [tier.id]: 'Enterprise' } },
+    { 'If-Match': `"${current.version}"` },
+  )
+  await expect(panel.getByLabel(/^Customer tier for /).locator('option:checked')).toHaveText(
+    'Enterprise',
+    { timeout: 2000 },
+  )
+
+  // A defines a new field; it appears in B's panel within 2 seconds.
+  await api(request, a, 'POST', `/locations/${list.id}/fields`, {
+    name: 'Story points',
+    type: 'NUMBER',
+  })
+  await expect(panel.getByRole('textbox', { name: /^Story points for / })).toBeVisible({
+    timeout: 2000,
+  })
+
+  // The Activity tab names the actor and the change.
+  await panel.getByRole('tab', { name: 'Activity' }).click()
+  await expect(panel.getByText('set Customer tier to Enterprise')).toBeVisible()
+  await expect(panel.getByText('Alice Owner').first()).toBeVisible()
+  await snap(pageB, testInfo, 'fields-activity')
   await contextB.close()
 })
