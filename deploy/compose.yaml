@@ -1,0 +1,91 @@
+# Local infrastructure for Taskflow (CAP-1, AD-6, AD-10).
+# The apps run on the host in Phase 1; see docs/decisions/001-phase1-foundation.md.
+# Every value has a default, so this works on a fresh clone without a .env.
+name: taskflow
+
+services:
+  postgres:
+    # Keep this tag equal to the Testcontainers image in backend/src/test (TestcontainersConfiguration).
+    image: postgres:18
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-taskflow}
+      POSTGRES_USER: ${POSTGRES_USER:-taskflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-taskflow}
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:5432:5432"
+    volumes:
+      # postgres 18 images keep data under /var/lib/postgresql (versioned subfolder).
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:8.12
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4.3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-taskflow}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-taskflow}
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:5672:5672"
+      - "${HOST_BIND:-127.0.0.1}:15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 20s
+
+  objectstorage:
+    # S3-compatible storage (MinIO). MinIO no longer publishes community images on Docker Hub
+    # (minio/minio is gone) and quay.io/minio/minio is not pullable without credentials, so this
+    # uses chainguard/minio pinned by digest (tag latest, MinIO RELEASE.2026-11-23T00-10-37Z).
+    # The image has no curl or mc, so the healthcheck speaks HTTP through bash /dev/tcp.
+    image: chainguard/minio@sha256:bd92a45b821c0d85772c607ed7b49693efe78b3ffffae301b5d1b0981660de22
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-taskflow}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-taskflow-secret}
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:9000:9000"
+      - "${HOST_BIND:-127.0.0.1}:9001:9001"
+    volumes:
+      - objectstorage-data:/data
+    healthcheck:
+      test:
+        - "CMD"
+        - "bash"
+        - "-c"
+        - "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /minio/health/live HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && read -r line <&3 && [[ $$line == *' 200 '* ]]"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mailpit:
+    image: axllent/mailpit:v1.34
+    ports:
+      - "${HOST_BIND:-127.0.0.1}:1025:1025"
+      - "${HOST_BIND:-127.0.0.1}:8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres-data:
+  rabbitmq-data:
+  objectstorage-data:

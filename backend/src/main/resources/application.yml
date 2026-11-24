@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: taskflow
+  datasource:
+    url: ${TASKFLOW_DB_URL:jdbc:postgresql://localhost:5432/taskflow}
+    username: ${TASKFLOW_DB_USER:taskflow}
+    password: ${TASKFLOW_DB_PASSWORD:taskflow}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    locations: classpath:db/migration
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: ${TASKFLOW_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+springdoc:
+  writer-with-order-by-keys: true
+  paths-to-match: /api/v1/**
