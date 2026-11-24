@@ -29,3 +29,6 @@ coverage/
 # Playwright
 frontend/test-results/
 frontend/playwright-report/
+
+# Local e2e artifacts (scripts/e2e-local.sh)
+artifacts/

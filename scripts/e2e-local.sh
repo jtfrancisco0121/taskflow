@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs the Playwright suite against the local stack, like the CI `e2e` job (GitHub Actions is not the only gate).
 # Starts the infrastructure, reuses a backend already answering on :8080 (else starts the dev profile and
-# stops it again on exit), and saves screenshots into docs/screenshots (E2E_SCREENSHOTS_DIR).
+# stops it again on exit), and saves screenshots into the git-ignored artifacts/screenshots
+# (E2E_SCREENSHOTS_DIR); to refresh the committed docs/screenshots on purpose, set E2E_SCREENSHOTS_DIR=docs/screenshots.
 # Extra arguments go to Playwright, for example: bash scripts/e2e-local.sh e2e/fields-manager.spec.ts
 set -euo pipefail
 
@@ -56,6 +57,6 @@ cd "$root/frontend"
 [ -d node_modules ] || npm ci
 npx playwright install chromium
 export E2E_MAILPIT_URL="${E2E_MAILPIT_URL:-http://localhost:8025}"
-export E2E_SCREENSHOTS_DIR="${E2E_SCREENSHOTS_DIR:-$root/docs/screenshots}"
+export E2E_SCREENSHOTS_DIR="${E2E_SCREENSHOTS_DIR:-$root/artifacts/screenshots}"
 mkdir -p "$E2E_SCREENSHOTS_DIR"
 npm run test:e2e -- "$@"

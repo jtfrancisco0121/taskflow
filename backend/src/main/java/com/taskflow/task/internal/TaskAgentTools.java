@@ -58,6 +58,9 @@ class TaskAgentTools {
     this.mapper = mapper;
   }
 
+  /** Matches the maxItems of the search_tasks customFields schema. */
+  private static final int MAX_CUSTOM_CONDITIONS = 10;
+
   private static final String TASK_FIELDS =
       """
       "title": {"type": "string", "maxLength": 500},
@@ -138,6 +141,10 @@ class TaskAgentTools {
     }
     if (!v.isArray()) {
       throw AgentToolArgs.invalid("customFields must be an array of {fieldId, op, value}");
+    }
+    if (v.size() > MAX_CUSTOM_CONDITIONS) {
+      throw AgentToolArgs.invalid(
+          "customFields takes at most " + MAX_CUSTOM_CONDITIONS + " conditions");
     }
     List<TaskAgentSearch.Cond> out = new ArrayList<>();
     for (JsonNode c : v) {

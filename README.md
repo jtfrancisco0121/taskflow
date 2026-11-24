@@ -141,7 +141,7 @@ bash scripts/secret-scan.sh --self-test  # proves a newly committed secret makes
 bash scripts/e2e-local.sh                # compose up, reuse or start the backend (dev profile), run Playwright, stop what it started
 ```
 
-CI runs the scan in the `secrets` job. `scripts/e2e-local.sh` is the local equivalent of the `e2e` job and writes the Playwright screenshots of the new screens to `docs/screenshots/` (`E2E_SCREENSHOTS_DIR`; specs call `snap()` from `frontend/e2e/screenshots.ts`). It needs the default Compose ports free (Postgres 5432, Redis 6379, ...).
+CI runs the scan in the `secrets` job. `scripts/e2e-local.sh` is the local equivalent of the `e2e` job and writes the Playwright screenshots of the new screens to the git-ignored `artifacts/screenshots/` (`E2E_SCREENSHOTS_DIR`; set it to `docs/screenshots` only when you mean to update the committed images; specs call `snap()` from `frontend/e2e/screenshots.ts`). It needs the default Compose ports free (Postgres 5432, Redis 6379, ...).
 
 ### API contract
 

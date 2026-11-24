@@ -4,7 +4,7 @@ import type { Page, TestInfo } from '@playwright/test'
 
 /**
  * Takes a full-page screenshot. It is always attached to the test report; when E2E_SCREENSHOTS_DIR is set
- * (scripts/e2e-local.sh sets it to docs/screenshots) it is also written to `<dir>/<name>.png`.
+ * (scripts/e2e-local.sh sets it to artifacts/screenshots) it is also written to `<dir>/<name>.png`.
  * Elements marked `data-testid="timestamp"` or `<time>` are masked so a re-run does not churn the files.
  */
 export async function snap(page: Page, testInfo: TestInfo, name: string) {
