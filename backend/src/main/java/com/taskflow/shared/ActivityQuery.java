@@ -34,8 +34,8 @@ public class ActivityQuery {
     if (after != null) {
       sql.append(
           " AND (created_at, id) < (timestamptz 'epoch' + CAST(? AS bigint) * interval '1 microsecond', ?)");
-      args.add(Long.parseLong(after.get(0)));
-      args.add(UUID.fromString(after.get(1)));
+      args.add(com.taskflow.shared.PageCursor.number(after.get(0)));
+      args.add(com.taskflow.shared.PageCursor.uuid(after.get(1)));
     }
     sql.append(" ORDER BY created_at DESC, id DESC LIMIT ?");
     args.add(limit + 1);

@@ -198,4 +198,16 @@ public abstract class IntegrationTest {
     r.at("/items").forEach(n -> ids.add(UUID.fromString(n.get("id").asText())));
     return ids;
   }
+
+  protected UUID task(TestUser user, UUID listId, String title) {
+    Resp r = post("/api/v1/lists/" + listId + "/tasks", user.token(), Map.of("title", title));
+    if (r.status() != 201) {
+      throw new IllegalStateException("task failed: " + r.status() + " " + r.raw());
+    }
+    return r.uuid("/id");
+  }
+
+  protected Resp patchTask(TestUser user, UUID taskId, long version, Map<String, Object> body) {
+    return patch("/api/v1/tasks/" + taskId, user.token(), body, "If-Match", "\"" + version + "\"");
+  }
 }

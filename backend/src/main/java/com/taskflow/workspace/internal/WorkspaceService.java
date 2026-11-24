@@ -84,7 +84,11 @@ class WorkspaceService {
             WORKSPACE,
             after == null
                 ? new Object[] {CurrentActor.userId(), limit + 1}
-                : new Object[] {CurrentActor.userId(), UUID.fromString(after.get(0)), limit + 1});
+                : new Object[] {
+                  CurrentActor.userId(),
+                  com.taskflow.shared.PageCursor.uuid(after.get(0)),
+                  limit + 1
+                });
     return PageCursor.page(rows, limit, w -> PageCursor.encode(w.id().toString()));
   }
 
@@ -128,7 +132,9 @@ class WorkspaceService {
                     rs.getTimestamp("joined_at").toInstant()),
             after == null
                 ? new Object[] {workspaceId, limit + 1}
-                : new Object[] {workspaceId, UUID.fromString(after.get(0)), limit + 1});
+                : new Object[] {
+                  workspaceId, com.taskflow.shared.PageCursor.uuid(after.get(0)), limit + 1
+                });
     Map<UUID, UserInfo> info = users.byIds(rows.stream().map(Row::userId).toList());
     Page<Row> page = PageCursor.page(rows, limit, r -> PageCursor.encode(r.userId().toString()));
     return new Page<>(

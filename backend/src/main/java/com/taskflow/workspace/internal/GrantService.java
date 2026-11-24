@@ -53,7 +53,12 @@ class GrantService {
                     rs.getTimestamp("created_at").toInstant()),
             after == null
                 ? new Object[] {workspaceId, locationId, limit + 1}
-                : new Object[] {workspaceId, locationId, UUID.fromString(after.get(0)), limit + 1});
+                : new Object[] {
+                  workspaceId,
+                  locationId,
+                  com.taskflow.shared.PageCursor.uuid(after.get(0)),
+                  limit + 1
+                });
     Map<UUID, UserInfo> info = users.byIds(rows.stream().map(Row::userId).toList());
     Page<Row> page = PageCursor.page(rows, limit, r -> PageCursor.encode(r.userId().toString()));
     return new Page<>(

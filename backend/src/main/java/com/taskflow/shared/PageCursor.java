@@ -47,6 +47,24 @@ public final class PageCursor {
     }
   }
 
+  /** A cursor part as a UUID; a malformed one is a bad request, not a server error. */
+  public static java.util.UUID uuid(String part) {
+    try {
+      return java.util.UUID.fromString(part);
+    } catch (IllegalArgumentException e) {
+      throw new TaskflowException(HttpStatus.BAD_REQUEST, "page.invalid_cursor", "Invalid cursor");
+    }
+  }
+
+  /** A cursor part as a number. */
+  public static long number(String part) {
+    try {
+      return Long.parseLong(part);
+    } catch (NumberFormatException e) {
+      throw new TaskflowException(HttpStatus.BAD_REQUEST, "page.invalid_cursor", "Invalid cursor");
+    }
+  }
+
   /** Builds a page from up to limit + 1 fetched rows. */
   public static <T> Page<T> page(
       List<T> fetched, int limit, java.util.function.Function<T, String> cursorOf) {

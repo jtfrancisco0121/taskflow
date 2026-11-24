@@ -100,6 +100,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/lists/{id}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["create_3"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/locations": {
         parameters: {
             query?: never;
@@ -123,13 +139,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_2"];
+        get: operations["get_3"];
         put?: never;
         post?: never;
         delete: operations["delete_1"];
         options?: never;
         head?: never;
-        patch: operations["update"];
+        patch: operations["update_1"];
         trace?: never;
     };
     "/api/v1/locations/{id}/archive": {
@@ -155,7 +171,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_2"];
+        get: operations["list_3"];
         put?: never;
         post?: never;
         delete?: never;
@@ -258,6 +274,38 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["update"];
         trace?: never;
     };
     "/api/v1/workspaces": {
@@ -372,6 +420,22 @@ export interface paths {
         patch: operations["changeRole"];
         trace?: never;
     };
+    "/api/v1/workspaces/{id}/tasks/by-ref/{ref}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["byRef"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{id}/tree": {
         parameters: {
             query?: never;
@@ -430,6 +494,22 @@ export interface components {
             /** Format: uuid */
             workspaceId?: string;
         };
+        CreateTaskRequest: {
+            assigneeIds?: string[];
+            description?: components["schemas"]["JsonNode"];
+            /** Format: date-time */
+            dueDate?: string;
+            /** Format: uuid */
+            parentTaskId?: string;
+            /** @enum {string} */
+            priority?: "URGENT" | "HIGH" | "NORMAL" | "LOW" | "NONE";
+            /** Format: date-time */
+            startDate?: string;
+            /** Format: uuid */
+            statusId?: string;
+            tags?: string[];
+            title: string;
+        };
         CreateWorkspaceRequest: {
             key?: string;
             name: string;
@@ -465,6 +545,7 @@ export interface components {
             /** Format: uuid */
             workspaceId?: string;
         };
+        JsonNode: unknown;
         LocationView: {
             archived?: boolean;
             children?: components["schemas"]["LocationView"][];
@@ -509,6 +590,10 @@ export interface components {
         };
         PageMemberView: {
             items?: components["schemas"]["MemberView"][];
+            nextCursor?: string;
+        };
+        PageTaskView: {
+            items?: components["schemas"]["TaskView"][];
             nextCursor?: string;
         };
         PageTreeNode: {
@@ -571,6 +656,39 @@ export interface components {
             locationId?: string;
             statuses?: components["schemas"]["StatusInfo"][];
         };
+        TaskView: {
+            assigneeIds?: string[];
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: uuid */
+            createdBy?: string;
+            description?: components["schemas"]["JsonNode"];
+            /** Format: date-time */
+            dueDate?: string;
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            listId?: string;
+            /** Format: int64 */
+            number?: number;
+            /** Format: uuid */
+            parentTaskId?: string;
+            /** @enum {string} */
+            priority?: "URGENT" | "HIGH" | "NORMAL" | "LOW" | "NONE";
+            readableId?: string;
+            /** Format: date-time */
+            startDate?: string;
+            /** Format: uuid */
+            statusId?: string;
+            tags?: string[];
+            title?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+            /** Format: int64 */
+            version?: number;
+            /** Format: uuid */
+            workspaceId?: string;
+        };
         TreeNode: {
             archived?: boolean;
             hasChildren?: boolean;
@@ -586,6 +704,22 @@ export interface components {
         UpdateLocationRequest: {
             isPrivate?: boolean;
             name?: string;
+        };
+        UpdateTaskRequest: {
+            assigneeIds?: string[];
+            description?: components["schemas"]["JsonNode"];
+            /** Format: date-time */
+            dueDate?: string;
+            /** Format: uuid */
+            parentTaskId?: string;
+            /** @enum {string} */
+            priority?: "URGENT" | "HIGH" | "NORMAL" | "LOW" | "NONE";
+            /** Format: date-time */
+            startDate?: string;
+            /** Format: uuid */
+            statusId?: string;
+            tags?: string[];
+            title?: string;
         };
         UserResponse: {
             displayName?: string;
@@ -746,6 +880,32 @@ export interface operations {
             };
         };
     };
+    create_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TaskView"];
+                };
+            };
+        };
+    };
     create_2: {
         parameters: {
             query?: never;
@@ -770,7 +930,7 @@ export interface operations {
             };
         };
     };
-    get_2: {
+    get_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -812,7 +972,7 @@ export interface operations {
             };
         };
     };
-    update: {
+    update_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -860,7 +1020,7 @@ export interface operations {
             };
         };
     };
-    list_2: {
+    list_3: {
         parameters: {
             query?: {
                 cursor?: string;
@@ -1085,6 +1245,82 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AppMeta"];
+                };
+            };
+        };
+    };
+    list_2: {
+        parameters: {
+            query?: {
+                locationId?: string;
+                workspaceId?: string;
+                includeArchived?: boolean;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageTaskView"];
+                };
+            };
+        };
+    };
+    get_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TaskView"];
+                };
+            };
+        };
+    };
+    update: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TaskView"];
                 };
             };
         };
@@ -1365,6 +1601,29 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["MemberView"];
+                };
+            };
+        };
+    };
+    byRef: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["TaskView"];
                 };
             };
         };

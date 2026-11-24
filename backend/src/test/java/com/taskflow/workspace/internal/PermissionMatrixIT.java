@@ -273,4 +273,25 @@ class PermissionMatrixIT extends IntegrationTest {
     }
     return out;
   }
+
+  @Test
+  void createAndEditTasks_ownerAdminMemberNotGuest() {
+    for (int i = 0; i < ROLES.size(); i++) {
+      Ws ws = workspaceWithAllRoles();
+      String role = ROLES.get(i);
+      UUID space = space(ws.owner(), ws.id(), "S");
+      UUID list = list(ws.owner(), space, "L");
+      UUID existing = task(ws.owner(), list, "t");
+      put("/api/v1/locations/" + space + "/grants/" + ws.guest().id(), ws.owner().token(), null);
+      boolean ok = i < 3;
+      Resp create =
+          post("/api/v1/lists/" + list + "/tasks", ws.by(role).token(), Map.of("title", "x"));
+      assertThat(create.status()).as("create task as %s", role).isEqualTo(ok ? 201 : 403);
+      Resp edit = patchTask(ws.by(role), existing, 1, Map.of("title", "y"));
+      assertThat(edit.status()).as("edit task as %s", role).isEqualTo(ok ? 200 : 403);
+      assertThat(get("/api/v1/tasks/" + existing, ws.by(role).token()).status())
+          .as("read task as %s", role)
+          .isEqualTo(200);
+    }
+  }
 }

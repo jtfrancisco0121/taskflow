@@ -166,7 +166,9 @@ class InviteService {
             ROW,
             after == null
                 ? new Object[] {workspaceId, limit + 1}
-                : new Object[] {workspaceId, UUID.fromString(after.get(0)), limit + 1});
+                : new Object[] {
+                  workspaceId, com.taskflow.shared.PageCursor.uuid(after.get(0)), limit + 1
+                });
     Page<Row> page = PageCursor.page(rows, limit, r -> PageCursor.encode(r.id().toString()));
     return new Page<>(page.items().stream().map(InviteService::view).toList(), page.nextCursor());
   }

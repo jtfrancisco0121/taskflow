@@ -50,7 +50,11 @@ class OpenApiContractIT {
           "/api/v1/workspaces/{id}/tree",
           "/api/v1/locations/{id}/grants",
           "/api/v1/locations/{id}/grants/{userId}",
-          "/api/v1/locations/{id}/statuses");
+          "/api/v1/locations/{id}/statuses",
+          "/api/v1/lists/{id}/tasks",
+          "/api/v1/tasks",
+          "/api/v1/tasks/{id}",
+          "/api/v1/workspaces/{id}/tasks/by-ref/{ref}");
 
   private static final Path SPEC = Path.of("..", "docs", "api", "openapi.json");
 
