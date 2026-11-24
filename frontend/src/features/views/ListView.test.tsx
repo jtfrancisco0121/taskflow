@@ -1,10 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { ListRenderer } from './ListRenderer'
-import { baseRoutes, scope, task } from './testSupport'
+import { baseRoutes, customFieldIds, fieldRoutes, scope, task } from './testSupport'
 import { useViewStore } from './viewStore'
 
 const grouped = { v: 1, group: 'status' }
@@ -134,5 +134,95 @@ describe('LIST-1 List view', () => {
         screen.getAllByLabelText(/^Priority of ACME-/).map((el) => (el as HTMLSelectElement).value),
       ).toEqual(['HIGH', 'HIGH', 'HIGH']),
     )
+  })
+
+  it('FIELD-3: a custom field column is drawn and a cell is edited inline', async () => {
+    const stub = serve(
+      [task(1, { version: 2, customFields: { [customFieldIds.tier]: 'o-free' } })],
+      {
+        ...fieldRoutes,
+        'PATCH /api/v1/tasks/:id': (_r: Request, body: unknown) =>
+          json({ ...task(1, { version: 3 }), ...(body as object) }),
+      } as never,
+    )
+    const user = userEvent.setup()
+    renderWithProviders(
+      <ListRenderer
+        scope={scope}
+        config={{
+          ...grouped,
+          columns: [{ field: 'title' }, { field: `cf:${customFieldIds.tier}` }],
+        }}
+      />,
+    )
+
+    expect(await screen.findByRole('columnheader', { name: /Customer tier/ })).toBeVisible()
+    await user.click(await screen.findByRole('button', { name: 'Customer tier: Free' }))
+    await user.selectOptions(screen.getByLabelText('Customer tier for ACME-1'), 'Enterprise')
+
+    await waitFor(() => expect(stub.calls.some((c) => c.method === 'PATCH')).toBe(true))
+    const patch = stub.calls.find((c) => c.method === 'PATCH')!
+    expect(patch.body).toEqual({ customFields: { [customFieldIds.tier]: 'o-ent' } })
+    expect(patch.headers.get('If-Match')).toBe('"2"')
+  })
+
+  it('FIELD-3: a filter that matches nothing says so and offers Clear filters', async () => {
+    serve([])
+    const update = vi.fn()
+    const user = userEvent.setup()
+    renderWithProviders(
+      <ListRenderer
+        scope={scope}
+        config={{
+          v: 1,
+          filter: { op: 'AND', items: [{ field: 'title', op: 'contains', value: 'x' }] },
+        }}
+        update={update}
+      />,
+    )
+
+    expect(await screen.findByText('No tasks match these filters.')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(update).toHaveBeenCalledWith({ f: { op: 'AND', items: [] } })
+  })
+
+  it('FIELD-3: dropped fields are named with a way to remove them from the view', async () => {
+    const id = '11111111-1111-4111-8111-111111111111'
+    installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': () =>
+        json({
+          items: [{ group: 'to do', task: task(1) }],
+          groups: [{ key: 'to do', label: 'To do', count: 1 }],
+          droppedFields: [{ ref: `cf:${id}`, name: 'Story points' }],
+        }),
+    } as never)
+    const update = vi.fn()
+    const user = userEvent.setup()
+    renderWithProviders(
+      <ListRenderer
+        scope={scope}
+        config={{ ...grouped, filter: { op: 'AND', items: [{ field: `cf:${id}`, op: 'is_set' }] } }}
+        update={update}
+      />,
+    )
+
+    expect(
+      await screen.findByText(
+        'Some filters were removed because a field was deleted: Story points.',
+      ),
+    ).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Remove from view' }))
+    expect(update.mock.lastCall![0].f).toEqual({ op: 'AND', items: [] })
+  })
+
+  it('shows an error with Retry when the tasks cannot load', async () => {
+    installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': problem(500, 'internal.error', 'The request failed'),
+    } as never)
+    renderWithProviders(<ListRenderer scope={scope} config={grouped} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('The request failed')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible()
   })
 })

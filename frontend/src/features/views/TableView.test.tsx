@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
-import { baseRoutes, scope, task } from './testSupport'
+import { baseRoutes, customFieldIds, fieldRoutes, scope, task } from './testSupport'
 import { clampWidth, dropColumn, moveColumn, toggleColumn, withWidth } from './tableColumns'
 import { TableRenderer } from './TableRenderer'
 
@@ -177,5 +177,124 @@ describe('TABLE-1 Table view', () => {
     await waitFor(() =>
       expect(screen.getByLabelText('Priority of ACME-1')).toHaveDisplayValue('Low'),
     )
+  })
+})
+
+describe('FIELD-3 custom field columns (3A S4)', () => {
+  beforeEach(() => useToastStore.setState({ toasts: [] }))
+
+  const withTier = {
+    ...config,
+    columns: [...config.columns, { field: `cf:${customFieldIds.tier}`, width: 160 }],
+  }
+
+  function serveFields(
+    rows: ReturnType<typeof task>[],
+    patch?: (r: Request, body: unknown) => Response,
+  ) {
+    return installFetch({
+      ...baseRoutes,
+      ...fieldRoutes,
+      'POST /api/v1/views/query': () => json({ items: rows.map((t) => ({ task: t })) }),
+      'PATCH /api/v1/tasks/:id':
+        patch ??
+        ((_r: Request, body: unknown) => json({ ...rows[0], ...(body as object), version: 2 })),
+    } as never)
+  }
+
+  it('FIELD-3: a Dropdown cell is edited inline, saved with If-Match and shown at once', async () => {
+    const rows = [task(1, { version: 3, customFields: {} })]
+    const stub = serveFields(rows, (_r, body) => {
+      const { customFields: sent } = body as { customFields: Record<string, string> }
+      rows[0] = task(1, { version: 4, customFields: sent })
+      return json(rows[0])
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<TableRenderer scope={scope} config={withTier} update={vi.fn()} />)
+
+    const cell = await screen.findByRole('button', { name: 'Customer tier: empty' })
+    await user.click(cell)
+    await user.selectOptions(screen.getByLabelText('Customer tier for ACME-1'), 'Enterprise')
+
+    expect(await screen.findByRole('button', { name: 'Customer tier: Enterprise' })).toBeVisible()
+    const patch = stub.calls.find((c) => c.method === 'PATCH')!
+    expect(patch.body).toEqual({ customFields: { [customFieldIds.tier]: 'o-ent' } })
+    expect(patch.headers.get('If-Match')).toBe('"3"')
+  })
+
+  it('FIELD-3: a 409 rolls the cell back to the server value and toasts', async () => {
+    const rows = [task(1, { version: 3, customFields: { [customFieldIds.tier]: 'o-free' } })]
+    serveFields(rows, () => {
+      rows[0] = task(1, { version: 9, customFields: { [customFieldIds.tier]: 'o-ent' } })
+      return problem(409, 'task.version_conflict', 'changed', { current: rows[0] })
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<TableRenderer scope={scope} config={withTier} update={vi.fn()} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Customer tier: Free' }))
+    await user.selectOptions(screen.getByLabelText('Customer tier for ACME-1'), '—')
+
+    await waitFor(() =>
+      expect(useToastStore.getState().toasts.map((t) => t.message)).toContain(
+        'This task changed. Review and try again.',
+      ),
+    )
+    expect(await screen.findByRole('button', { name: 'Customer tier: Enterprise' })).toBeVisible()
+  })
+
+  it('FIELD-3: a refused value (400) rolls back and shows the server message', async () => {
+    const rows = [task(1, { version: 3, customFields: { [customFieldIds.points]: 2 } })]
+    serveFields(rows, () => problem(400, 'field.invalid_value', 'Story points expects a number'))
+    const user = userEvent.setup()
+    const points = {
+      ...config,
+      columns: [...config.columns, { field: `cf:${customFieldIds.points}`, width: 160 }],
+    }
+    renderWithProviders(<TableRenderer scope={scope} config={points} update={vi.fn()} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Story points: 2' }))
+    const box = screen.getByRole('textbox', { name: 'Story points for ACME-1' })
+    await user.clear(box)
+    await user.type(box, 'abc{Enter}')
+
+    await waitFor(() =>
+      expect(useToastStore.getState().toasts.map((t) => t.message)).toContain(
+        'Story points expects a number',
+      ),
+    )
+    expect(await screen.findByRole('button', { name: 'Story points: 2' })).toBeVisible()
+  })
+
+  it('Escape cancels the editor and sends nothing', async () => {
+    const stub = serveFields([task(1, { customFields: {} })])
+    const user = userEvent.setup()
+    renderWithProviders(<TableRenderer scope={scope} config={withTier} update={vi.fn()} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Customer tier: empty' }))
+    await user.keyboard('{Escape}')
+
+    expect(await screen.findByRole('button', { name: 'Customer tier: empty' })).toBeVisible()
+    expect(stub.calls.some((c) => c.method === 'PATCH')).toBe(false)
+  })
+
+  it('the Columns picker lists the custom fields with where they come from and adds cf:<id> to c', async () => {
+    serveFields([task(1)])
+    const update = vi.fn()
+    const user = userEvent.setup()
+    renderWithProviders(<TableRenderer scope={scope} config={config} update={update} />)
+
+    await user.click(await screen.findByText('Columns'))
+    expect(await screen.findAllByText('from Engineering')).toHaveLength(2)
+    await user.click(screen.getByRole('checkbox', { name: /Customer tier/ }))
+    expect(update.mock.lastCall![0].c.map((c: { field: string }) => c.field)).toContain(
+      `cf:${customFieldIds.tier}`,
+    )
+  })
+
+  it('an empty cell has the accessible name "empty" and the header shows the field name', async () => {
+    serveFields([task(1, { customFields: {} })])
+    renderWithProviders(<TableRenderer scope={scope} config={withTier} update={vi.fn()} />)
+    expect(await screen.findByRole('columnheader', { name: /Customer tier/ })).toBeVisible()
+    expect(await screen.findByText('empty')).toBeInTheDocument()
   })
 })

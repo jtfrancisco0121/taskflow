@@ -167,11 +167,13 @@ class McpIdempotencyIT extends McpTestBase {
   }
 
   @Test
-  void theCreateToolsAdvertiseTheKeyAndOthersDoNot() {
+  void theWriteToolsThatCanBeReplayedAdvertiseTheKeyAndOthersDoNot() {
     Setup s = setup();
     for (JsonNode t : rpc(s.agent().secret(), "tools/list", null).at("/result/tools")) {
       String name = t.get("name").asText();
-      boolean creates = name.equals("create_task") || name.equals("add_comment");
+      // update_task joins the create tools in 3A: a replayed update applies once (decision 005.11)
+      boolean creates =
+          name.equals("create_task") || name.equals("update_task") || name.equals("add_comment");
       assertThat(t.at("/inputSchema/properties/idempotencyKey").isMissingNode())
           .as(name)
           .isEqualTo(!creates);

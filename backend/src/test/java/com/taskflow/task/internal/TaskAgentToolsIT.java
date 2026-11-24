@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.taskflow.identity.internal.McpTestBase;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -211,5 +213,18 @@ class TaskAgentToolsIT extends McpTestBase {
     assertThat(invalid.body().get("status").asInt()).isEqualTo(400);
     ToolResult noList = call(key, "create_task", Map.of("title", "x"));
     assertThat(noList.body().get("code").asText()).isEqualTo("tool.invalid_argument");
+  }
+
+  @Test
+  void searchTasksRefusesMoreThanTenCustomFieldConditions() {
+    Fix f = fixture();
+    String key = f.agent().secret();
+    List<Map<String, Object>> conditions = new ArrayList<>();
+    for (int i = 0; i < 11; i++) {
+      conditions.add(Map.of("fieldId", UUID.randomUUID().toString(), "op", "is_set"));
+    }
+    ToolResult tooMany = call(key, "search_tasks", Map.of("customFields", conditions));
+    assertThat(tooMany.isError()).isTrue();
+    assertThat(tooMany.body().get("code").asText()).isEqualTo("tool.invalid_argument");
   }
 }

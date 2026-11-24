@@ -18,6 +18,7 @@ export function createCachePatcher(
 ) {
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
   const debounceMs = options.debounceMs ?? 500
+  let lastFieldsAnnounce = 0
 
   function invalidateViewsSoon(workspaceId: string) {
     clearTimeout(timers.get(workspaceId))
@@ -32,6 +33,23 @@ export function createCachePatcher(
 
   async function handle(workspaceId: string, event: LiveEvent): Promise<PatchResult> {
     if (event.clientId && event.clientId === options.clientId) return 'own'
+    if (event.entity === 'location' && event.type.startsWith('custom_field.')) {
+      // A definition changed (3A, AD-12): refresh the field lists and columns, and everything that
+      // shows values, since a renamed Option or a retired field changes how they read.
+      void queryClient.invalidateQueries({
+        predicate: (q) => q.queryKey[0] === 'location' && q.queryKey[2] === 'fields',
+      })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.taskAll() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasksAll(workspaceId) })
+      invalidateViewsSoon(workspaceId)
+      // One announcement for a burst of definition events (a new field with several Options).
+      const now = Date.now()
+      if (now - lastFieldsAnnounce > 2000) {
+        lastFieldsAnnounce = now
+        options.announce?.('Fields changed.')
+      }
+      return 'invalidated'
+    }
     if (event.entity === 'location') {
       void queryClient.invalidateQueries({ queryKey: queryKeys.treeAll(workspaceId) })
       void queryClient.invalidateQueries({ queryKey: queryKeys.viewListAll(workspaceId) })

@@ -6,6 +6,8 @@
 //   node scripts/seed/demo.mjs
 import {
   BIG_LIST,
+  CUSTOM_FIELDS,
+  LOAD_FIELD,
   MEMBERS,
   OWNER,
   PASSWORD,
@@ -18,12 +20,15 @@ import {
   hasComment,
   hasSubtask,
   keyFor,
+  loadScoreFor,
   priorityFor,
   statusIndexFor,
+  storyPointsFor,
   subtaskTitle,
   tagsFor,
   taskTitle,
   textOf,
+  tierFor,
 } from './data.mjs'
 
 const API = (process.env.SEED_API_URL ?? 'http://localhost:5173').replace(/\/$/, '')
@@ -71,12 +76,13 @@ class Session {
     return this.signingIn
   }
 
-  async call(method, path, body, { key } = {}) {
+  async call(method, path, body, { key, ifMatch } = {}) {
     for (let attempt = 0; attempt < 8; attempt++) {
       if (!this.token) await this.signIn()
       const res = await raw(method, path, body, {
         Authorization: `Bearer ${this.token}`,
         ...(key ? { 'Idempotency-Key': key } : {}),
+        ...(ifMatch ? { 'If-Match': ifMatch } : {}),
       })
       if (res.status === 401) {
         this.token = null
@@ -186,9 +192,53 @@ async function ensureMembers(owner, workspaceId) {
   return MEMBERS.map((m) => members.find((f) => f.email === m.email)?.userId).filter(Boolean)
 }
 
+/** The custom fields of the first demo Space, created once (found by name); returns their ids. */
+async function ensureFields(owner, spaceId, defs = CUSTOM_FIELDS) {
+  const existing = (await owner.call('GET', `/api/v1/locations/${spaceId}/fields`)).fields ?? []
+  const ids = {}
+  for (const def of defs) {
+    const found = existing.find((f) => f.name === def.name)
+    if (found) {
+      count('field', 'existing')
+      ids[def.name] = found
+      continue
+    }
+    const created = await owner.call(
+      'POST',
+      `/api/v1/locations/${spaceId}/fields`,
+      { name: def.name, type: def.type, ...(def.options ? { options: def.options.map((name) => ({ name })) } : {}) },
+      { key: keyFor('field', spaceId, def.name) },
+    )
+    count('field', 'created')
+    ids[def.name] = created
+  }
+  return ids
+}
+
+/** Sets the demo values on a task that lacks them (found by what the task already carries). */
+async function seedValues(owner, task, i, fields) {
+  const have = task.customFields ?? {}
+  const wanted = {}
+  for (const [name, valueFor] of VALUE_FNS) {
+    const field = fields[name]
+    const value = field && valueFor(i)
+    if (value !== undefined && have[field.id] === undefined) wanted[field.id] = value
+  }
+  if (Object.keys(wanted).length === 0) return count('fieldvalues', 'existing')
+  await owner.call('PATCH', `/api/v1/tasks/${task.id}`, { customFields: wanted }, { ifMatch: `"${task.version}"` })
+  count('fieldvalues', 'created')
+}
+
+/** Which function gives the value of each demo field by its name. */
+const VALUE_FNS = [
+  ['Story points', storyPointsFor],
+  ['Customer tier', tierFor],
+  [LOAD_FIELD.name, loadScoreFor],
+]
+
 // ---- tasks ----
 
-async function seedList(owner, workspaceId, listId, listName, total, memberIds) {
+async function seedList(owner, workspaceId, listId, listName, total, memberIds, fields) {
   const statuses = (await owner.call('GET', `/api/v1/locations/${listId}/statuses`)).statuses ?? []
   const existing = new Map((await pagedItems(owner, `/api/v1/tasks?locationId=${listId}`)).map((t) => [t.title, t]))
   let progress = 0
@@ -214,6 +264,7 @@ async function seedList(owner, workspaceId, listId, listName, total, memberIds) 
       )
       count('task', 'created')
     }
+    if (fields) await seedValues(owner, task, i, fields)
     if (hasSubtask(i) && total < 1000) {
       if (existing.has(subtaskTitle(title))) count('subtask', 'existing')
       else {
@@ -247,23 +298,26 @@ async function main() {
   const memberIds = await ensureMembers(owner, workspaceId)
   if (memberIds.length === 0) throw new Error('the demo Workspace has no members to assign')
 
-  for (const space of STRUCTURE) {
+  for (const [n, space] of STRUCTURE.entries()) {
     const spaceId = await ensureLocation(owner, workspaceId, null, 'SPACE', space.space)
+    // Custom fields live on the first demo Space and reach every List below it.
+    const fields = n === 0 ? await ensureFields(owner, spaceId) : undefined
     for (const list of space.lists) {
       const listId = await ensureLocation(owner, workspaceId, spaceId, 'LIST', list.name)
-      await seedList(owner, workspaceId, listId, list.name, list.tasks, memberIds)
+      await seedList(owner, workspaceId, listId, list.name, list.tasks, memberIds, fields)
     }
     for (const folder of space.folders) {
       const folderId = await ensureLocation(owner, workspaceId, spaceId, 'FOLDER', folder.name)
       for (const list of folder.lists) {
         const listId = await ensureLocation(owner, workspaceId, folderId, 'LIST', list.name)
-        await seedList(owner, workspaceId, listId, list.name, list.tasks, memberIds)
+        await seedList(owner, workspaceId, listId, list.name, list.tasks, memberIds, fields)
       }
     }
   }
   const loadSpace = await ensureLocation(owner, workspaceId, null, 'SPACE', BIG_LIST.space)
   const bigList = await ensureLocation(owner, workspaceId, loadSpace, 'LIST', BIG_LIST.list)
-  await seedList(owner, workspaceId, bigList, BIG_LIST.list, BIG_LIST.count, memberIds)
+  const loadFields = await ensureFields(owner, loadSpace, [LOAD_FIELD])
+  await seedList(owner, workspaceId, bigList, BIG_LIST.list, BIG_LIST.count, memberIds, loadFields)
 
   console.log('\nCreated / already there:')
   for (const [kind, c] of Object.entries(counts)) console.log(`  ${kind.padEnd(10)} ${c.created} / ${c.existing}`)

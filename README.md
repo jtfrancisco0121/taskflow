@@ -1,6 +1,6 @@
 # Taskflow
 
-A ClickUp-style work management app. One set of tasks, many views (List, Board, Table, Calendar, and later Gantt), with statuses and custom fields inherited down a Workspace > Space > Folder > List tree. Admins can create service accounts with API keys, and an MCP server lets AI agents view, create, update and delete tickets.
+A ClickUp-style work management app. One set of tasks, many views (List, Board, Table, Calendar, and later Gantt), with statuses and custom fields (twelve types: text, long text, number, date, dropdown, labels, checkbox, URL, email, people, rating, progress) inherited down a Workspace > Space > Folder > List tree. Admins can create service accounts with API keys, and an MCP server lets AI agents view, create, update and delete tickets.
 
 ## Stack
 
@@ -107,7 +107,7 @@ Connect an MCP client (streamable HTTP) with only a URL and the key in the `Auth
 claude mcp add --transport http taskflow http://localhost:5173/api/v1/mcp --header "Authorization: Bearer tf_sk_..."
 ```
 
-Tools: `search_tasks`, `get_task`, `create_task`, `update_task`, `move_task`, `delete_task` (30-day trash), `add_comment`, `list_locations`, `list_views`. The same key works on REST (`curl -H "Authorization: Bearer tf_sk_..." http://localhost:8080/api/v1/workspaces`). Each key has a per-minute budget shared by REST and MCP (default 100, `taskflow.api-keys.rate-limit.plans.default`): responses carry `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`, and the call over the limit answers 429 with `Retry-After`. `create_task` and `add_comment` take an optional `idempotencyKey` argument: send a new UUID per create and reuse it only to retry, so a retry returns the first result instead of creating a duplicate (the same key with other arguments fails with `idempotency.key_reused`). Every change an agent makes is attributed to the service account and the key. See [decision 005](docs/decisions/005-agent-access.md).
+Tools: `search_tasks` (words, a location and custom field conditions), `get_task`, `create_task`, `update_task`, `move_task`, `delete_task` (30-day trash), `add_comment`, `list_locations`, `list_views`, `list_custom_fields`. `create_task` and `update_task` take `customFields` (`{field id or name: value}`, Dropdown and Labels by Option name); `list_custom_fields(locationId)` shows what a location offers. The same key works on REST (`curl -H "Authorization: Bearer tf_sk_..." http://localhost:8080/api/v1/workspaces`). Each key has a per-minute budget shared by REST and MCP (default 100, `taskflow.api-keys.rate-limit.plans.default`): responses carry `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`, and the call over the limit answers 429 with `Retry-After`. `create_task`, `update_task` and `add_comment` take an optional `idempotencyKey` argument: send a new UUID per call and reuse it only to retry, so a retry returns the first result instead of repeating the change (the same key with other arguments fails with `idempotency.key_reused`). Every change an agent makes is attributed to the service account and the key. See [decision 005](docs/decisions/005-agent-access.md).
 
 ### Authentication
 
@@ -132,6 +132,16 @@ All Compose ports bind to `127.0.0.1` (set `HOST_BIND` to change that).
 cd backend && ./mvnw verify                      # unit tests, integration tests (needs Docker), format check
 cd frontend && npm run lint && npm run typecheck && npm test
 ```
+
+### Secret scan and local e2e
+
+```bash
+bash scripts/secret-scan.sh              # gitleaks over the full git history (binary on PATH, else a pinned Docker image); config in .gitleaks.toml
+bash scripts/secret-scan.sh --self-test  # proves a newly committed secret makes the scan fail (throwaway repo inside the container)
+bash scripts/e2e-local.sh                # compose up, reuse or start the backend (dev profile), run Playwright, stop what it started
+```
+
+CI runs the scan in the `secrets` job. `scripts/e2e-local.sh` is the local equivalent of the `e2e` job and writes the Playwright screenshots of the new screens to the git-ignored `artifacts/screenshots/` (`E2E_SCREENSHOTS_DIR`; set it to `docs/screenshots` only when you mean to update the committed images; specs call `snap()` from `frontend/e2e/screenshots.ts`). It needs the default Compose ports free (Postgres 5432, Redis 6379, ...).
 
 ### API contract
 

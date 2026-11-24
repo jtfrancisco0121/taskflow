@@ -83,6 +83,7 @@ class ViewService {
   private final WorkspaceQuery workspaces;
   private final LocationTree tree;
   private final RankAllocator ranks;
+  private final CustomFieldRefs customFields;
 
   ViewService(
       JdbcTemplate jdbc,
@@ -90,13 +91,15 @@ class ViewService {
       Permissions permissions,
       WorkspaceQuery workspaces,
       LocationTree tree,
-      RankAllocator ranks) {
+      RankAllocator ranks,
+      CustomFieldRefs customFields) {
     this.jdbc = jdbc;
     this.mapper = mapper;
     this.permissions = permissions;
     this.workspaces = workspaces;
     this.tree = tree;
     this.ranks = ranks;
+    this.customFields = customFields;
   }
 
   @Transactional(readOnly = true)
@@ -217,6 +220,10 @@ class ViewService {
         cleanName(
             in.name() == null && kind != null ? kind.equals("LIST") ? "List" : "Board" : in.name());
     ViewConfigValidator.validate(in.config());
+    customFields.checkForSave(
+        in.config(),
+        in.locationId() == null ? null : tree.find(in.locationId()).orElse(null),
+        workspaceId);
     List<UUID> shares = checkShares(workspaceId, visibility, in.shareWith());
     UUID id = Ids.newId();
     String rank =
@@ -270,6 +277,10 @@ class ViewService {
     ViewConfig config = in.config();
     if (config != null) {
       ViewConfigValidator.validate(config);
+      customFields.checkForSave(
+          config,
+          row.locationId() == null ? null : tree.find(row.locationId()).orElse(null),
+          row.workspaceId());
     }
     List<UUID> shares =
         in.shareWith() == null

@@ -78,7 +78,9 @@ public final class ViewConfigValidator {
       int[] count = {0};
       node(config.filter(), 1, count);
     }
-    if (config.group() != null && !GROUPS.contains(config.group())) {
+    if (config.group() != null
+        && !GROUPS.contains(config.group())
+        && !customReference(config.group())) {
       throw invalid("Unknown grouping " + config.group());
     }
     if (config.sort() != null) {
@@ -87,7 +89,7 @@ public final class ViewConfigValidator {
       }
       for (ViewConfig.Sort s : config.sort()) {
         if (s == null
-            || !SORT_KEYS.contains(s.key())
+            || !(SORT_KEYS.contains(s.key()) || customReference(s.key()))
             || !(s.dir() == null || s.dir().equals("asc") || s.dir().equals("desc"))) {
           throw invalid("Unknown sort " + (s == null ? null : s.key()));
         }
@@ -96,7 +98,7 @@ public final class ViewConfigValidator {
     if (config.columns() != null) {
       boolean title = false;
       for (ViewConfig.Column c : config.columns()) {
-        if (c == null || !COLUMNS.contains(c.field())) {
+        if (c == null || !(COLUMNS.contains(c.field()) || customReference(c.field()))) {
           throw invalid("Unknown column " + (c == null ? null : c.field()));
         }
         if (c.width() != null && (c.width() < MIN_WIDTH || c.width() > MAX_WIDTH)) {
@@ -139,6 +141,10 @@ public final class ViewConfigValidator {
   }
 
   private static void condition(ViewConfig.Filter f) {
+    if (customReference(f.field())) {
+      // The operator and value depend on the field's type: CustomFieldRefs checks them with it.
+      return;
+    }
     Set<String> ops = f.field() == null ? null : OPERATORS.get(f.field());
     if (ops == null) {
       throw invalid("Unknown filter field " + f.field());
@@ -229,6 +235,14 @@ public final class ViewConfigValidator {
     } catch (DateTimeParseException e) {
       throw invalid("Days are YYYY-MM-DD or today, this_week, next_7_days");
     }
+  }
+
+  /**
+   * A custom field column, {@code cf:<fieldId>} (AD-8); whether the field is live is checked by the
+   * caller's scope.
+   */
+  static boolean customReference(String field) {
+    return field != null && field.startsWith("cf:") && uuid(field.substring(3));
   }
 
   private static boolean uuid(String s) {

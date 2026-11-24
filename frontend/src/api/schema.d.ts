@@ -97,7 +97,7 @@ export interface paths {
         delete: operations["delete_5"];
         options?: never;
         head?: never;
-        patch: operations["update_3"];
+        patch: operations["update_4"];
         trace?: never;
     };
     "/api/v1/checklists/{id}/items": {
@@ -130,6 +130,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["edit"];
+        trace?: never;
+    };
+    "/api/v1/fields/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_6"];
+        put?: never;
+        post?: never;
+        delete: operations["retire"];
+        options?: never;
+        head?: never;
+        patch: operations["update_3"];
         trace?: never;
     };
     "/api/v1/invites/{token}": {
@@ -173,7 +189,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_7"];
+        post: operations["create_8"];
         delete?: never;
         options?: never;
         head?: never;
@@ -228,6 +244,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/locations/{id}/fields": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_5"];
+        put?: never;
+        post: operations["create_7"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locations/{id}/fields/{fieldId}/hidden": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["hide"];
+        post?: never;
+        delete: operations["unhide"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/locations/{id}/grants": {
         parameters: {
             query?: never;
@@ -235,7 +283,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_6"];
+        get: operations["list_7"];
         put?: never;
         post?: never;
         delete?: never;
@@ -363,7 +411,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_5"];
+        get: operations["list_6"];
         put?: never;
         post?: never;
         delete?: never;
@@ -964,6 +1012,14 @@ export interface components {
         CreateChecklistRequest: {
             name: string;
         };
+        CreateFieldRequest: {
+            config?: {
+                [key: string]: unknown;
+            };
+            name: string;
+            options?: components["schemas"]["OptionRequest"][];
+            type: string;
+        };
         CreateInviteRequest: {
             /** Format: email */
             email: string;
@@ -996,6 +1052,9 @@ export interface components {
         };
         CreateTaskRequest: {
             assigneeIds?: string[];
+            customFields?: {
+                [key: string]: components["schemas"]["JsonNode"];
+            };
             description?: components["schemas"]["JsonNode"];
             /** Format: date-time */
             dueDate?: string;
@@ -1036,9 +1095,37 @@ export interface components {
             /** Format: date */
             day?: string;
         };
+        DroppedField: {
+            name?: string;
+            ref?: string;
+        };
         DuplicateTaskRequest: {
             /** Format: uuid */
             listId?: string;
+        };
+        FieldListView: {
+            canEdit?: boolean;
+            fields?: components["schemas"]["FieldView"][];
+            /** Format: uuid */
+            locationId?: string;
+        };
+        FieldView: {
+            config?: {
+                [key: string]: unknown;
+            };
+            /** Format: uuid */
+            definedAt?: string;
+            definedAtName?: string;
+            hidden?: boolean;
+            /** Format: uuid */
+            id?: string;
+            inherited?: boolean;
+            name?: string;
+            options?: components["schemas"]["OptionInfo"][];
+            /** @enum {string} */
+            type?: "TEXT" | "LONG_TEXT" | "NUMBER" | "DATE" | "DROPDOWN" | "LABELS" | "CHECKBOX" | "URL" | "EMAIL" | "PEOPLE" | "RATING" | "PROGRESS";
+            /** Format: int64 */
+            version?: number;
         };
         Filter: {
             field?: string;
@@ -1157,6 +1244,18 @@ export interface components {
         NameRequest: {
             name: string;
         };
+        OptionInfo: {
+            color?: string;
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+        };
+        OptionRequest: {
+            color?: string;
+            /** Format: uuid */
+            id?: string;
+            name: string;
+        };
         PageAccountActivity: {
             items?: components["schemas"]["AccountActivity"][];
             nextCursor?: string;
@@ -1206,6 +1305,7 @@ export interface components {
             nextCursor?: string;
         };
         QueryResponse: {
+            droppedFields?: components["schemas"]["DroppedField"][];
             groups?: components["schemas"]["GroupInfo"][];
             items?: components["schemas"]["ViewItem"][];
             nextCursor?: string;
@@ -1310,6 +1410,9 @@ export interface components {
             createdAt?: string;
             /** Format: uuid */
             createdBy?: string;
+            customFields?: {
+                [key: string]: components["schemas"]["JsonNode"];
+            };
             description?: components["schemas"]["JsonNode"];
             /** Format: date-time */
             dueDate?: string;
@@ -1367,6 +1470,18 @@ export interface components {
             beforeId?: string;
             name?: string;
         };
+        UpdateFieldRequest: {
+            /** Format: uuid */
+            afterId?: string;
+            /** Format: uuid */
+            beforeId?: string;
+            config?: {
+                [key: string]: unknown;
+            };
+            name?: string;
+            options?: components["schemas"]["OptionRequest"][];
+            type?: string;
+        };
         UpdateItemRequest: {
             /** Format: uuid */
             afterId?: string;
@@ -1383,6 +1498,9 @@ export interface components {
         };
         UpdateTaskRequest: {
             assigneeIds?: string[];
+            customFields?: {
+                [key: string]: components["schemas"]["JsonNode"];
+            };
             description?: components["schemas"]["JsonNode"];
             /** Format: date-time */
             dueDate?: string;
@@ -1616,7 +1734,7 @@ export interface operations {
             };
         };
     };
-    update_3: {
+    update_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -1714,6 +1832,78 @@ export interface operations {
             };
         };
     };
+    get_6: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FieldView"];
+                };
+            };
+        };
+    };
+    retire: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_3: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateFieldRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FieldView"];
+                };
+            };
+        };
+    };
     preview: {
         parameters: {
             query?: never;
@@ -1758,7 +1948,7 @@ export interface operations {
             };
         };
     };
-    create_7: {
+    create_8: {
         parameters: {
             query?: never;
             header?: never;
@@ -1898,7 +2088,101 @@ export interface operations {
             };
         };
     };
-    list_6: {
+    list_5: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FieldListView"];
+                };
+            };
+        };
+    };
+    create_7: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateFieldRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FieldView"];
+                };
+            };
+        };
+    };
+    hide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                fieldId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FieldListView"];
+                };
+            };
+        };
+    };
+    unhide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                fieldId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["FieldListView"];
+                };
+            };
+        };
+    };
+    list_7: {
         parameters: {
             query?: {
                 cursor?: string;
@@ -2149,7 +2433,7 @@ export interface operations {
             };
         };
     };
-    list_5: {
+    list_6: {
         parameters: {
             query?: {
                 locationId?: string;

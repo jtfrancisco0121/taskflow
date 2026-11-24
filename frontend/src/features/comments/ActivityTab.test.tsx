@@ -67,6 +67,31 @@ describe('ActivityTab', () => {
     expect(within(created).queryByText('Agent')).not.toBeInTheDocument()
   })
 
+  it('FIELD: an agent setting a custom field reads "<name> (key <key>)" then "set <field> to <value>"', async () => {
+    serve([
+      entry(
+        'a1',
+        'task.updated',
+        'triage-agent',
+        {
+          changes: {
+            customFields: {
+              'f-1': { field: 'Customer tier', fromText: '', toText: 'Enterprise' },
+              'f-2': { field: 'Notes', fromText: 'x', toText: '' },
+            },
+          },
+        },
+        { actorType: 'SERVICE_ACCOUNT', actorKeyName: 'CI-1' },
+      ),
+    ])
+    renderWithProviders(<ActivityTab task={task} />)
+
+    const item = (await screen.findByText('set Customer tier to Enterprise')).closest('li')!
+    expect(within(item).getByText('triage-agent (key CI-1)')).toBeVisible()
+    expect(within(item).getByText('Agent')).toBeVisible()
+    expect(within(item).getByText('cleared Notes')).toBeVisible()
+  })
+
   it('FR-21: a status change with real UUIDs reads "changed status from To do to Done" with no UUID', async () => {
     serve([
       entry('a1', 'task.status_changed', 'Maya Lopez', {

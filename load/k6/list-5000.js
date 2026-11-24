@@ -19,6 +19,7 @@ const WORKSPACE = __ENV.WORKSPACE || 'Demo'
 const SPACE = __ENV.SPACE || 'Load Test'
 const LIST = __ENV.LIST || 'Load 5000'
 const PAGE = Number(__ENV.PAGE_SIZE || 200)
+const CUSTOM_FIELD = __ENV.CUSTOM_FIELD || 'Load score'
 
 const pagingFailures = new Counter('paging_integrity_failures')
 
@@ -31,6 +32,14 @@ export const options = {
       iterations: Number(__ENV.PAGING_ITERATIONS || 4),
       maxDuration: '10m',
     },
+    // SM-2: a custom field filter and sort over the same List (skipped when the field is missing)
+    custom: {
+      executor: 'per-vu-iterations',
+      exec: 'custom',
+      vus: Number(__ENV.CUSTOM_VUS || 3),
+      iterations: Number(__ENV.CUSTOM_ITERATIONS || 4),
+      maxDuration: '10m',
+    },
     edits: {
       executor: 'constant-vus',
       exec: 'edits',
@@ -40,6 +49,7 @@ export const options = {
   },
   thresholds: {
     'http_req_duration{type:view_page}': ['p(95)<300'],
+    'http_req_duration{type:custom_page}': ['p(95)<300'],
     'http_req_duration{type:task_edit}': ['p(95)<500'],
     paging_integrity_failures: ['count==0'],
     'checks{check:page ok}': ['rate==1'],
@@ -90,7 +100,10 @@ export function setup() {
     cursor = res.json('nextCursor')
   } while (cursor)
   console.log(`List "${LIST}" has ${size} tasks`)
-  return { token, listId: list.id, size, ids }
+  const fields = get(`/api/v1/locations/${list.id}/fields`, token, 'setup').json('fields') || []
+  const custom = fields.find((f) => f.name === CUSTOM_FIELD)
+  if (!custom) console.log(`no custom field "${CUSTOM_FIELD}": the custom scenario is skipped (run scripts/seed/demo.mjs)`)
+  return { token, listId: list.id, size, ids, fieldId: custom && custom.id }
 }
 
 function pageAll(data, sort) {
@@ -125,6 +138,37 @@ function pageAll(data, sort) {
 export function paging(data) {
   group('manual sort', () => pageAll(data, 'manual'))
   group('due date sort', () => pageAll(data, 'dueDate'))
+}
+
+/** Pages the List filtered on "Load score >= 500" and sorted by it, descending (SM-2). */
+export function custom(data) {
+  if (!data.fieldId) return
+  const seen = new Set()
+  let cursor
+  let pages = 0
+  do {
+    const res = http.post(
+      `${API}/api/v1/views/query`,
+      JSON.stringify({
+        scope: { locationId: data.listId },
+        config: {
+          v: 1,
+          filter: { op: 'AND', items: [{ field: `cf:${data.fieldId}`, op: 'gte', value: 500 }] },
+          sort: [{ key: `cf:${data.fieldId}`, dir: 'desc' }],
+        },
+        limit: PAGE,
+        cursor,
+      }),
+      { headers: headers(data.token), tags: { type: 'custom_page' } },
+    )
+    if (!check(res, { 'custom page ok': (r) => r.status === 200 })) return
+    for (const item of res.json('items')) {
+      if (seen.has(item.task.id)) pagingFailures.add(1)
+      seen.add(item.task.id)
+    }
+    cursor = res.json('nextCursor')
+    pages++
+  } while (cursor && pages < 1000)
 }
 
 export function edits(data) {

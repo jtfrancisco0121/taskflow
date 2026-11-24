@@ -18,6 +18,7 @@ class McpEndpointIT extends McpTestBase {
           "create_task",
           "delete_task",
           "get_task",
+          "list_custom_fields",
           "list_locations",
           "list_views",
           "move_task",
@@ -47,7 +48,7 @@ class McpEndpointIT extends McpTestBase {
   }
 
   @Test
-  void initializeAndListToolsReturnExactlyTheNineTools() {
+  void initializeAndListToolsReturnExactlyTheTenTools() {
     Ws ws = workspaceWithAllRoles();
     Agent agent = agent(ws.admin(), ws.id());
     for (String key : new String[] {agent.secret()}) {
@@ -73,7 +74,7 @@ class McpEndpointIT extends McpTestBase {
       assertThat(t.get("description").asText()).isNotBlank();
       assertThat(t.at("/inputSchema/type").asText()).isEqualTo("object");
     }
-    assertThat(names).containsExactlyInAnyOrderElementsOf(TOOLS).hasSize(9);
+    assertThat(names).containsExactlyInAnyOrderElementsOf(TOOLS).hasSize(10);
   }
 
   @Test

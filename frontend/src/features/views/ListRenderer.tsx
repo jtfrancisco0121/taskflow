@@ -2,17 +2,22 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useEffect, useRef } from 'react'
 import { Link, useLocation, useMatch, useNavigate, type Location } from 'react-router'
 import { messageOf } from '../../api/errors'
-import type { TaskView, ViewConfig } from '../../api/types'
+import type { FieldView, TaskView, ViewConfig } from '../../api/types'
 import { formatDay } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
 import { useLocationStatuses } from '../statuses'
 import { PRIORITIES, PRIORITY_LABEL, initialsOf } from '../tasks'
 import { useMembers } from '../workspace'
 import { BulkBar } from './BulkBar'
+import { ColumnsPicker } from './ColumnsPicker'
 import { DateCell, EditableText, MultiPickCell, SelectCell, TagsCell } from './cells'
+import { FieldCell } from './FieldCell'
 import { groupLabel } from './groupLabels'
+import { DroppedNotice, NoMatches, hasFilter } from './ResultNotices'
+import type { Column, UrlState } from './urlState'
 import type { ViewScope } from './scope'
 import { observeRect } from './virtualRect'
+import { useScopeFields, customColumns } from './useScopeFields'
 import { useTaskActions } from './useTaskActions'
 import { useViewTasks } from './useViewTasks'
 import { useViewStore } from './viewStore'
@@ -28,12 +33,17 @@ export function ListRenderer({
   scope,
   config,
   empty = 'No tasks in this view.',
+  update,
 }: {
   scope: ViewScope
   config: ViewConfig
   empty?: string
+  update?: (patch: Partial<UrlState>) => void
 }) {
   const query = useViewTasks(scope, config)
+  const scopeFields = useScopeFields(scope)
+  const custom = customColumns(config.columns, scopeFields.byId).map((c) => c.field)
+  const template = `2rem 6rem minmax(12rem,1fr) 9rem 7rem 8rem 9rem 9rem${' 10rem'.repeat(custom.length)}`
   const { members } = useMembers(scope.workspaceId)
   const names = new Map(members.map((m) => [m.userId!, m.displayName ?? m.email ?? '']))
   const collapsed = useViewStore((s) => s.collapsed)
@@ -85,25 +95,41 @@ export function ListRenderer({
   }
   if (query.isError) {
     return (
-      <p role="alert" className="text-red-700">
+      <p role="alert" className="flex items-center gap-2 text-red-700">
         {messageOf(query.error)}
+        <Button onClick={() => void query.refetch()}>Retry</Button>
       </p>
     )
   }
 
   return (
     <div>
+      <DroppedNotice dropped={query.droppedFields} config={config} update={update} />
+      {update && (
+        <ColumnsPicker
+          columns={(config.columns as Column[] | undefined) ?? [{ field: 'title' }]}
+          fields={scopeFields.fields}
+          builtIn={false}
+          onChange={(c) => update({ c })}
+        />
+      )}
       <BulkBar
         scope={scope}
         tasks={query.items.flatMap((i) => (i.task ? [i.task] : []))}
         members={members}
       />
-      {rows.length === 0 && <p className="mb-2 text-slate-600">{empty}</p>}
+      {rows.length === 0 &&
+        (hasFilter(config) ? (
+          <NoMatches update={update} />
+        ) : (
+          <p className="mb-2 text-slate-600">{empty}</p>
+        ))}
       {rows.length > 0 && (
         <div role="table" aria-label="Tasks" aria-rowcount={rows.length}>
           <div
             role="row"
-            className="grid grid-cols-[2rem_6rem_minmax(12rem,1fr)_9rem_7rem_8rem_9rem_9rem] border-b border-slate-200 px-2 py-1 text-xs text-slate-500 uppercase"
+            className="grid border-b border-slate-200 px-2 py-1 text-xs text-slate-500 uppercase"
+            style={{ gridTemplateColumns: template }}
           >
             <span />
             <span role="columnheader">ID</span>
@@ -113,6 +139,11 @@ export function ListRenderer({
             <span role="columnheader">Assignees</span>
             <span role="columnheader">Due</span>
             <span role="columnheader">Tags</span>
+            {custom.map((f) => (
+              <span key={f.id} role="columnheader" title={`from ${f.definedAtName}`}>
+                {f.name}
+              </span>
+            ))}
           </div>
           <div ref={scrollRef} className="max-h-[70vh] overflow-auto" data-testid="list-scroll">
             <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
@@ -144,7 +175,13 @@ export function ListRenderer({
                         <span className="font-normal text-slate-500">{row.count ?? ''}</span>
                       </button>
                     ) : (
-                      <TaskLine task={row.task} names={names} members={members} />
+                      <TaskLine
+                        task={row.task}
+                        names={names}
+                        members={members}
+                        custom={custom}
+                        template={template}
+                      />
                     )}
                   </div>
                 )
@@ -167,10 +204,14 @@ function TaskLine({
   task,
   names,
   members,
+  custom,
+  template,
 }: {
   task: TaskView
   names: Map<string, string>
   members: Array<{ userId?: string; displayName?: string; email?: string }>
+  custom: FieldView[]
+  template: string
 }) {
   const actions = useTaskActions()
   const navigate = useNavigate()
@@ -199,7 +240,8 @@ function TaskLine({
       data-task-id={task.id}
       aria-current={open ? 'true' : undefined}
       onClick={() => void navigate(`/t/${task.id}`, { state: linkState })}
-      className={`grid h-full cursor-pointer grid-cols-[2rem_6rem_minmax(12rem,1fr)_9rem_7rem_8rem_9rem_9rem] items-center border-b border-slate-100 px-2 text-sm hover:bg-slate-50 ${open ? 'bg-blue-50' : ''}`}
+      style={{ gridTemplateColumns: template }}
+      className={`grid h-full cursor-pointer items-center border-b border-slate-100 px-2 text-sm hover:bg-slate-50 ${open ? 'bg-blue-50' : ''}`}
     >
       <input
         type="checkbox"
@@ -268,6 +310,9 @@ function TaskLine({
         tags={task.tags ?? []}
         onChange={(tags) => void actions.patch(task, { tags })}
       />
+      {custom.map((field) => (
+        <FieldCell key={field.id} field={field} task={task} />
+      ))}
       <span className="sr-only">{formatDay(task.dueDate)}</span>
     </div>
   )

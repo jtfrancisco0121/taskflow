@@ -3,9 +3,13 @@ package com.taskflow.task;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
-/** A task as the API returns it; {@code version} is also the ETag. */
+/**
+ * A task as the API returns it; {@code version} is also the ETag. {@code customFields} maps field
+ * id to value for the task's effective fields only (AD-13).
+ */
 public record TaskView(
     UUID id,
     UUID workspaceId,
@@ -24,4 +28,5 @@ public record TaskView(
     long version,
     UUID createdBy,
     Instant createdAt,
-    Instant updatedAt) {}
+    Instant updatedAt,
+    Map<String, JsonNode> customFields) {}

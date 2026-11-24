@@ -6,6 +6,8 @@ export const queryKeys = {
   tree: (wsId: string, parentId: string | 'root') => ['ws', wsId, 'tree', parentId] as const,
   treeAll: (wsId: string) => ['ws', wsId, 'tree'] as const,
   location: (locationId: string) => ['location', locationId] as const,
+  /** Custom fields of a location: under ['location', id] so a location event refreshes them (AD-12). */
+  fields: (locationId: string) => ['location', locationId, 'fields'] as const,
   statuses: (wsId: string, locationId: string) => ['ws', wsId, 'statuses', locationId] as const,
   statusesAll: (wsId: string) => ['ws', wsId, 'statuses'] as const,
   tasks: (wsId: string, locationId: string) => ['ws', wsId, 'tasks', locationId] as const,

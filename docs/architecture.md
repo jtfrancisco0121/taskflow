@@ -96,7 +96,9 @@ erDiagram
 | `task_list_link` | task_id, list_id | Lets a task also appear in other Lists (later) |
 | `task_assignee`, `task_tag`, `checklist`, `checklist_item` | task_id, user_id and similar | Join and child tables |
 | `task_dependency` | task_id, depends_on_id, type | Cycle check on write |
-| `custom_field` | id, location_id, name, type, config (jsonb) | Applies to every task under the location. Values live in `task.custom`, keyed by field id |
+| `custom_field` | id, workspace_id, location_id, name, type, config (jsonb), rank, version, retired_at | Applies to every task under the location ("defined at"). Never deleted, `type` never updated (decision 007). Values live in `task.custom`, keyed by field id |
+| `custom_field_option` | id, field_id, name, color, rank, retired_at | Options of Dropdown and Labels fields; values store the option id |
+| `custom_field_hidden` | location_id, field_id | A lower location hides an inherited field for its subtree |
 | `view` | id, location_id, type, name, config (jsonb), owner_id, visibility | `config` holds scope, filters, grouping, sort, columns |
 | `comment` | id, task_id, author_id, body (json), parent_id | Mentions parsed into a join table |
 | `time_entry` | id, task_id, user_id, started_at, duration, billable | Timer and manual entries |

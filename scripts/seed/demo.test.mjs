@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   BIG_LIST,
+  CUSTOM_FIELDS,
+  LOAD_FIELD,
   STRUCTURE,
   assigneeIndexFor,
   commentText,
@@ -10,12 +12,15 @@ import {
   hasComment,
   hasSubtask,
   keyFor,
+  loadScoreFor,
   priorityFor,
   statusIndexFor,
+  storyPointsFor,
   subtaskTitle,
   tagsFor,
   taskTitle,
   textOf,
+  tierFor,
 } from './data.mjs'
 
 test('the same index always gives the same task, so a re-run finds it by title', () => {
@@ -56,4 +61,28 @@ test('due dates are UTC midnights; a comment body round-trips through its text',
 test('idempotency keys are stable per entity', () => {
   assert.equal(keyFor('task', 'Bugs', 3), keyFor('task', 'Bugs', 3))
   assert.notEqual(keyFor('task', 'Bugs', 3), keyFor('task', 'Bugs', 4))
+})
+
+test('the demo custom fields are Story points (Number) and Customer tier (Dropdown), values are stable and sometimes empty', () => {
+  assert.deepEqual(
+    CUSTOM_FIELDS.map((f) => [f.name, f.type]),
+    [
+      ['Story points', 'NUMBER'],
+      ['Customer tier', 'DROPDOWN'],
+    ],
+  )
+  assert.deepEqual(CUSTOM_FIELDS[1].options, ['Free', 'Pro', 'Enterprise'])
+  const points = Array.from({ length: 30 }, (_, i) => storyPointsFor(i))
+  const tiers = Array.from({ length: 30 }, (_, i) => tierFor(i))
+  assert.ok(points.includes(undefined) && points.some((p) => typeof p === 'number'))
+  assert.ok(tiers.includes(undefined))
+  assert.deepEqual(new Set(tiers.filter(Boolean)), new Set(CUSTOM_FIELDS[1].options))
+  for (let i = 0; i < 30; i++) assert.equal(tierFor(i), tierFor(i))
+})
+
+test('the big List has a Load score Number field with values on most tasks', () => {
+  assert.deepEqual([LOAD_FIELD.name, LOAD_FIELD.type], ['Load score', 'NUMBER'])
+  const scores = Array.from({ length: 50 }, (_, i) => loadScoreFor(i))
+  assert.ok(scores.includes(undefined))
+  assert.ok(scores.filter((s) => s !== undefined).every((s) => s >= 0 && s < 1000))
 })

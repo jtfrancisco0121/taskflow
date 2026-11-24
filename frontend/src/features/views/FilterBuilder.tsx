@@ -1,10 +1,17 @@
-import type { ViewFilter } from '../../api/types'
+import type { FieldView, ViewFilter } from '../../api/types'
+import {
+  FilterInput,
+  OP_LABEL as CUSTOM_OP_LABEL,
+  defaultValue,
+  isValueless,
+  operatorsFor,
+} from '../fields'
 import { PRIORITIES, PRIORITY_LABEL } from '../tasks'
 import { MultiPickCell } from './cells'
 
 type Option = { value: string; label: string }
 
-export type FilterOptions = { statuses: Option[]; members: Option[] }
+export type FilterOptions = { statuses: Option[]; members: Option[]; fields?: FieldView[] }
 
 const OP_LABEL: Record<string, string> = {
   any_of: 'is any of',
@@ -53,9 +60,22 @@ const FIELDS: Record<string, { label: string; ops: string[]; kind: Kind }> = {
 
 const NO_VALUE = new Set(['is_set', 'is_empty', 'overdue', 'include', 'exclude'])
 
+/** A fresh condition on a custom field: its first operator and a usable default value. */
+function newCustomCondition(field: FieldView): ViewFilter {
+  const op = operatorsFor(field)[0]
+  const value = defaultValue(field, op)
+  return value === undefined
+    ? { field: `cf:${field.id}`, op }
+    : { field: `cf:${field.id}`, op, value: value as ViewFilter['value'] }
+}
+
 /** A fresh condition for a field: its first operator and a usable default value. */
-export function newCondition(field = 'priority'): ViewFilter {
-  const spec = FIELDS[field]
+export function newCondition(field = 'priority', fields: FieldView[] = []): ViewFilter {
+  if (field.startsWith('cf:')) {
+    const custom = fields.find((f) => `cf:${f.id}` === field)
+    if (custom) return newCustomCondition(custom)
+  }
+  const spec = FIELDS[field] ?? FIELDS.priority
   const op = spec.ops[0]
   const value =
     field === 'priority'
@@ -165,40 +185,69 @@ function ConditionRow({
   onRemove: () => void
 }) {
   const field = node.field ?? 'title'
+  const custom = field.startsWith('cf:')
+    ? options.fields?.find((f) => `cf:${f.id}` === field)
+    : undefined
   const spec = FIELDS[field] ?? FIELDS.title
   const list = Array.isArray(node.value) ? (node.value as string[]) : []
   const text = typeof node.value === 'string' ? node.value : ''
   const withValue = (value: unknown) => onChange({ ...node, value: value as ViewFilter['value'] })
-  const valueless = NO_VALUE.has(node.op ?? '')
+  const valueless = custom ? isValueless(node.op) : NO_VALUE.has(node.op ?? '')
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
       <select
         aria-label="Filter field"
         value={field}
-        onChange={(e) => onChange(newCondition(e.target.value))}
+        onChange={(e) => onChange(newCondition(e.target.value, options.fields))}
       >
         {Object.entries(FIELDS).map(([key, f]) => (
           <option key={key} value={key}>
             {f.label}
           </option>
         ))}
+        {(options.fields ?? []).length > 0 && (
+          <optgroup label="Custom fields">
+            {options.fields?.map((f) => (
+              <option key={f.id} value={`cf:${f.id}`}>
+                {f.name}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {field.startsWith('cf:') && !custom && <option value={field}>Unknown field</option>}
       </select>
       <select
         aria-label="Filter operator"
         value={node.op}
         onChange={(e) => {
           const op = e.target.value
-          if (NO_VALUE.has(op)) onChange({ field, op })
+          if (custom) {
+            const value = defaultValue(custom, op)
+            onChange(
+              value === undefined
+                ? { field, op }
+                : { field, op, value: value as ViewFilter['value'] },
+            )
+          } else if (NO_VALUE.has(op)) onChange({ field, op })
           else onChange({ ...newCondition(field), op })
         }}
       >
-        {spec.ops.map((op) => (
+        {(custom ? operatorsFor(custom) : spec.ops).map((op) => (
           <option key={op} value={op}>
-            {OP_LABEL[op]}
+            {OP_LABEL[op] ?? CUSTOM_OP_LABEL[op] ?? op}
           </option>
         ))}
       </select>
-      {!valueless && spec.kind === 'text' && (
+      {custom && (
+        <FilterInput
+          field={custom}
+          op={node.op ?? ''}
+          value={node.value}
+          onChange={(value) => withValue(value)}
+          people={[{ value: 'me', label: 'Me' }, ...options.members]}
+        />
+      )}
+      {!custom && !valueless && spec.kind === 'text' && (
         <input
           aria-label="Filter value"
           value={text}
@@ -206,7 +255,7 @@ function ConditionRow({
           onChange={(e) => withValue(e.target.value)}
         />
       )}
-      {!valueless && spec.kind === 'priority' && (
+      {!custom && !valueless && spec.kind === 'priority' && (
         <MultiPickCell
           label="Filter value"
           options={PRIORITIES.map((p) => ({
@@ -218,7 +267,7 @@ function ConditionRow({
           summary={list.length ? list.map((p) => p.toLowerCase()).join(', ') : 'choose…'}
         />
       )}
-      {!valueless && spec.kind === 'status' && (
+      {!custom && !valueless && spec.kind === 'status' && (
         <MultiPickCell
           label="Filter value"
           options={options.statuses}
@@ -227,7 +276,7 @@ function ConditionRow({
           summary={list.length ? `${list.length} selected` : 'choose…'}
         />
       )}
-      {!valueless && spec.kind === 'assignee' && (
+      {!custom && !valueless && spec.kind === 'assignee' && (
         <MultiPickCell
           label="Filter value"
           options={[{ value: 'me', label: 'Me' }, ...options.members]}
@@ -236,7 +285,7 @@ function ConditionRow({
           summary={list.length ? `${list.length} selected` : 'choose…'}
         />
       )}
-      {!valueless && spec.kind === 'tags' && (
+      {!custom && !valueless && spec.kind === 'tags' && (
         <input
           aria-label="Filter value"
           value={list.join(', ')}
@@ -251,7 +300,7 @@ function ConditionRow({
           }
         />
       )}
-      {!valueless && spec.kind === 'date' && (
+      {!custom && !valueless && spec.kind === 'date' && (
         <select aria-label="Filter value" value={text} onChange={(e) => withValue(e.target.value)}>
           <option value="today">today</option>
           <option value="this_week">this week</option>

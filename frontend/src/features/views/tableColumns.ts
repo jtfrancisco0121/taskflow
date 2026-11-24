@@ -1,4 +1,4 @@
-import { COLUMN_FIELDS, MAX_WIDTH, MIN_WIDTH, type Column } from './urlState'
+import { COLUMN_FIELDS, MAX_WIDTH, MIN_WIDTH, isCustomRef, type Column } from './urlState'
 
 export const DEFAULT_WIDTH = 150
 
@@ -59,6 +59,7 @@ export function dropColumn(columns: Column[], field: string, target: string): Co
 export function toggleColumn(columns: Column[], field: string, visible: boolean): Column[] {
   if (field === 'title') return columns
   if (!visible) return columns.filter((c) => c.field !== field)
-  if (columns.some((c) => c.field === field) || !COLUMN_FIELDS.includes(field)) return columns
+  if (columns.some((c) => c.field === field)) return columns
+  if (!COLUMN_FIELDS.includes(field) && !isCustomRef(field)) return columns
   return [...columns, { field, width: DEFAULT_WIDTH }]
 }

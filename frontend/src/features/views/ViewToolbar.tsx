@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import type { ViewConfig, ViewFilter } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
+import { canGroup, canSort } from '../fields'
 import { useLocationStatuses } from '../statuses'
 import { useMembers } from '../workspace'
 import { FilterGroup } from './FilterBuilder'
+import { useScopeFields } from './useScopeFields'
 import type { ViewScope } from './scope'
 import type { Sort, UrlState } from './urlState'
 
@@ -33,16 +35,21 @@ export function ViewToolbar({
   config,
   update,
   showGrouping = true,
+  customGroups = true,
 }: {
   scope: ViewScope
   config: ViewConfig
   update: (patch: Partial<UrlState>) => void
   showGrouping?: boolean
+  /** Offer custom fields in the grouping (a Board's columns stay status, priority or assignee). */
+  customGroups?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const statuses = useLocationStatuses(scope.workspaceId, scope.locationId)
   const { members } = useMembers(scope.workspaceId)
+  const { fields } = useScopeFields(scope)
   const options = {
+    fields,
     statuses: (statuses.data?.statuses ?? []).map((s) => ({ value: s.id!, label: s.name ?? '' })),
     members: members.map((m) => ({ value: m.userId!, label: m.displayName ?? m.email ?? '' })),
   }
@@ -75,6 +82,15 @@ export function ViewToolbar({
                   {label}
                 </option>
               ))}
+              {customGroups && fields.some(canGroup) && (
+                <optgroup label="Custom fields">
+                  {fields.filter(canGroup).map((f) => (
+                    <option key={f.id} value={`cf:${f.id}`}>
+                      {f.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </label>
         )}
@@ -90,6 +106,15 @@ export function ViewToolbar({
                 {label}
               </option>
             ))}
+            {fields.some(canSort) && (
+              <optgroup label="Custom fields">
+                {fields.filter(canSort).map((f) => (
+                  <option key={f.id} value={`cf:${f.id}`}>
+                    {f.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
         <select

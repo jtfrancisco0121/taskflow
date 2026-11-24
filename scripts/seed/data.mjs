@@ -103,3 +103,23 @@ export const textOf = (docNode) =>
 
 /** Stable idempotency key: the same entity always sends the same key (a retry guard only). */
 export const keyFor = (...parts) => `seed:${parts.join(':')}`
+
+// ---- custom fields (3A): defined on the first demo Space, values on its seeded tasks ----
+
+/** Custom fields of the first demo Space; found again by name on a re-run. */
+export const CUSTOM_FIELDS = [
+  { name: 'Story points', type: 'NUMBER' },
+  { name: 'Customer tier', type: 'DROPDOWN', options: ['Free', 'Pro', 'Enterprise'] },
+]
+
+/** Story points of the i-th task; every 5th task has none. */
+export const storyPointsFor = (i) => (i % 5 === 4 ? undefined : [1, 2, 3, 5, 8, 13][i % 6])
+
+/** Customer tier (an Option name) of the i-th task; every 4th task has none. */
+export const tierFor = (i) => (i % 4 === 3 ? undefined : CUSTOM_FIELDS[1].options[i % 3])
+
+/** The field of the big List's Space, for the load test: a custom field filter and sort (SM-2). */
+export const LOAD_FIELD = { name: 'Load score', type: 'NUMBER' }
+
+/** Load score of the i-th task of the big List; every 10th task has none. */
+export const loadScoreFor = (i) => (i % 10 === 9 ? undefined : (i * 37) % 1000)

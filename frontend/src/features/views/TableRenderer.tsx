@@ -5,17 +5,21 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { messageOf } from '../../api/errors'
-import type { TaskView, ViewConfig } from '../../api/types'
+import type { FieldView, TaskView, ViewConfig } from '../../api/types'
 import { formatDateTime } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
 import { useLocationInfo } from '../locations'
 import { useLocationStatuses } from '../statuses'
 import { PRIORITIES, PRIORITY_LABEL, initialsOf } from '../tasks'
 import { useMembers } from '../workspace'
+import { ColumnsPicker } from './ColumnsPicker'
+import { DroppedNotice, NoMatches, hasFilter } from './ResultNotices'
 import { DateCell, EditableText, MultiPickCell, SelectCell, TagsCell } from './cells'
+import { FieldCell } from './FieldCell'
+import { useScopeFields } from './useScopeFields'
 import type { ViewScope } from './scope'
 import { observeRect } from './virtualRect'
 import {
@@ -25,10 +29,9 @@ import {
   clampWidth,
   dropColumn,
   moveColumn,
-  toggleColumn,
   withWidth,
 } from './tableColumns'
-import { COLUMN_FIELDS, type Column, type UrlState } from './urlState'
+import { isCustomRef, type Column, type UrlState } from './urlState'
 import { useTaskActions } from './useTaskActions'
 import { useViewTasks } from './useViewTasks'
 
@@ -45,16 +48,28 @@ export function TableRenderer({
   config: ViewConfig
   update: (patch: Partial<UrlState>) => void
 }) {
-  const columns: Column[] = config.columns?.length ? (config.columns as Column[]) : DEFAULT_COLUMNS
+  const { fields, byId } = useScopeFields(scope)
+  const requested: Column[] = config.columns?.length
+    ? (config.columns as Column[])
+    : DEFAULT_COLUMNS
+  // A custom column whose field is gone, hidden or not offered at this scope is not drawn.
+  const columns = requested.filter(
+    (c) => !isCustomRef(c.field) || !fields.length || byId.has(c.field.slice(3)),
+  )
+  const labelOf = (field: string) =>
+    isCustomRef(field)
+      ? (byId.get(field.slice(3))?.name ?? 'Custom field')
+      : (COLUMN_LABEL[field] ?? field)
   const query = useViewTasks(scope, { ...config, group: 'none' })
-  const tasks = query.items.flatMap((i) => (i.task ? [i.task] : []))
+  // A stable `data` reference: a new array every render makes TanStack Table reset its state in a loop.
+  const tasks = useMemo(() => query.items.flatMap((i) => (i.task ? [i.task] : [])), [query.items])
   const [dragWidth, setDragWidth] = useState<{ field: string; width: number } | null>(null)
   const setColumns = (next: Column[]) => update({ c: next })
 
   const defs: ColumnDef<TaskView, unknown>[] = columns.map((c) =>
     helper.display({
       id: c.field,
-      header: COLUMN_LABEL[c.field] ?? c.field,
+      header: labelOf(c.field),
       size: c.width ?? DEFAULT_WIDTH,
     }),
   ) as ColumnDef<TaskView, unknown>[]
@@ -122,30 +137,17 @@ export function TableRenderer({
 
   if (query.isError) {
     return (
-      <p role="alert" className="text-red-700">
+      <p role="alert" className="flex items-center gap-2 text-red-700">
         {messageOf(query.error)}
+        <Button onClick={() => void query.refetch()}>Retry</Button>
       </p>
     )
   }
 
   return (
     <div>
-      <details className="mb-2 text-sm">
-        <summary className="cursor-pointer">Columns</summary>
-        <div className="mt-1 flex flex-wrap gap-3">
-          {COLUMN_FIELDS.map((field) => (
-            <label key={field} className="flex items-center gap-1">
-              <input
-                type="checkbox"
-                checked={columns.some((c) => c.field === field)}
-                disabled={field === 'title'}
-                onChange={(e) => setColumns(toggleColumn(columns, field, e.target.checked))}
-              />
-              {COLUMN_LABEL[field] ?? field}
-            </label>
-          ))}
-        </div>
-      </details>
+      <DroppedNotice dropped={query.droppedFields} config={config} update={update} />
+      <ColumnsPicker columns={columns} fields={fields} builtIn onChange={setColumns} />
       <div role="grid" aria-label="Tasks table" aria-rowcount={rows.length}>
         <div
           role="row"
@@ -170,15 +172,15 @@ export function TableRenderer({
                 <button
                   type="button"
                   className="w-full text-left uppercase"
-                  aria-label={`${COLUMN_LABEL[header.id] ?? header.id} column, width ${width}`}
+                  aria-label={`${labelOf(header.id)} column, width ${width}`}
                   onKeyDown={(e) => onHeaderKey(e, header.id, width)}
                 >
-                  {COLUMN_LABEL[header.id] ?? header.id}
+                  {labelOf(header.id)}
                 </button>
                 <span
                   role="separator"
                   aria-orientation="vertical"
-                  aria-label={`Resize ${COLUMN_LABEL[header.id] ?? header.id}`}
+                  aria-label={`Resize ${labelOf(header.id)}`}
                   className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-blue-300"
                   onPointerDown={(e) => startResize(e, header.id, width)}
                 />
@@ -207,7 +209,12 @@ export function TableRenderer({
                 >
                   {headers.map((h) => (
                     <div key={h.id} role="gridcell" className="truncate px-2">
-                      <Cell field={h.id} task={row.original} scope={scope} />
+                      <Cell
+                        field={h.id}
+                        task={row.original}
+                        scope={scope}
+                        custom={byId.get(h.id.slice(3))}
+                      />
                     </div>
                   ))}
                 </div>
@@ -216,6 +223,7 @@ export function TableRenderer({
           </div>
         </div>
       </div>
+      {query.isSuccess && rows.length === 0 && hasFilter(config) && <NoMatches update={update} />}
       {hasNextPage && (
         <Button className="mt-2" disabled={isFetchingNextPage} onClick={() => void fetchNextPage()}>
           Load more
@@ -225,7 +233,17 @@ export function TableRenderer({
   )
 }
 
-function Cell({ field, task, scope }: { field: string; task: TaskView; scope: ViewScope }) {
+function Cell({
+  field,
+  task,
+  scope,
+  custom,
+}: {
+  field: string
+  task: TaskView
+  scope: ViewScope
+  custom?: FieldView
+}) {
   const actions = useTaskActions()
   const location = useLocation()
   const statuses = useLocationStatuses(task.workspaceId, task.listId)
@@ -233,6 +251,7 @@ function Cell({ field, task, scope }: { field: string; task: TaskView; scope: Vi
   const list = useLocationInfo(field === 'list' ? task.listId : undefined)
   const names = new Map(members.map((m) => [m.userId!, m.displayName ?? m.email ?? '']))
   const id = task.readableId
+  if (isCustomRef(field)) return custom ? <FieldCell field={custom} task={task} /> : null
   switch (field) {
     case 'readableId':
       return <span className="font-mono text-xs text-slate-500">{task.readableId}</span>

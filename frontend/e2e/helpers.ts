@@ -1,4 +1,4 @@
-import { expect, type APIRequestContext, type Page } from '@playwright/test'
+import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 /** A unique account per run, so a flow never depends on leftover data. */
 export function uniqueEmail(prefix = 'e2e') {
@@ -25,7 +25,11 @@ export async function signUpAndCreateWorkspace(
 }
 
 export async function createSpace(page: Page, name: string) {
-  await page.getByRole('button', { name: 'Create Space' }).click()
+  // The first Space has its own button on the empty Workspace page; later ones use the sidebar's.
+  const first = page.getByRole('button', { name: 'Create Space' })
+  await (
+    (await first.count()) > 0 ? first : page.getByRole('button', { name: 'New Space' })
+  ).click()
   await page.getByRole('textbox', { name: 'New Space name' }).fill(name)
   await page.keyboard.press('Enter')
   await expect(page.getByRole('treeitem', { name })).toBeVisible()
@@ -113,4 +117,41 @@ export async function signInThroughTheUi(page: Page, user: ApiUser) {
   await page.getByLabel('Password').fill(PASSWORD)
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
+}
+
+// ---- custom fields (3A) ----
+
+export async function openFields(page: Page, location: string) {
+  await page.getByRole('button', { name: `Actions for ${location}` }).click()
+  await page.getByRole('menuitem', { name: 'Fields' }).click()
+  const dialog = page.getByRole('dialog', { name: `Fields: ${location}` })
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
+export async function createField(
+  dialog: Locator,
+  name: string,
+  type: string,
+  options: string[] = [],
+) {
+  await dialog.getByRole('button', { name: 'New field' }).click()
+  await dialog.getByLabel('Name', { exact: true }).fill(name)
+  await dialog.getByLabel('Field type').selectOption(type)
+  for (const [i, option] of options.entries()) {
+    await dialog.getByRole('button', { name: 'Add option' }).click()
+    await dialog.getByLabel(`Option ${i + 1} name`).fill(option)
+  }
+  await dialog.getByRole('button', { name: 'Create field' }).click()
+  await expect(dialog.getByRole('heading', { name: 'Fields here' })).toBeVisible()
+}
+
+/** Creates a saved view of the given type through the "+ View" form and waits for its tab. */
+export async function createView(page: Page, name: string, type: string) {
+  await page.getByRole('button', { name: '+ View' }).click()
+  const form = page.getByRole('form', { name: 'New view' })
+  await form.getByLabel('View name').fill(name)
+  await form.getByLabel('Type').selectOption({ label: type })
+  await form.getByRole('button', { name: 'Create view' }).click()
+  await expect(page.getByRole('tab', { name })).toBeVisible()
 }

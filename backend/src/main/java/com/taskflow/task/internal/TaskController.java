@@ -16,6 +16,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -43,9 +44,13 @@ class TaskController {
       Instant dueDate,
       List<UUID> assigneeIds,
       List<@Size(max = 50) String> tags,
-      UUID parentTaskId) {}
+      UUID parentTaskId,
+      Map<String, JsonNode> customFields) {}
 
-  /** Merge patch: absent fields are untouched, null clears description and the dates. */
+  /**
+   * Merge patch: absent fields are untouched, null clears description and the dates. {@code
+   * customFields} maps field id (or name) to a value; null clears that field.
+   */
   record UpdateTaskRequest(
       String title,
       JsonNode description,
@@ -55,7 +60,8 @@ class TaskController {
       Instant dueDate,
       List<UUID> assigneeIds,
       List<String> tags,
-      UUID parentTaskId) {}
+      UUID parentTaskId,
+      Map<String, JsonNode> customFields) {}
 
   private final TaskService service;
   private final ObjectMapper mapper;
@@ -83,7 +89,8 @@ class TaskController {
                 request.dueDate(),
                 request.assigneeIds(),
                 request.tags(),
-                request.parentTaskId()));
+                request.parentTaskId(),
+                request.customFields()));
     return etag(
         ResponseEntity.status(HttpStatus.CREATED)
             .header(HttpHeaders.LOCATION, "/api/v1/tasks/" + task.id()),

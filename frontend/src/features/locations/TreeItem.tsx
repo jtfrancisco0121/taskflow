@@ -1,6 +1,7 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
 import { NavLink, useNavigate, useParams } from 'react-router'
 import { messageOf } from '../../api/errors'
+import { FieldManagerDialog } from '../fields'
 import { StatusesDialog } from '../statuses'
 import { useToastStore } from '../../shared/toast-store'
 import { useUiStore } from '../../shared/ui-store'
@@ -26,6 +27,7 @@ type Mode =
   | { kind: 'rename' }
   | { kind: 'move' }
   | { kind: 'statuses' }
+  | { kind: 'fields' }
 
 function focusItem(element: Element | null | undefined) {
   if (element instanceof HTMLElement) element.focus()
@@ -58,6 +60,7 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
     else if (action === 'rename') setMode({ kind: 'rename' })
     else if (action === 'move') setMode({ kind: 'move' })
     else if (action === 'statuses') setMode({ kind: 'statuses' })
+    else if (action === 'fields') setMode({ kind: 'fields' })
     else {
       update.mutate(
         { id, parentId: node.parentId, isPrivate: !node.isPrivate },
@@ -231,6 +234,17 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
       )}
       {mode?.kind === 'statuses' && node.type && (
         <StatusesDialog
+          workspaceId={workspaceId}
+          location={{ id, name: node.name ?? '', type: node.type, parentId: node.parentId }}
+          onClose={() => {
+            setMode(null)
+            focusItem(itemRef.current)
+          }}
+          restoreFocus={() => itemRef.current}
+        />
+      )}
+      {mode?.kind === 'fields' && node.type && (
+        <FieldManagerDialog
           workspaceId={workspaceId}
           location={{ id, name: node.name ?? '', type: node.type, parentId: node.parentId }}
           onClose={() => {

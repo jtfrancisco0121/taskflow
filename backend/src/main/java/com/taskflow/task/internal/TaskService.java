@@ -2,7 +2,10 @@ package com.taskflow.task.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.taskflow.field.FieldCatalog;
+import com.taskflow.field.FieldInfo;
 import com.taskflow.field.StatusCatalog;
+import com.taskflow.field.ValidatedValues;
 import com.taskflow.shared.CurrentActor;
 import com.taskflow.shared.EventRecorder;
 import com.taskflow.shared.Ids;
@@ -59,7 +62,11 @@ class TaskService {
       Instant dueDate,
       List<UUID> assigneeIds,
       List<String> tags,
-      UUID parentTaskId) {}
+      UUID parentTaskId,
+      Map<String, JsonNode> customFields) {}
+
+  /** Longest text of a custom field value in an activity snapshot. */
+  static final int SNAPSHOT_TEXT = 200;
 
   private final TaskRepository repo;
   private final JdbcTemplate jdbc;
@@ -68,6 +75,7 @@ class TaskService {
   private final Permissions permissions;
   private final LocationTree tree;
   private final StatusCatalog statuses;
+  private final FieldCatalog fields;
   private final WorkspaceQuery workspaces;
   private final RankScopeLock rankLock;
   private final RankAllocator ranks;
@@ -80,6 +88,7 @@ class TaskService {
       Permissions permissions,
       LocationTree tree,
       StatusCatalog statuses,
+      FieldCatalog fields,
       WorkspaceQuery workspaces,
       RankScopeLock rankLock,
       RankAllocator ranks) {
@@ -90,6 +99,7 @@ class TaskService {
     this.permissions = permissions;
     this.tree = tree;
     this.statuses = statuses;
+    this.fields = fields;
     this.workspaces = workspaces;
     this.rankLock = rankLock;
     this.ranks = ranks;
@@ -104,6 +114,7 @@ class TaskService {
     Priority priority = in.priority() == null ? Priority.NONE : in.priority();
     List<String> tags = cleanTags(in.tags());
     List<UUID> assignees = checkAssignees(list.workspaceId(), in.assigneeIds());
+    ValidatedValues custom = fields.validate(listId, in.customFields());
     UUID parentId = in.parentTaskId();
     if (parentId != null) {
       permissions.require(Permissions.TASK, parentId, Action.VIEW);
@@ -131,8 +142,8 @@ class TaskService {
     UUID id = Ids.newId();
     jdbc.update(
         "INSERT INTO task (id, workspace_id, list_id, parent_task_id, status_id, number, title,"
-            + " description, priority, start_date, due_date, rank, created_by) VALUES (?, ?, ?, ?, ?,"
-            + " ?, ?, CAST(? AS jsonb), ?, ?, ?, ?, ?)",
+            + " description, priority, start_date, due_date, rank, created_by, custom) VALUES (?, ?,"
+            + " ?, ?, ?, ?, ?, CAST(? AS jsonb), ?, ?, ?, ?, ?, CAST(? AS jsonb))",
         id,
         list.workspaceId(),
         listId,
@@ -145,7 +156,8 @@ class TaskService {
         ts(in.startDate()),
         ts(in.dueDate()),
         rank,
-        CurrentActor.userId());
+        CurrentActor.userId(),
+        customJson(custom));
     repo.replaceAssignees(list.workspaceId(), id, assignees);
     repo.replaceTags(list.workspaceId(), id, tags);
     Map<String, Object> changes = new LinkedHashMap<>();
@@ -157,6 +169,12 @@ class TaskService {
     }
     if (!tags.isEmpty()) {
       changes.put("tags", change(null, tags));
+    }
+    if (!custom.set().isEmpty()) {
+      changes.put(
+          "customFields",
+          customChanges(
+              custom, com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode()));
     }
     events.record(
         list.workspaceId(),
@@ -281,6 +299,32 @@ class TaskService {
       if (!new LinkedHashSet<>(before).equals(new LinkedHashSet<>(next))) {
         tagsAfter = next;
         changes.put("tags", change(before, next));
+      }
+    }
+    // AD-2: custom field values are a key-level merge in the same versioned UPDATE, never a
+    // replace.
+    if (patch.has("customFields")) {
+      JsonNode node = patch.get("customFields");
+      if (!node.isObject()) {
+        throw TaskflowException.badRequest(
+            "task.invalid_custom_fields", "customFields must be an object of field -> value");
+      }
+      Map<String, JsonNode> requested = new LinkedHashMap<>();
+      node.fields().forEachRemaining(e -> requested.put(e.getKey(), e.getValue()));
+      ValidatedValues custom = fields.validate(current.listId(), requested);
+      ValidatedValues effectiveChange = onlyChanges(custom, current.custom());
+      if (!effectiveChange.isEmpty()) {
+        changes.put("customFields", customChanges(effectiveChange, current.custom()));
+        if (!effectiveChange.cleared().isEmpty()) {
+          sets.add("custom = (custom - CAST(? AS text[])) || CAST(? AS jsonb)");
+          args.add(
+              effectiveChange.cleared().stream()
+                  .map(UUID::toString)
+                  .collect(java.util.stream.Collectors.joining(",", "{", "}")));
+        } else {
+          sets.add("custom = custom || CAST(? AS jsonb)");
+        }
+        args.add(setJson(effectiveChange));
       }
     }
     for (String key : changes.keySet()) {
@@ -433,6 +477,66 @@ class TaskService {
             "task.version_conflict", "The task was changed by someone else; reload and retry")
         .with("current", repo.viewOf(current))
         .with("version", current.version());
+  }
+
+  /** The values that differ from what is stored; a no-op value bumps no version (AD-2). */
+  private static ValidatedValues onlyChanges(ValidatedValues validated, JsonNode stored) {
+    Map<UUID, JsonNode> set = new LinkedHashMap<>();
+    java.util.Set<UUID> cleared = new java.util.HashSet<>();
+    Map<UUID, FieldInfo> used = new LinkedHashMap<>();
+    validated
+        .set()
+        .forEach((id, value) -> {
+          if (!value.equals(stored.get(id.toString()))) {
+            set.put(id, value);
+            used.put(id, validated.fields().get(id));
+          }
+        });
+    for (UUID id : validated.cleared()) {
+      if (stored.has(id.toString())) {
+        cleared.add(id);
+        used.put(id, validated.fields().get(id));
+      }
+    }
+    return new ValidatedValues(set, cleared, used);
+  }
+
+  /**
+   * {@code changes.customFields} (AD-7): per field {@code from, to} (omitted for LONG_TEXT, whose
+   * value is read from the task) and display snapshots {@code field, fromText, toText}, the texts
+   * cut to 200 characters so one request cannot publish events of hundreds of KB.
+   */
+  private Map<String, Object> customChanges(ValidatedValues v, JsonNode stored) {
+    Map<String, Object> out = new LinkedHashMap<>();
+    for (FieldInfo f : v.fields().values()) {
+      JsonNode before = stored.get(f.id().toString());
+      JsonNode after = v.set().get(f.id());
+      Map<String, Object> entry = new LinkedHashMap<>();
+      if (f.type() != com.taskflow.field.FieldType.LONG_TEXT) {
+        entry.put("from", before);
+        entry.put("to", after);
+      }
+      entry.put("field", f.name());
+      entry.put("fromText", cut(fields.display(f, before)));
+      entry.put("toText", cut(fields.display(f, after)));
+      out.put(f.id().toString(), entry);
+    }
+    return out;
+  }
+
+  private static String cut(String text) {
+    return text.length() <= SNAPSHOT_TEXT ? text : text.substring(0, SNAPSHOT_TEXT - 1) + "…";
+  }
+
+  private String customJson(ValidatedValues v) {
+    return setJson(v);
+  }
+
+  private String setJson(ValidatedValues v) {
+    com.fasterxml.jackson.databind.node.ObjectNode object =
+        com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+    v.set().forEach((id, value) -> object.set(id.toString(), value));
+    return object.toString();
   }
 
   static Map<String, Object> change(Object from, Object to) {

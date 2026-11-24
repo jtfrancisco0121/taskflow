@@ -110,6 +110,7 @@ describe('Location actions', () => {
       'Rename',
       'Make private',
       'Statuses',
+      'Fields',
     ])
     await user.keyboard('{Escape}')
     await screen.findByRole('treeitem', { name: 'Launch' })
@@ -119,6 +120,7 @@ describe('Location actions', () => {
       'Make private',
       'Move',
       'Statuses',
+      'Fields',
     ])
     await user.keyboard('{Escape}')
     expect(items(await openMenu(user, 'Launch'))).toEqual([
@@ -126,6 +128,7 @@ describe('Location actions', () => {
       'Make private',
       'Move',
       'Statuses',
+      'Fields',
     ])
   })
 

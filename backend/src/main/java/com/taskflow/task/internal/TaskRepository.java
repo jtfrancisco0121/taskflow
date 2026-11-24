@@ -3,6 +3,9 @@ package com.taskflow.task.internal;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.taskflow.field.FieldCatalog;
+import com.taskflow.field.FieldInfo;
 import com.taskflow.shared.TaskflowException;
 import com.taskflow.task.Priority;
 import com.taskflow.task.TaskView;
@@ -12,6 +15,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -44,21 +48,25 @@ class TaskRepository {
       Instant createdAt,
       Instant updatedAt,
       Instant deletedAt,
-      UUID trashBatchId) {}
+      UUID trashBatchId,
+      ObjectNode custom) {}
 
   static final String SELECT =
       "SELECT t.id, t.workspace_id, w.key AS workspace_key, t.list_id, t.parent_task_id, t.status_id,"
           + " t.number, t.title, t.description::text AS description, t.priority, t.start_date,"
           + " t.due_date, t.rank, t.version, t.created_by, t.created_at, t.updated_at, t.deleted_at,"
-          + " t.trash_batch_id FROM task t JOIN workspace w ON w.id = t.workspace_id";
+          + " t.trash_batch_id, t.custom::text AS custom FROM task t JOIN workspace w ON w.id ="
+          + " t.workspace_id";
 
   private final JdbcTemplate jdbc;
   private final ObjectMapper mapper;
+  private final FieldCatalog fields;
   private final RowMapper<Row> rowMapper = this::mapRow;
 
-  TaskRepository(JdbcTemplate jdbc, ObjectMapper mapper) {
+  TaskRepository(JdbcTemplate jdbc, ObjectMapper mapper, FieldCatalog fields) {
     this.jdbc = jdbc;
     this.mapper = mapper;
+    this.fields = fields;
   }
 
   RowMapper<Row> rowMapper() {
@@ -116,8 +124,13 @@ class TaskRepository {
               .add(rs.getString("tag"));
         },
         ids.toArray());
+    // AD-13: resolve the effective set once per distinct List, never once per task.
+    Map<UUID, List<FieldInfo>> effective = new HashMap<>();
     List<TaskView> out = new ArrayList<>(rows.size());
     for (Row r : rows) {
+      List<FieldInfo> listFields = effective.computeIfAbsent(r.listId(), fields::effective);
+      Map<String, JsonNode> stored = new LinkedHashMap<>();
+      r.custom().fields().forEachRemaining(e -> stored.put(e.getKey(), e.getValue()));
       out.add(
           new TaskView(
               r.id(),
@@ -137,7 +150,8 @@ class TaskRepository {
               r.version(),
               r.createdBy(),
               r.createdAt(),
-              r.updatedAt()));
+              r.updatedAt(),
+              fields.project(listFields, stored)));
     }
     return out;
   }
@@ -251,7 +265,17 @@ class TaskRepository {
         instant(rs, "created_at"),
         instant(rs, "updated_at"),
         instant(rs, "deleted_at"),
-        rs.getObject("trash_batch_id", UUID.class));
+        rs.getObject("trash_batch_id", UUID.class),
+        custom(rs.getString("custom")));
+  }
+
+  private ObjectNode custom(String json) {
+    try {
+      JsonNode node = json == null ? null : mapper.readTree(json);
+      return node instanceof ObjectNode object ? object : mapper.createObjectNode();
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("task.custom is not JSON", e);
+    }
   }
 
   private static Instant instant(ResultSet rs, String column) throws SQLException {

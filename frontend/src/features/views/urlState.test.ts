@@ -3,8 +3,10 @@ import {
   applyUrlState,
   clearUrlState,
   configHash,
+  customRefs,
   encodeFilter,
   parseUrlState,
+  withoutRefs,
   writeUrlState,
   type UrlState,
 } from './urlState'
@@ -88,5 +90,64 @@ describe('VIEW-3 URL state', () => {
   it('hashes by the rows-changing parts only', () => {
     expect(configHash({ v: 1, group: 'a' })).toBe(configHash({ v: 1, group: 'a', mode: 'week' }))
     expect(configHash({ v: 1, group: 'a' })).not.toBe(configHash({ v: 1, group: 'b' }))
+  })
+
+  it('FIELD-3: cf:<id> columns round-trip through c, with and without a width', () => {
+    const id = '11111111-1111-4111-8111-111111111111'
+    const columns = [
+      { field: 'title', width: 300 },
+      { field: `cf:${id}`, width: 160 },
+      { field: `cf:${id.replace(/1/g, '2')}` },
+    ]
+    const params = writeUrlState(new URLSearchParams(), { c: columns })
+    expect(parseUrlState(params)).toEqual({ state: { c: columns }, dropped: [] })
+  })
+
+  it('a malformed cf: column drops c like any invalid column', () => {
+    expect(parseUrlState(new URLSearchParams('c=title,cf:not-a-uuid')).dropped).toEqual(['c'])
+    expect(parseUrlState(new URLSearchParams('c=title,cf:')).dropped).toEqual(['c'])
+  })
+
+  it('FIELD-3: cf: references round-trip in f, s and g', () => {
+    const id = '11111111-1111-4111-8111-111111111111'
+    const state = {
+      f: { op: 'AND', items: [{ field: `cf:${id}`, op: 'any_of', value: ['o1'] }] },
+      s: [{ key: `cf:${id}`, dir: 'desc' as const }],
+      g: `cf:${id}`,
+    }
+    const params = writeUrlState(new URLSearchParams(), state)
+    expect(parseUrlState(params)).toEqual({ state, dropped: [] })
+  })
+
+  it('a malformed cf: sort or group is dropped like any invalid parameter', () => {
+    expect(parseUrlState(new URLSearchParams('s=cf:nope.asc')).dropped).toEqual(['s'])
+    expect(parseUrlState(new URLSearchParams('g=cf:nope')).dropped).toEqual(['g'])
+  })
+
+  it('finds the references of a config and removes them for "Remove from view"', () => {
+    const id = '11111111-1111-4111-8111-111111111111'
+    const other = '22222222-2222-4222-8222-222222222222'
+    const config = {
+      v: 1,
+      filter: {
+        op: 'AND',
+        items: [
+          { field: `cf:${id}`, op: 'is_set' },
+          { field: 'priority', op: 'any_of', value: ['URGENT'] },
+        ],
+      },
+      sort: [{ key: `cf:${id}`, dir: 'asc' }],
+      group: `cf:${other}`,
+      columns: [{ field: 'title' }, { field: `cf:${id}` }],
+    }
+    expect(customRefs(config).sort()).toEqual([`cf:${id}`, `cf:${other}`].sort())
+    const patch = withoutRefs(config, [`cf:${id}`])
+    expect(patch.f).toEqual({
+      op: 'AND',
+      items: [{ field: 'priority', op: 'any_of', value: ['URGENT'] }],
+    })
+    expect(patch.s).toEqual([{ key: 'manual', dir: 'asc' }])
+    expect(patch.g).toBe(`cf:${other}`)
+    expect(patch.c).toEqual([{ field: 'title' }])
   })
 })

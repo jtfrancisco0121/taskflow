@@ -1,0 +1,11 @@
+# Secret scan configuration (S1, decision 006). Used by scripts/secret-scan.sh and the `secrets` CI job.
+title = "taskflow gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documentation placeholders"
+regexes = [
+  '''tf_sk_\.\.\.''',
+]

@@ -127,9 +127,9 @@ Requirement IDs are stable. Agents and tests should reference them.
 
 **FIELD: Custom fields**
 
-- FIELD-1: Types: text, long text, number, dropdown, labels, date, checkbox, URL, email, rating, progress. Formula fields come later.
-- FIELD-2: A field defined at a location applies to every task below it. Definitions are inherited.
-- FIELD-3: Filter, sort, group and show fields in views.
+- FIELD-1: Types: text, long text, number, dropdown, labels, date, checkbox, URL, email, people, rating, progress. Formula fields come later. Status: done (3A).
+- FIELD-2: A field defined at a location applies to every task below it. Definitions are inherited. A lower location can hide an inherited field but not redefine its type. Status: done (3A).
+- FIELD-3: Filter, sort, group and show fields in views. Status: done (3A).
 
 **DEP: Dependencies**
 
@@ -187,7 +187,7 @@ This is modelled on ClickUp's personal API key, which carries its owner's full a
 ### 8.3 MCP server
 
 - MCP-1: An MCP endpoint (streamable HTTP) inside the API, authenticated by the same API key.
-- MCP-2: Tools: `search_tasks`, `get_task`, `create_task`, `update_task`, `move_task`, `delete_task`, `add_comment`, `list_locations`, `list_views`. Each is a thin wrapper over an existing service method.
+- MCP-2: Tools: `search_tasks`, `get_task`, `create_task`, `update_task`, `move_task`, `delete_task`, `add_comment`, `list_locations`, `list_views`, `list_custom_fields`. Each is a thin wrapper over an existing service method; `create_task` and `update_task` take custom field values, and `search_tasks` filters on them.
 - MCP-3: REST and MCP calls from a key share one per-minute limit.
 - MCP-4: `delete_task` moves a task to the 30-day trash.
 - MCP-5 (later): an OAuth flow so an agent can get a key after a user approves a consent screen.
