@@ -47,14 +47,31 @@ The defaults need no `.env`. To change one, run `cp .env.example .env` and edit 
 # 1. Infrastructure (add --env-file .env when you have a root .env)
 docker compose -f deploy/compose.yaml up -d --wait
 
-# 2. Backend (http://localhost:8080)
-cd backend && ./mvnw spring-boot:run
+# 2. Backend (http://localhost:8080). The `dev` profile supplies a development-only JWT secret.
+cd backend && SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 
 # 3. Frontend (http://localhost:5173), in another terminal
 cd frontend && npm ci && npm run dev
 ```
 
 The home page shows the backend version fetched from `GET /api/v1/meta`.
+
+### Backend settings
+
+Every setting has a default in `backend/src/main/resources/application.yml`, except the JWT secret, which has none outside the `dev` profile: the backend refuses to start without `TASKFLOW_JWT_SECRET` (at least 32 bytes, for example `openssl rand -base64 48`).
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `TASKFLOW_JWT_SECRET` | none (dev profile only) | Signs access tokens (HS256) |
+| `TASKFLOW_REDIS_HOST`, `TASKFLOW_REDIS_PORT` | `localhost`, `6379` | Rate limiting (sign-in) |
+| `TASKFLOW_MAIL_HOST`, `TASKFLOW_MAIL_PORT` | `localhost`, `1025` | SMTP for invite mail (Mailpit in development) |
+| `TASKFLOW_APP_URL` | `http://localhost:5173` | Base of the invite links |
+
+### Authentication
+
+`POST /api/v1/auth/signup` and `/signin` return a 15-minute access token in the body (send it as `Authorization: Bearer ...`) and set an HttpOnly, Secure, SameSite=Strict refresh cookie scoped to `/api/v1/auth`. `POST /api/v1/auth/refresh` rotates both; presenting an old refresh token revokes the whole session. Every other `/api/v1/**` endpoint needs the access token, except `GET /api/v1/meta` and `GET /api/v1/invites/{token}`. Roles are resolved per request, not stored in the token.
+
+Conventions for clients: errors are `application/problem+json` with a dotted `code`; a resource you cannot see answers 404, never 403; `PATCH`, move, delete and restore on a task need `If-Match` with the task's `ETag` (a stale one answers 409 with the current task); create endpoints accept an `Idempotency-Key` header; lists page with an opaque `cursor`. See [decision 002](docs/decisions/002-phase1-core-backend.md).
 
 | What | URL |
 | --- | --- |

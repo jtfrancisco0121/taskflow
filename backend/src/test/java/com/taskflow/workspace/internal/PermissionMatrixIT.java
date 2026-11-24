@@ -372,4 +372,30 @@ class PermissionMatrixIT extends IntegrationTest {
           .isEqualTo(204);
     }
   }
+
+  @Test
+  void inviteAndRevokeInvites_ownerAndAdminOnly() {
+    for (int i = 0; i < ROLES.size(); i++) {
+      Ws ws = workspaceWithAllRoles();
+      String role = ROLES.get(i);
+      String email = "matrix+" + UUID.randomUUID().toString().substring(0, 8) + "@example.com";
+      Resp invite =
+          post(
+              "/api/v1/workspaces/" + ws.id() + "/invites",
+              ws.by(role).token(),
+              Map.of("email", email, "role", "MEMBER"));
+      assertThat(invite.status()).as("invite as %s", role).isEqualTo(i < 2 ? 201 : 403);
+      Resp existing =
+          post(
+              "/api/v1/workspaces/" + ws.id() + "/invites",
+              ws.owner().token(),
+              Map.of("email", email + ".x", "role", "GUEST"));
+      assertThat(existing.status()).isEqualTo(201);
+      Resp revoke =
+          delete(
+              "/api/v1/workspaces/" + ws.id() + "/invites/" + existing.uuid("/id"),
+              ws.by(role).token());
+      assertThat(revoke.status()).as("revoke as %s", role).isEqualTo(i < 2 ? 204 : 403);
+    }
+  }
 }

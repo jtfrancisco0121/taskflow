@@ -122,6 +122,8 @@ erDiagram
 
 ### Permissions
 
+> Phase 1 deviates from this section: the evaluator lives in `workspace` (not `identity`), `RankService` is in `shared`, and jOOQ arrives in phase 2. See [decision 002](decisions/002-phase1-core-backend.md).
+
 A user has a workspace role. Private Spaces, Folders and Lists add explicit grants. A custom `PermissionEvaluator` resolves the effective permission by walking the `path` up to the nearest grant, and is called from `@PreAuthorize("@perm.canEdit(#taskId)")`. Cache the result per request. A service account is treated as a workspace admin by the same evaluator.
 
 ### View query engine

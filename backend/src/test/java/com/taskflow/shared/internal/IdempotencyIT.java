@@ -3,6 +3,7 @@ package com.taskflow.shared.internal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.taskflow.IntegrationTest;
+import com.taskflow.IntegrationTest.TestUser;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -222,5 +223,63 @@ class IdempotencyIT extends IntegrationTest {
             "Idempotency-Key",
             unique());
     assertThat(r.status()).isEqualTo(401);
+  }
+
+  @Test
+  void realCreateEndpointsHonourTheKeyForWorkspacesAndTasks() throws Exception {
+    TestUser owner = signUp("Idem");
+    String key = unique();
+    Resp first =
+        post("/api/v1/workspaces", owner.token(), Map.of("name", "Keyed"), "Idempotency-Key", key);
+    Resp replay =
+        post("/api/v1/workspaces", owner.token(), Map.of("name", "Keyed"), "Idempotency-Key", key);
+    Resp different =
+        post("/api/v1/workspaces", owner.token(), Map.of("name", "Other"), "Idempotency-Key", key);
+    assertThat(first.status()).isEqualTo(201);
+    assertThat(replay.raw()).isEqualTo(first.raw());
+    assertThat(different.status()).isEqualTo(422);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM workspace WHERE name = 'Keyed'", Integer.class))
+        .isEqualTo(1);
+
+    UUID space = space(owner, first.uuid("/id"), "S");
+    UUID list = list(owner, space, "L");
+    String taskKey = unique();
+    CompletableFuture<Resp> a =
+        CompletableFuture.supplyAsync(() ->
+            post(
+                "/api/v1/lists/" + list + "/tasks",
+                owner.token(),
+                Map.of("title", "Once"),
+                "Idempotency-Key",
+                taskKey));
+    CompletableFuture<Resp> b =
+        CompletableFuture.supplyAsync(() ->
+            post(
+                "/api/v1/lists/" + list + "/tasks",
+                owner.token(),
+                Map.of("title", "Once"),
+                "Idempotency-Key",
+                taskKey));
+    Resp ra = a.get();
+    Resp rb = b.get();
+    assertThat(java.util.List.of(ra.status(), rb.status())).allMatch(s -> s == 201 || s == 409);
+    assertThat(
+            jdbc.queryForObject("SELECT count(*) FROM task WHERE list_id = ?", Integer.class, list))
+        .isEqualTo(1);
+
+    String failKey = unique();
+    UUID missing = UUID.randomUUID();
+    assertThat(
+            post(
+                    "/api/v1/lists/" + missing + "/tasks",
+                    owner.token(),
+                    Map.of("title", "x"),
+                    "Idempotency-Key",
+                    failKey)
+                .status())
+        .isEqualTo(404);
+    assertThat(records(failKey)).isZero();
   }
 }
