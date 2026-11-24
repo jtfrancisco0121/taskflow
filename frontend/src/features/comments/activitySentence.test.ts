@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ActivityView } from '../../api/types'
-import { actorLabel, activitySentences, type NameLookup } from './activitySentence'
+import { actorLabel, activitySentences, relatedTaskIds, type NameLookup } from './activitySentence'
 
 const lookup: NameLookup = {
   statusName: (id) => ({ s1: 'To do', s2: 'Done' })[id],
@@ -169,5 +169,77 @@ describe('actorLabel', () => {
         actorKeyName: 'CI-1',
       } as ActivityView),
     ).toBe('triage-agent (key CI-1)')
+  })
+
+  describe('DEP relationships and blocker events', () => {
+    const tasks: NameLookup = {
+      ...lookup,
+      taskName: (id) => ({ b1: 'TF-87', b2: 'TF-12', gone: null })[id],
+    }
+
+    it('FR-9: an added or removed relationship names the relation and the other task', () => {
+      expect(
+        activitySentences(
+          entry('task.dependency_added', { relation: 'WAITING_ON', otherTaskId: 'b1' }),
+          tasks,
+        ),
+      ).toEqual(['added: waiting on TF-87'])
+      expect(
+        activitySentences(
+          entry('task.dependency_removed', { relation: 'LINKED', otherTaskId: 'b2' }),
+          tasks,
+        ),
+      ).toEqual(['removed: linked to TF-12'])
+      expect(
+        activitySentences(
+          entry('task.dependency_added', { relation: 'BLOCKING', otherTaskId: 'b1' }),
+          tasks,
+        ),
+      ).toEqual(['added: blocking TF-87'])
+    })
+
+    it('AD-6: a task the caller cannot read is "a task you can\'t see", never an id', () => {
+      const [line] = activitySentences(
+        entry('task.dependency_added', { relation: 'WAITING_ON', otherTaskId: 'gone' }),
+        tasks,
+      )
+      expect(line).toBe("added: waiting on a task you can't see")
+      expect(line).not.toMatch(UUID_RE)
+      // not resolved yet
+      expect(
+        activitySentences(
+          entry('task.dependency_added', { relation: 'WAITING_ON', otherTaskId: 'later' }),
+          tasks,
+        ),
+      ).toEqual(['added: waiting on another task'])
+    })
+
+    it('FR-8: a blocker that finished or came back reads as a sentence', () => {
+      const sentence = (type: string, payload: object) =>
+        activitySentences(entry(type, { blockerId: 'b1', ...payload }), tasks)
+      expect(
+        sentence('task.blocker_resolved', { reason: 'completed', stillBlocked: false }),
+      ).toEqual(['TF-87 was completed'])
+      expect(sentence('task.blocker_resolved', { reason: 'trashed', stillBlocked: false })).toEqual(
+        ['TF-87 was trashed'],
+      )
+      expect(
+        sentence('task.blocker_resolved', { reason: 'completed', stillBlocked: true }),
+      ).toEqual(['TF-87 was completed; still waiting on other tasks'])
+      expect(sentence('task.blocker_reopened', { reason: 'reopened' })).toEqual([
+        'TF-87 was reopened',
+      ])
+      expect(sentence('task.blocker_reopened', { reason: 'restored' })).toEqual([
+        'TF-87 was restored',
+      ])
+    })
+
+    it('lists the other task ids an entry needs resolved', () => {
+      expect(
+        relatedTaskIds(entry('task.dependency_added', { otherTaskId: 'b1', relation: 'LINKED' })),
+      ).toEqual(['b1'])
+      expect(relatedTaskIds(entry('task.blocker_resolved', { blockerId: 'b2' }))).toEqual(['b2'])
+      expect(relatedTaskIds(entry('task.updated', { otherTaskId: 'x' }))).toEqual([])
+    })
   })
 })

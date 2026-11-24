@@ -11,6 +11,7 @@ import { messageOf } from '../../api/errors'
 import type { FieldView, TaskView, ViewConfig } from '../../api/types'
 import { formatDateTime } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
+import { BlockedBadge } from '../dependencies'
 import { useLocationInfo } from '../locations'
 import { useLocationStatuses } from '../statuses'
 import { PRIORITIES, PRIORITY_LABEL, initialsOf } from '../tasks'
@@ -32,6 +33,7 @@ import {
   withWidth,
 } from './tableColumns'
 import { isCustomRef, type Column, type UrlState } from './urlState'
+import { useGuardedStatus } from './useGuardedStatus'
 import { useTaskActions } from './useTaskActions'
 import { useViewTasks } from './useViewTasks'
 
@@ -245,6 +247,7 @@ function Cell({
   custom?: FieldView
 }) {
   const actions = useTaskActions()
+  const guardedStatus = useGuardedStatus()
   const location = useLocation()
   const statuses = useLocationStatuses(task.workspaceId, task.listId)
   const { members } = useMembers(scope.workspaceId)
@@ -260,28 +263,35 @@ function Cell({
         <EditableText
           value={task.title ?? ''}
           label={`Title of ${id}`}
+          className="flex min-w-0 items-center gap-1"
           onSave={(title) => void actions.patch(task, { title })}
         >
           <Link
             to={`/t/${task.id}`}
             state={{ backgroundLocation: location }}
-            className="hover:underline"
+            className="truncate hover:underline"
           >
             {task.title}
           </Link>
+          <BlockedBadge blocked={task.blocked} count={task.blockerCount} />
         </EditableText>
       )
     case 'status':
       return (
-        <SelectCell
-          label={`Status of ${id}`}
-          value={task.statusId ?? ''}
-          options={(statuses.data?.statuses ?? []).map((s) => ({
-            value: s.id!,
-            label: s.name ?? '',
-          }))}
-          onChange={(statusId) => void actions.patch(task, { statusId })}
-        />
+        <>
+          <SelectCell
+            label={`Status of ${id}`}
+            value={task.statusId ?? ''}
+            options={(statuses.data?.statuses ?? []).map((s) => ({
+              value: s.id!,
+              label: s.name ?? '',
+            }))}
+            onChange={(statusId) =>
+              void guardedStatus.change(task, statusId, statuses.data?.statuses ?? [])
+            }
+          />
+          {guardedStatus.dialog}
+        </>
       )
     case 'priority':
       return (

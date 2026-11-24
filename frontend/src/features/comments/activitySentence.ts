@@ -5,6 +5,11 @@ import { formatDay } from '../../shared/dates'
 export type NameLookup = {
   statusName: (id: string) => string | undefined
   memberName: (id: string) => string | undefined
+  /**
+   * The readable id of another task: the id when the caller can read it, null when that read was
+   * refused (shown as "a task you can't see"), undefined while it is not known yet.
+   */
+  taskName?: (id: string) => string | null | undefined
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -84,6 +89,30 @@ export function actorLabel(entry: ActivityView): string {
   return name
 }
 
+const RELATION_PHRASE: Record<string, string> = {
+  WAITING_ON: 'waiting on',
+  BLOCKING: 'blocking',
+  LINKED: 'linked to',
+}
+
+function other(lookup: NameLookup, raw: unknown): string {
+  const id = typeof raw === 'string' ? raw : ''
+  const name = id ? lookup.taskName?.(id) : undefined
+  if (name === null) return "a task you can't see"
+  return name ?? 'another task'
+}
+
+/** The ids of the other tasks a relationship or blocker entry names (to resolve through reads). */
+export function relatedTaskIds(entry: ActivityView): string[] {
+  const payload = (entry.payload ?? {}) as { otherTaskId?: unknown; blockerId?: unknown }
+  const raw = entry.type?.startsWith('task.dependency_') ? payload.otherTaskId : payload.blockerId
+  return entry.type?.startsWith('task.dependency_') || entry.type?.startsWith('task.blocker_')
+    ? typeof raw === 'string'
+      ? [raw]
+      : []
+    : []
+}
+
 /** One sentence per changed field (a `task.updated` can carry several). */
 export function activitySentences(entry: ActivityView, lookup: NameLookup): string[] {
   switch (entry.type) {
@@ -109,6 +138,25 @@ export function activitySentences(entry: ActivityView, lookup: NameLookup): stri
       return ['moved this task to trash']
     case 'task.restored':
       return ['restored this task']
+    case 'task.dependency_added':
+    case 'task.dependency_removed': {
+      const payload = (entry.payload ?? {}) as { relation?: string; otherTaskId?: string }
+      const verb = entry.type === 'task.dependency_added' ? 'added' : 'removed'
+      const phrase = RELATION_PHRASE[payload.relation ?? ''] ?? 'related to'
+      return [`${verb}: ${phrase} ${other(lookup, payload.otherTaskId)}`]
+    }
+    case 'task.blocker_resolved':
+    case 'task.blocker_reopened': {
+      const payload = (entry.payload ?? {}) as {
+        blockerId?: string
+        reason?: string
+        stillBlocked?: boolean
+      }
+      const what =
+        payload.reason ?? (entry.type === 'task.blocker_resolved' ? 'completed' : 'reopened')
+      const line = `${other(lookup, payload.blockerId)} was ${what}`
+      return [payload.stillBlocked ? `${line}; still waiting on other tasks` : line]
+    }
     case 'comment.created':
       return ['commented']
     case 'comment.edited':

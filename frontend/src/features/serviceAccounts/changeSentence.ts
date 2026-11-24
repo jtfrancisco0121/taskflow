@@ -8,6 +8,8 @@ const KNOWN: Record<string, string> = {
   'task.duplicated': 'duplicated a task',
   'task.trashed': 'moved a task to the trash',
   'task.restored': 'restored a task',
+  'task.dependency_added': 'added a relationship',
+  'task.dependency_removed': 'removed a relationship',
   'comment.created': 'commented on a task',
   'comment.edited': 'edited a comment',
   'comment.deleted': 'deleted a comment',

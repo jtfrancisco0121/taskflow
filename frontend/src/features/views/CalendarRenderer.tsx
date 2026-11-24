@@ -11,6 +11,7 @@ import {
 } from '@dnd-kit/core'
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router'
+import { BlockedBadge } from '../dependencies'
 import { useViewParams } from './viewParams'
 import type { TaskView, ViewConfig, ViewFilter } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
@@ -224,7 +225,8 @@ function Chip({ task }: { task: TaskView }) {
         className="hover:underline"
       >
         {task.title}
-      </Link>
+      </Link>{' '}
+      <BlockedBadge blocked={task.blocked} count={task.blockerCount} iconOnly />
     </li>
   )
 }

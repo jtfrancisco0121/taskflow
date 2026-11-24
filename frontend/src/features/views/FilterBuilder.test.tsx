@@ -137,3 +137,23 @@ describe('FilterBuilder custom fields (FIELD-3, 3A S5)', () => {
     expect(last.items![0]).toMatchObject({ op: 'contains', value: 'urgent' })
   })
 })
+
+describe('FilterBuilder blocked (FR-7)', () => {
+  it('"Blocked" offers "is blocked" and "is not blocked" and takes no value', async () => {
+    let last: ViewFilter = {}
+    const user = userEvent.setup()
+    render(<Harness onFilter={(f) => (last = f)} />)
+    await pickField(user, 'Blocked')
+    expect(last.items![0]).toEqual({ field: 'blocked', op: 'is_true' })
+    const ops = Array.from(
+      (screen.getByLabelText('Filter operator') as HTMLSelectElement).options,
+    ).map((o) => [o.value, o.textContent])
+    expect(ops).toEqual([
+      ['is_true', 'is blocked'],
+      ['is_false', 'is not blocked'],
+    ])
+    expect(screen.queryByLabelText('Filter value')).not.toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText('Filter operator'), 'is_false')
+    expect(last.items![0]).toEqual({ field: 'blocked', op: 'is_false' })
+  })
+})

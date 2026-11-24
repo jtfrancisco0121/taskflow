@@ -4,6 +4,12 @@ import type { StatusInfo, TaskView } from '../../api/types'
 import { formatDay } from '../../shared/dates'
 import { RichTextEditor, isEmptyDoc, type RichDoc } from '../../shared/richtext'
 import { Button } from '../../shared/ui/Button'
+import {
+  BlockedBadge,
+  DependenciesSection,
+  completesTask,
+  useCompletionGuard,
+} from '../dependencies'
 import { formatValue, useLocationFields } from '../fields'
 import { useLocationStatuses } from '../statuses'
 import { useMembers } from '../workspace'
@@ -130,6 +136,7 @@ function TaskPanelBody({ task, panelRef, onClose, onKeyDown, children }: BodyPro
   const memberList = members.map((m) => ({ id: m.userId!, name: m.displayName ?? m.email ?? '' }))
   const customFields = useLocationFields(task.listId)
   const { hints, set } = useFieldHints()
+  const guard = useCompletionGuard()
   const [conflict, setConflict] = useState<TaskPatch | null>(null)
   const titleRef = useRef<HTMLInputElement>(null)
 
@@ -206,7 +213,20 @@ function TaskPanelBody({ task, panelRef, onClose, onKeyDown, children }: BodyPro
       }))
     : []
 
-  const common = { task, hints, save }
+  /** A status change that completes a blocked task asks first; Cancel sends nothing (FR-6). */
+  async function guardedSave(field: string, label: string, patch: TaskPatch): Promise<boolean> {
+    if (patch.statusId) {
+      const group = (id: string | undefined) => statusList.find((s) => s.id === id)?.group
+      try {
+        await guard.confirm(task, completesTask(group(task.statusId), group(patch.statusId)))
+      } catch {
+        return false
+      }
+    }
+    return save(field, label, patch)
+  }
+
+  const common = { task, hints, save: guardedSave }
   return (
     <aside
       ref={panelRef}
@@ -216,7 +236,21 @@ function TaskPanelBody({ task, panelRef, onClose, onKeyDown, children }: BodyPro
       className="flex max-h-screen w-96 shrink-0 flex-col gap-3 overflow-auto border-l border-slate-200 bg-white p-4"
     >
       <header className="flex items-center justify-between">
-        <span className="font-mono text-sm text-slate-500">{task.readableId}</span>
+        <span className="flex items-center gap-2">
+          <span className="font-mono text-sm text-slate-500">{task.readableId}</span>
+          {task.blocked && (
+            <button
+              type="button"
+              aria-label="Show dependencies"
+              onClick={() =>
+                document.getElementById('dependencies')?.scrollIntoView?.({ block: 'nearest' })
+              }
+              className="rounded"
+            >
+              <BlockedBadge blocked count={task.blockerCount} showCount />
+            </button>
+          )}
+        </span>
         <button
           type="button"
           aria-label="Close task panel"
@@ -249,7 +283,9 @@ function TaskPanelBody({ task, panelRef, onClose, onKeyDown, children }: BodyPro
       <AssigneesField {...common} members={memberList} />
       <DescriptionField {...common} members={memberList} />
       <CustomFieldsGroup {...common} />
+      <DependenciesSection task={task} />
       {children?.(task)}
+      {guard.dialog}
     </aside>
   )
 }

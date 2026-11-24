@@ -20,6 +20,7 @@ import { api } from '../../api/client'
 import { queryKeys } from '../../api/queryKeys'
 import type { FieldView, TaskView, ViewConfig, ViewQueryResponse } from '../../api/types'
 import { formatDay } from '../../shared/dates'
+import { BlockedBadge, completesTask, useCompletionGuard } from '../dependencies'
 import { ValueChip } from '../fields'
 import { useLocationStatuses } from '../statuses'
 import { PRIORITY_LABEL, initialsOf, useOptimisticTaskMutation } from '../tasks'
@@ -54,6 +55,7 @@ export function BoardRenderer({
 }) {
   const queryClient = useQueryClient()
   const run = useOptimisticTaskMutation()
+  const guard = useCompletionGuard()
   const scopeFields = useScopeFields(scope)
   const chipFields = customColumns(config.columns, scopeFields.byId).map((c) => c.field)
   const boardConfig: ViewConfig = {
@@ -124,6 +126,27 @@ export function BoardRenderer({
   function drop(taskId: string, from: string, to: string, overTask: string | null) {
     const card = columnItems(from).find((t) => t.id === taskId)
     if (!card) return
+    // A drop that completes a blocked card asks first; Cancel changes nothing, so the card stays.
+    const groupOf = (name: string) =>
+      statuses.data?.statuses?.find((s) => (s.name ?? '').trim().toLowerCase() === name)?.group
+    const completes = group === 'status' && from !== to && completesTask(groupOf(from), groupOf(to))
+    if (completes && card.blocked) {
+      guard.confirm(card, true).then(
+        () => performDrop(card, taskId, from, to, overTask),
+        () => undefined,
+      )
+      return
+    }
+    performDrop(card, taskId, from, to, overTask)
+  }
+
+  function performDrop(
+    card: TaskView,
+    taskId: string,
+    from: string,
+    to: string,
+    overTask: string | null,
+  ) {
     const all: Record<string, TaskView[]> = { [from]: columnItems(from), [to]: columnItems(to) }
     const plan = planDrop(all, card, from, to, overTask, manual)
     if (from === to && plan.body.keepRank && !manual) return // nothing to say
@@ -228,6 +251,7 @@ export function BoardRenderer({
             ))}
         </div>
       </DndContext>
+      {guard.dialog}
     </>
   )
 }
@@ -337,6 +361,7 @@ function Card({
       </Link>
       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
         <span className="font-mono">{task.readableId}</span>
+        <BlockedBadge blocked={task.blocked} count={task.blockerCount} />
         {priority !== 'NONE' && (
           <span className={`rounded px-1 ${PRIORITY_CLASS[priority]}`}>
             {PRIORITY_LABEL[priority]}

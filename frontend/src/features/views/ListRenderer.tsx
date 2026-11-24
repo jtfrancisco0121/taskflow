@@ -5,6 +5,7 @@ import { messageOf } from '../../api/errors'
 import type { FieldView, TaskView, ViewConfig } from '../../api/types'
 import { formatDay } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
+import { BlockedBadge } from '../dependencies'
 import { useLocationStatuses } from '../statuses'
 import { PRIORITIES, PRIORITY_LABEL, initialsOf } from '../tasks'
 import { useMembers } from '../workspace'
@@ -18,6 +19,7 @@ import type { Column, UrlState } from './urlState'
 import type { ViewScope } from './scope'
 import { observeRect } from './virtualRect'
 import { useScopeFields, customColumns } from './useScopeFields'
+import { useGuardedStatus } from './useGuardedStatus'
 import { useTaskActions } from './useTaskActions'
 import { useViewTasks } from './useViewTasks'
 import { useViewStore } from './viewStore'
@@ -214,6 +216,7 @@ function TaskLine({
   template: string
 }) {
   const actions = useTaskActions()
+  const guardedStatus = useGuardedStatus()
   const navigate = useNavigate()
   const location = useLocation()
   const onTaskRoute = useMatch('/t/:taskId') !== null
@@ -254,24 +257,28 @@ function TaskLine({
       <EditableText
         value={task.title ?? ''}
         label={`Title of ${task.readableId}`}
-        className="truncate"
+        className="flex min-w-0 items-center gap-1"
         onSave={(title) => void actions.patch(task, { title })}
       >
         <Link
           to={`/t/${task.id}`}
           state={linkState}
           onClick={(e) => e.stopPropagation()}
-          className="hover:underline focus:outline-2 focus:outline-blue-600"
+          className="truncate hover:underline focus:outline-2 focus:outline-blue-600"
         >
           {task.title}
         </Link>
+        <BlockedBadge blocked={task.blocked} count={task.blockerCount} />
       </EditableText>
       <SelectCell
         label={`Status of ${task.readableId}`}
         value={task.statusId ?? ''}
         options={options}
-        onChange={(statusId) => void actions.patch(task, { statusId })}
+        onChange={(statusId) =>
+          void guardedStatus.change(task, statusId, statuses.data?.statuses ?? [])
+        }
       />
+      {guardedStatus.dialog}
       <SelectCell
         label={`Priority of ${task.readableId}`}
         value={task.priority ?? 'NONE'}
