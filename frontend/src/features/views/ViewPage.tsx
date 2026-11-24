@@ -140,6 +140,7 @@ function ViewBody({
         config={config}
         update={state.update}
         showGrouping={current.type !== 'TABLE' && current.type !== 'CALENDAR'}
+        customGroups={current.type !== 'BOARD'}
       />
       {current.type === 'BOARD' && (
         <BoardRenderer scope={scope} config={config} update={state.update} />

@@ -23,6 +23,14 @@ export function groupLabel(
   serverLabel: string | undefined,
   members: Map<string, string>,
 ): string {
+  // A custom field group: date buckets read like the due date's, the empty group is "No value".
+  if (group?.startsWith('cf:')) {
+    return DUE_LABEL[key] && key !== 'none'
+      ? DUE_LABEL[key]
+      : key === 'none'
+        ? 'No value'
+        : (serverLabel ?? key)
+  }
   switch (group) {
     case 'priority':
       return PRIORITY_LABEL[key as Priority] === '—'

@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import {
   BIG_LIST,
   CUSTOM_FIELDS,
+  LOAD_FIELD,
   STRUCTURE,
   assigneeIndexFor,
   commentText,
@@ -11,6 +12,7 @@ import {
   hasComment,
   hasSubtask,
   keyFor,
+  loadScoreFor,
   priorityFor,
   statusIndexFor,
   storyPointsFor,
@@ -76,4 +78,11 @@ test('the demo custom fields are Story points (Number) and Customer tier (Dropdo
   assert.ok(tiers.includes(undefined))
   assert.deepEqual(new Set(tiers.filter(Boolean)), new Set(CUSTOM_FIELDS[1].options))
   for (let i = 0; i < 30; i++) assert.equal(tierFor(i), tierFor(i))
+})
+
+test('the big List has a Load score Number field with values on most tasks', () => {
+  assert.deepEqual([LOAD_FIELD.name, LOAD_FIELD.type], ['Load score', 'NUMBER'])
+  const scores = Array.from({ length: 50 }, (_, i) => loadScoreFor(i))
+  assert.ok(scores.includes(undefined))
+  assert.ok(scores.filter((s) => s !== undefined).every((s) => s >= 0 && s < 1000))
 })

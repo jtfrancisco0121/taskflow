@@ -16,6 +16,7 @@ import { useLocationStatuses } from '../statuses'
 import { PRIORITIES, PRIORITY_LABEL, initialsOf } from '../tasks'
 import { useMembers } from '../workspace'
 import { ColumnsPicker } from './ColumnsPicker'
+import { DroppedNotice, NoMatches, hasFilter } from './ResultNotices'
 import { DateCell, EditableText, MultiPickCell, SelectCell, TagsCell } from './cells'
 import { FieldCell } from './FieldCell'
 import { useScopeFields } from './useScopeFields'
@@ -136,14 +137,16 @@ export function TableRenderer({
 
   if (query.isError) {
     return (
-      <p role="alert" className="text-red-700">
+      <p role="alert" className="flex items-center gap-2 text-red-700">
         {messageOf(query.error)}
+        <Button onClick={() => void query.refetch()}>Retry</Button>
       </p>
     )
   }
 
   return (
     <div>
+      <DroppedNotice dropped={query.droppedFields} config={config} update={update} />
       <ColumnsPicker columns={columns} fields={fields} builtIn onChange={setColumns} />
       <div role="grid" aria-label="Tasks table" aria-rowcount={rows.length}>
         <div
@@ -220,6 +223,7 @@ export function TableRenderer({
           </div>
         </div>
       </div>
+      {query.isSuccess && rows.length === 0 && hasFilter(config) && <NoMatches update={update} />}
       {hasNextPage && (
         <Button className="mt-2" disabled={isFetchingNextPage} onClick={() => void fetchNextPage()}>
           Load more

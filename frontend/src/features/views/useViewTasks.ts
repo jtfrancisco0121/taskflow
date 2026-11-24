@@ -50,5 +50,6 @@ export function useViewTasks(
     })
   }, [pages])
   const groups = query.data?.pages[0]?.groups
-  return { ...query, items, groups }
+  const droppedFields = query.data?.pages[0]?.droppedFields ?? []
+  return { ...query, items, groups, droppedFields }
 }

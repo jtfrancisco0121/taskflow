@@ -13,6 +13,7 @@ import { ColumnsPicker } from './ColumnsPicker'
 import { DateCell, EditableText, MultiPickCell, SelectCell, TagsCell } from './cells'
 import { FieldCell } from './FieldCell'
 import { groupLabel } from './groupLabels'
+import { DroppedNotice, NoMatches, hasFilter } from './ResultNotices'
 import type { Column, UrlState } from './urlState'
 import type { ViewScope } from './scope'
 import { observeRect } from './virtualRect'
@@ -94,14 +95,16 @@ export function ListRenderer({
   }
   if (query.isError) {
     return (
-      <p role="alert" className="text-red-700">
+      <p role="alert" className="flex items-center gap-2 text-red-700">
         {messageOf(query.error)}
+        <Button onClick={() => void query.refetch()}>Retry</Button>
       </p>
     )
   }
 
   return (
     <div>
+      <DroppedNotice dropped={query.droppedFields} config={config} update={update} />
       {update && (
         <ColumnsPicker
           columns={(config.columns as Column[] | undefined) ?? [{ field: 'title' }]}
@@ -115,7 +118,12 @@ export function ListRenderer({
         tasks={query.items.flatMap((i) => (i.task ? [i.task] : []))}
         members={members}
       />
-      {rows.length === 0 && <p className="mb-2 text-slate-600">{empty}</p>}
+      {rows.length === 0 &&
+        (hasFilter(config) ? (
+          <NoMatches update={update} />
+        ) : (
+          <p className="mb-2 text-slate-600">{empty}</p>
+        ))}
       {rows.length > 0 && (
         <div role="table" aria-label="Tasks" aria-rowcount={rows.length}>
           <div

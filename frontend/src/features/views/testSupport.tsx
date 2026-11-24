@@ -1,3 +1,4 @@
+import type { FieldView } from '../../api/types'
 import { json } from '../../test/api'
 
 /** Fixtures shared by the view tests. */
@@ -46,7 +47,7 @@ const pointsId = '22222222-2222-4222-8222-222222222222'
 
 /** Two custom fields of the List "l1" (3A): a Dropdown and a Number, defined at the Space "Engineering". */
 export const customFieldIds = { tier: tierId, points: pointsId }
-export const customFields = [
+export const customFields: FieldView[] = [
   {
     id: tierId,
     name: 'Customer tier',

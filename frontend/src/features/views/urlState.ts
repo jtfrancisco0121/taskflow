@@ -90,7 +90,9 @@ function decodeSort(text: string): Sort[] | undefined {
   const out: Sort[] = []
   for (const part of text.split(',')) {
     const [key, dir] = part.split('.')
-    if (!SORT_KEYS.includes(key) || (dir !== 'asc' && dir !== 'desc')) return undefined
+    if (!(SORT_KEYS.includes(key) || isCustomRef(key)) || (dir !== 'asc' && dir !== 'desc')) {
+      return undefined
+    }
     out.push({ key, dir })
   }
   return out.length >= 1 && out.length <= 2 ? out : undefined
@@ -129,7 +131,7 @@ export function parseUrlState(params: URLSearchParams): { state: UrlState; dropp
   }
   const g = params.get('g')
   if (g !== null) {
-    if (GROUPS.includes(g)) state.g = g
+    if (GROUPS.includes(g) || isCustomRef(g)) state.g = g
     else dropped.push('g')
   }
   const s = params.get('s')
@@ -198,4 +200,38 @@ export function configHash(config: ViewConfig): string {
   let h = 5381
   for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0
   return (h >>> 0).toString(36)
+}
+
+/** The `cf:` references a config uses in its filter, sort, group and columns. */
+export function customRefs(config: ViewConfig): string[] {
+  const refs = new Set<string>()
+  const walk = (f: ViewFilter | undefined) => {
+    if (!f) return
+    if (f.items) f.items.forEach(walk)
+    else if (f.field && isCustomRef(f.field)) refs.add(f.field)
+  }
+  walk(config.filter)
+  config.sort?.forEach((s) => s.key && isCustomRef(s.key) && refs.add(s.key))
+  if (config.group && isCustomRef(config.group)) refs.add(config.group)
+  config.columns?.forEach((c) => c.field && isCustomRef(c.field) && refs.add(c.field))
+  return [...refs]
+}
+
+/** What to put in the URL so the given references are gone from the config ("Remove from view"). */
+export function withoutRefs(config: ViewConfig, gone: string[]): Partial<UrlState> {
+  const drop = new Set(gone)
+  const prune = (f: ViewFilter | undefined): ViewFilter | undefined => {
+    if (!f) return undefined
+    if (!f.items) return f.field && drop.has(f.field) ? undefined : f
+    const items = f.items.flatMap((i) => prune(i) ?? [])
+    return items.length ? { ...f, items } : undefined
+  }
+  const sort = (config.sort ?? []).filter((s) => !(s.key && drop.has(s.key)))
+  const columns = (config.columns ?? []).filter((c) => !(c.field && drop.has(c.field)))
+  return {
+    f: prune(config.filter) ?? { op: 'AND', items: [] },
+    s: sort.length ? (sort as Sort[]) : [{ key: 'manual', dir: 'asc' }],
+    g: config.group && drop.has(config.group) ? 'none' : config.group,
+    ...(columns.length ? { c: columns as Column[] } : {}),
+  }
 }

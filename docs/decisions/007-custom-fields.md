@@ -83,3 +83,26 @@ Status: accepted (built in slices 3A S2..S8; this record grows with each). Conte
     loop (thousands of renders per second) and starved router transitions, so a URL parameter change such as
     a new column never showed. `useViewTasks` now returns a memoised `items` array and the Table memoises
     its task list.
+19. **Filters, sorts and groups come from `field.CustomFieldSql` (AD-1, AD-8).** `view` never parses a
+    custom value. Each predicate, sort key and group key is built with bind values only and wrapped in the
+    scope guard `l.path <@ <definedAt path> AND NOT l.path <@ ANY(<hiding paths>)` (paths resolved in Java
+    through `LocationTree`), so a value of a field that is hidden below or that a moved task left behind
+    is empty for every consumer, as reads omit it. Predicates use `@>` containment where the type allows
+    it (the GIN index) and `coalesce(..., false)` so a negated operator (`none_of`, `not_contains`, `neq`,
+    `is_empty`, `is_unchecked`) matches empty and out-of-scope values instead of dropping them under SQL
+    three-valued logic. `neq` and `none_of` therefore include tasks without a value.
+20. **Sort and group rules.** Sortable: Text, Number, Date, Dropdown (option order), Checkbox (checked
+    first), URL, Email, Rating, Progress; not Long text or Labels. Groupable: Dropdown (live Options in
+    order, then the empty group `none`), Checkbox (`checked`, `unchecked`), Rating (value, then `none`),
+    Date (the same buckets as the due date). Empty values sort last in both directions; the keyset cursor
+    carries the sort value's text form and the compiler casts it back to the key's type (numeric, timestamp,
+    integer or text), with the task id as the last key.
+21. **References to fields that are not live.** A query drops `cf:` references to a retired, unknown or
+    off-branch field from the filter, sort, group and columns and lists them in `droppedFields`
+    (`{ref, name}`); the UI names them and offers "Remove from view". Saving a view (`POST`/`PATCH
+    /views`) refuses such a reference (400 `view.invalid_config`): the field must be defined at the scope,
+    an ancestor or a descendant (at Workspace scope any live field of the Workspace; there is no single
+    branch there). Operators and values are checked against the field's type in both paths.
+22. **Deviation: the Table view has no grouping.** The existing Table renderer ignores grouping (the toolbar
+    offers none for it), so "group by" a custom field is shown in the List view, where grouped rows exist;
+    Board columns stay status, priority or assignee. Filter and sort work in every view type.

@@ -26,6 +26,7 @@ import { PRIORITY_LABEL, initialsOf, useOptimisticTaskMutation } from '../tasks'
 import { useMembers } from '../workspace'
 import { insertItem, planDrop, removeItem, targetFields } from './boardPlan'
 import { ColumnsPicker } from './ColumnsPicker'
+import { DroppedNotice, NoMatches, hasFilter } from './ResultNotices'
 import { groupLabel } from './groupLabels'
 import { scopeId, type ViewScope } from './scope'
 import { configHash, type Column as ConfigColumn, type UrlState } from './urlState'
@@ -180,6 +181,7 @@ export function BoardRenderer({
 
   return (
     <>
+      <DroppedNotice dropped={lead.droppedFields} config={config} update={update} />
       {update && (
         <ColumnsPicker
           columns={(config.columns as ConfigColumn[] | undefined) ?? [{ field: 'title' }]}
@@ -217,9 +219,13 @@ export function BoardRenderer({
               chipFields={chipFields}
             />
           ))}
-          {lead.isSuccess && columns.length === 0 && (
-            <p className="text-slate-600">No tasks in this view.</p>
-          )}
+          {lead.isSuccess &&
+            columns.length === 0 &&
+            (hasFilter(config) ? (
+              <NoMatches update={update} />
+            ) : (
+              <p className="text-slate-600">No tasks in this view.</p>
+            ))}
         </div>
       </DndContext>
     </>

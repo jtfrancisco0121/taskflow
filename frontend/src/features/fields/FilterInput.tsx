@@ -1,0 +1,167 @@
+import { useState } from 'react'
+import type { FieldView } from '../../api/types'
+import { isValueless } from './filterOps'
+
+type FilterInputProps = {
+  field: FieldView
+  op: string
+  value: unknown
+  onChange: (value: unknown) => void
+}
+
+const input = 'rounded border border-slate-300 px-1 py-0.5 text-sm'
+const RELATIVE = [
+  ['today', 'today'],
+  ['this_week', 'this week'],
+  ['next_7_days', 'next 7 days'],
+]
+
+/** A number box that keeps what is typed ("1.") and reports only valid numbers. */
+function NumberBox({
+  label,
+  value,
+  onChange,
+  className,
+}: {
+  label: string
+  value: unknown
+  onChange: (next: number) => void
+  className: string
+}) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const shown = draft ?? (typeof value === 'number' ? String(value) : '')
+  return (
+    <input
+      aria-label={label}
+      inputMode="decimal"
+      className={className}
+      value={shown}
+      onChange={(event) => {
+        const text = event.target.value
+        setDraft(text)
+        const n = Number(text.replace(',', '.'))
+        if (text.trim() !== '' && Number.isFinite(n)) onChange(n)
+      }}
+      onBlur={() => setDraft(null)}
+    />
+  )
+}
+
+/** A day: a calendar day, or one of the relative values the server resolves each day. */
+function DayInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: unknown
+  onChange: (next: string) => void
+}) {
+  const text = typeof value === 'string' ? value : ''
+  const relative = RELATIVE.some(([v]) => v === text)
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input
+        type="date"
+        aria-label={label}
+        className={input}
+        value={relative ? '' : text}
+        onChange={(event) => event.target.value && onChange(event.target.value)}
+      />
+      <select
+        aria-label={`${label} (relative)`}
+        className={input}
+        value={relative ? text : ''}
+        onChange={(event) => event.target.value && onChange(event.target.value)}
+      >
+        <option value="">or relative…</option>
+        {RELATIVE.map(([v, l]) => (
+          <option key={v} value={v}>
+            {l}
+          </option>
+        ))}
+      </select>
+    </span>
+  )
+}
+
+/** The value input of a custom field filter condition (AD-12), by the field's type and operator. */
+export function FilterInput({ field, op, value, onChange }: FilterInputProps) {
+  if (isValueless(op)) return null
+  const list = Array.isArray(value) ? value : []
+  if (['contains', 'not_contains'].includes(op)) {
+    return (
+      <input
+        aria-label="Filter value"
+        className={input}
+        value={typeof value === 'string' ? value : ''}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    )
+  }
+  if (['any_of', 'all_of', 'none_of'].includes(op)) {
+    const selected = list as string[]
+    return (
+      <span role="group" aria-label="Filter value" className="flex flex-wrap gap-2">
+        {field.options?.map((option) => (
+          <label key={option.id} className="flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={selected.includes(option.id!)}
+              onChange={(event) =>
+                onChange(
+                  event.target.checked
+                    ? [...selected, option.id!]
+                    : selected.filter((id) => id !== option.id),
+                )
+              }
+            />
+            {option.name}
+          </label>
+        ))}
+      </span>
+    )
+  }
+  if (field.type === 'DATE') {
+    if (op === 'between') {
+      return (
+        <span className="inline-flex items-center gap-1">
+          <DayInput
+            label="Filter value from"
+            value={list[0]}
+            onChange={(day) => onChange([day, list[1] ?? day])}
+          />
+          and
+          <DayInput
+            label="Filter value to"
+            value={list[1]}
+            onChange={(day) => onChange([list[0] ?? day, day])}
+          />
+        </span>
+      )
+    }
+    return <DayInput label="Filter value" value={value} onChange={onChange} />
+  }
+  if (op === 'between') {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <NumberBox
+          label="Filter value from"
+          className={`${input} w-20`}
+          value={list[0]}
+          onChange={(n) => onChange([n, list[1] ?? n])}
+        />
+        and
+        <NumberBox
+          label="Filter value to"
+          className={`${input} w-20`}
+          value={list[1]}
+          onChange={(n) => onChange([list[0] ?? n, n])}
+        />
+      </span>
+    )
+  }
+  return (
+    <NumberBox label="Filter value" className={`${input} w-24`} value={value} onChange={onChange} />
+  )
+}
