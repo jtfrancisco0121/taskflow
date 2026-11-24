@@ -1,0 +1,4 @@
+# Development only (SPRING_PROFILES_ACTIVE=dev). Never use this secret anywhere else.
+taskflow:
+  jwt:
+    secret: ${TASKFLOW_JWT_SECRET:dev-only-secret-do-not-use-in-production-0123456789}

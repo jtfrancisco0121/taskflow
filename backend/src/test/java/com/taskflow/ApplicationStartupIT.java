@@ -26,11 +26,14 @@ class ApplicationStartupIT {
   }
 
   @Test
-  void flywayAppliedOneSuccessfulMigration() {
-    Integer count =
+  void flywayAppliedEveryMigrationSuccessfully() {
+    Integer failed =
         jdbc.queryForObject(
-            "SELECT count(*) FROM flyway_schema_history WHERE success", Integer.class);
-    assertThat(count).isEqualTo(1);
+            "SELECT count(*) FROM flyway_schema_history WHERE NOT success", Integer.class);
+    List<String> applied =
+        jdbc.queryForList("SELECT script FROM flyway_schema_history WHERE success", String.class);
+    assertThat(failed).isZero();
+    assertThat(applied).contains("V202611240900__shared_enable_ltree.sql");
   }
 
   @Test
