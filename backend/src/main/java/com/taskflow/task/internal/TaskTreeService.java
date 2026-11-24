@@ -189,7 +189,7 @@ class TaskTreeService {
           "task",
           id,
           "task.moved",
-          Map.of("version", newVersion, "changes", all));
+          Map.of("version", newVersion, "listId", targetListId.toString(), "changes", all));
       return repo.view(id);
     }
     List<TaskRepository.SubRow> subtree = repo.subtree(id, false);
@@ -221,7 +221,15 @@ class TaskTreeService {
         "task",
         id,
         "task.moved",
-        Map.of("version", newVersion, "changes", rootChanges));
+        Map.of(
+            "version",
+            newVersion,
+            "listId",
+            targetListId.toString(),
+            "fromListId",
+            task.listId().toString(),
+            "changes",
+            rootChanges));
     for (TaskRepository.SubRow sub : subtree) {
       if (sub.id().equals(id)) {
         continue;
@@ -244,7 +252,15 @@ class TaskTreeService {
           "task",
           child.id(),
           "task.moved",
-          Map.of("version", child.version() + 1, "changes", childChanges));
+          Map.of(
+              "version",
+              child.version() + 1,
+              "listId",
+              targetListId.toString(),
+              "fromListId",
+              child.listId().toString(),
+              "changes",
+              childChanges));
     }
     return repo.view(id);
   }
@@ -355,7 +371,15 @@ class TaskTreeService {
           "task",
           copyId,
           root ? "task.duplicated" : "task.created",
-          Map.of("version", 1, "number", number, "duplicatedFrom", row.id().toString()));
+          Map.of(
+              "version",
+              1,
+              "listId",
+              target.toString(),
+              "number",
+              number,
+              "duplicatedFrom",
+              row.id().toString()));
       if (root) {
         rootCopy = copyId;
       }
@@ -418,7 +442,13 @@ class TaskTreeService {
         "task",
         id,
         "task.trashed",
-        Map.of("version", expectedVersion + 1, "batchId", batch.toString()));
+        Map.of(
+            "version",
+            expectedVersion + 1,
+            "listId",
+            task.listId().toString(),
+            "batchId",
+            batch.toString()));
     for (TaskRepository.SubRow sub : repo.subtree(id, true)) {
       if (sub.id().equals(id)) {
         continue;
@@ -434,7 +464,13 @@ class TaskTreeService {
           "task",
           child.id(),
           "task.trashed",
-          Map.of("version", child.version() + 1, "batchId", batch.toString()));
+          Map.of(
+              "version",
+              child.version() + 1,
+              "listId",
+              child.listId().toString(),
+              "batchId",
+              batch.toString()));
     }
   }
 
@@ -477,7 +513,11 @@ class TaskTreeService {
       throw tasks.conflict(repo.find(id).orElseThrow());
     }
     events.record(
-        task.workspaceId(), "task", id, "task.restored", Map.of("version", expectedVersion + 1));
+        task.workspaceId(),
+        "task",
+        id,
+        "task.restored",
+        Map.of("version", expectedVersion + 1, "listId", task.listId().toString()));
     for (TaskRepository.Row row : batch) {
       if (row.id().equals(id)) {
         continue;
@@ -491,7 +531,7 @@ class TaskTreeService {
           "task",
           row.id(),
           "task.restored",
-          Map.of("version", row.version() + 1));
+          Map.of("version", row.version() + 1, "listId", row.listId().toString()));
     }
     return repo.view(id);
   }

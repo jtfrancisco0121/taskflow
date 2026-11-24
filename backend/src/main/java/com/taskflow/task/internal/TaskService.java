@@ -163,7 +163,7 @@ class TaskService {
         "task",
         id,
         "task.created",
-        Map.of("version", 1, "number", number, "changes", changes));
+        Map.of("version", 1, "listId", listId.toString(), "number", number, "changes", changes));
     return repo.view(id);
   }
 
@@ -313,7 +313,13 @@ class TaskService {
         "task",
         id,
         statusOnly ? "task.status_changed" : "task.updated",
-        Map.of("version", expectedVersion + 1, "changes", changes));
+        Map.of(
+            "version",
+            expectedVersion + 1,
+            "listId",
+            current.listId().toString(),
+            "changes",
+            changes));
     return repo.view(id);
   }
 

@@ -199,13 +199,14 @@ class ChecklistService {
 
   /** Bumps the task version and records checklist.changed on the task (AD-7, AD-11). */
   private void touch(UUID workspaceId, UUID taskId, String action, UUID checklistId, UUID itemId) {
-    Long version =
-        jdbc.queryForObject(
-            "UPDATE task SET version = version + 1, updated_at = now() WHERE id = ? RETURNING version",
-            Long.class,
+    Map<String, Object> bumped =
+        jdbc.queryForMap(
+            "UPDATE task SET version = version + 1, updated_at = now() WHERE id = ? RETURNING"
+                + " version, list_id",
             taskId);
     Map<String, Object> payload = new LinkedHashMap<>();
-    payload.put("version", version);
+    payload.put("version", bumped.get("version"));
+    payload.put("listId", bumped.get("list_id").toString());
     payload.put("action", action);
     payload.put("checklistId", checklistId.toString());
     if (itemId != null) {

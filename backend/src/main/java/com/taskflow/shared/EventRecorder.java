@@ -2,6 +2,7 @@ package com.taskflow.shared;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.taskflow.shared.internal.ClientIdHolder;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -34,8 +35,19 @@ public class EventRecorder {
       Map<String, Object> payload,
       Actor actor) {
     String json;
+    String outboxJson;
     try {
-      json = mapper.writeValueAsString(payload == null ? Map.of() : payload);
+      Map<String, Object> body = payload == null ? Map.of() : payload;
+      json = mapper.writeValueAsString(body);
+      // The client id is a tab id, not activity: it rides on the outbox row only (AD-12).
+      var clientId = ClientIdHolder.current();
+      if (clientId.isPresent()) {
+        Map<String, Object> withClient = new java.util.LinkedHashMap<>(body);
+        withClient.put("clientId", clientId.get().toString());
+        outboxJson = mapper.writeValueAsString(withClient);
+      } else {
+        outboxJson = json;
+      }
     } catch (JsonProcessingException e) {
       throw new IllegalArgumentException("event payload is not serializable", e);
     }
@@ -47,7 +59,7 @@ public class EventRecorder {
         entity,
         entityId,
         type,
-        json,
+        outboxJson,
         actor.type().name(),
         actor.id());
     jdbc.update(

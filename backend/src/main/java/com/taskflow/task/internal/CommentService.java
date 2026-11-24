@@ -122,7 +122,8 @@ class CommentService {
         "task",
         taskId,
         "comment.created",
-        Map.of(
+        withTask(
+            taskId,
             "commentId",
             id.toString(),
             "mentions",
@@ -148,7 +149,8 @@ class CommentService {
         "task",
         row.taskId(),
         "comment.edited",
-        Map.of(
+        withTask(
+            row.taskId(),
             "commentId",
             commentId.toString(),
             "mentions",
@@ -165,7 +167,23 @@ class CommentService {
         "task",
         row.taskId(),
         "comment.deleted",
-        Map.of("commentId", commentId.toString()));
+        withTask(row.taskId(), "commentId", commentId.toString()));
+  }
+
+  /** A comment event is recorded on the task, so it carries the task's version and List (AD-12). */
+  private Map<String, Object> withTask(UUID taskId, Object... extra) {
+    Map<String, Object> m = new java.util.LinkedHashMap<>();
+    jdbc.query(
+        "SELECT version, list_id FROM task WHERE id = ?",
+        rs -> {
+          m.put("version", rs.getLong("version"));
+          m.put("listId", rs.getObject("list_id", UUID.class).toString());
+        },
+        taskId);
+    for (int i = 0; i + 1 < extra.length; i += 2) {
+      m.put((String) extra[i], extra[i + 1]);
+    }
+    return m;
   }
 
   @Transactional(readOnly = true)

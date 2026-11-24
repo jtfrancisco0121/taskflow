@@ -20,6 +20,12 @@ spring:
     redis:
       host: ${TASKFLOW_REDIS_HOST:localhost}
       port: ${TASKFLOW_REDIS_PORT:6379}
+      # A hung Redis call must not stall the relay or the presence sweep (AD-11).
+      timeout: 2s
+  task:
+    scheduling:
+      pool:
+        size: 4
   mail:
     host: ${TASKFLOW_MAIL_HOST:localhost}
     port: ${TASKFLOW_MAIL_PORT:1025}
@@ -37,6 +43,10 @@ management:
       enabled: false
 
 taskflow:
+  outbox:
+    # Publishes committed outbox rows to Redis (AD-11).
+    enabled: true
+    interval-ms: 250
   app-url: ${TASKFLOW_APP_URL:http://localhost:5173}
   jwt:
     # No default outside the dev profile: startup fails when it is empty or shorter than 32 bytes.

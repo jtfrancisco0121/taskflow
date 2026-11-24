@@ -97,6 +97,8 @@ class StatusRemapListener {
           Map.of(
               "version",
               row.get("version"),
+              "listId",
+              listId.toString(),
               "cause",
               cause,
               "changes",
