@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Java / Maven / Gradle
+target/
+build/
+.gradle/
+*.class
+*.log
+HELP.md
+
+# Node / React
+node_modules/
+dist/
+coverage/
+.vite/
+*.tsbuildinfo
