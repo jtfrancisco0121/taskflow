@@ -103,6 +103,13 @@ class ViewQueryCompilerTest {
     assertThat(sql(filtered(cond("subtasks", "exclude", null))))
         .contains("parent_task_id\" is null");
     assertThat(sql(filtered(cond("dueDate", "overdue", null)))).contains("DONE");
+    // blocked comes from the one definition in task (DEP-4), negated for is_false
+    assertThat(sql(filtered(cond("blocked", "is_true", null))))
+        .contains("task_dependency")
+        .contains("WAITING_ON");
+    assertThat(sql(filtered(cond("blocked", "is_false", null))))
+        .contains("task_dependency")
+        .isNotEqualTo(sql(filtered(cond("blocked", "is_true", null))));
   }
 
   @Test
