@@ -109,6 +109,18 @@
         },
         "type" : "object"
       },
+      "Column" : {
+        "properties" : {
+          "field" : {
+            "type" : "string"
+          },
+          "width" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "CommentRequest" : {
         "properties" : {
           "body" : {
@@ -281,6 +293,42 @@
         "required" : [ "title" ],
         "type" : "object"
       },
+      "CreateViewRequest" : {
+        "properties" : {
+          "config" : {
+            "$ref" : "#/components/schemas/ViewConfig"
+          },
+          "defaultKind" : {
+            "type" : "string"
+          },
+          "locationId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "shareWith" : {
+            "items" : {
+              "format" : "uuid",
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "visibility" : {
+            "type" : "string"
+          },
+          "workspaceId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "config", "type" ],
+        "type" : "object"
+      },
       "CreateWorkspaceRequest" : {
         "properties" : {
           "key" : {
@@ -301,6 +349,26 @@
           "listId" : {
             "format" : "uuid",
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "Filter" : {
+        "properties" : {
+          "field" : {
+            "type" : "string"
+          },
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Filter"
+            },
+            "type" : "array"
+          },
+          "op" : {
+            "type" : "string"
+          },
+          "value" : {
+            "$ref" : "#/components/schemas/JsonNode"
           }
         },
         "type" : "object"
@@ -715,6 +783,17 @@
         "required" : [ "displayName", "email", "password" ],
         "type" : "object"
       },
+      "Sort" : {
+        "properties" : {
+          "dir" : {
+            "type" : "string"
+          },
+          "key" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "StatusInfo" : {
         "properties" : {
           "color" : {
@@ -1011,6 +1090,27 @@
         },
         "type" : "object"
       },
+      "UpdateViewRequest" : {
+        "properties" : {
+          "config" : {
+            "$ref" : "#/components/schemas/ViewConfig"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "shareWith" : {
+            "items" : {
+              "format" : "uuid",
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "visibility" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "UserResponse" : {
         "properties" : {
           "displayName" : {
@@ -1022,6 +1122,90 @@
           "id" : {
             "format" : "uuid",
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ViewConfig" : {
+        "properties" : {
+          "columns" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Column"
+            },
+            "type" : "array"
+          },
+          "filter" : {
+            "$ref" : "#/components/schemas/Filter"
+          },
+          "group" : {
+            "type" : "string"
+          },
+          "mode" : {
+            "type" : "string"
+          },
+          "sort" : {
+            "items" : {
+              "$ref" : "#/components/schemas/Sort"
+            },
+            "type" : "array"
+          },
+          "v" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "ViewDto" : {
+        "properties" : {
+          "config" : {
+            "$ref" : "#/components/schemas/ViewConfig"
+          },
+          "defaultKind" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "locationId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "ownerId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "shareWith" : {
+            "items" : {
+              "format" : "uuid",
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "visibility" : {
+            "type" : "string"
+          },
+          "workspaceId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ViewList" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ViewDto"
+            },
+            "type" : "array"
           }
         },
         "type" : "object"
@@ -1222,7 +1406,7 @@
     },
     "/api/v1/checklists/{id}" : {
       "delete" : {
-        "operationId" : "delete_4",
+        "operationId" : "delete_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1240,7 +1424,7 @@
         "tags" : [ "checklist-controller" ]
       },
       "patch" : {
-        "operationId" : "update_2",
+        "operationId" : "update_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1314,7 +1498,7 @@
     },
     "/api/v1/comments/{id}" : {
       "delete" : {
-        "operationId" : "delete_3",
+        "operationId" : "delete_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1421,7 +1605,7 @@
     },
     "/api/v1/lists/{id}/tasks" : {
       "post" : {
-        "operationId" : "create_5",
+        "operationId" : "create_6",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1458,7 +1642,7 @@
     },
     "/api/v1/locations" : {
       "post" : {
-        "operationId" : "create_4",
+        "operationId" : "create_5",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -1486,7 +1670,7 @@
     },
     "/api/v1/locations/{id}" : {
       "delete" : {
-        "operationId" : "delete_2",
+        "operationId" : "delete_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1504,7 +1688,7 @@
         "tags" : [ "location-controller" ]
       },
       "get" : {
-        "operationId" : "get_3",
+        "operationId" : "get_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1529,7 +1713,7 @@
         "tags" : [ "location-controller" ]
       },
       "patch" : {
-        "operationId" : "update_1",
+        "operationId" : "update_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1847,6 +2031,33 @@
         "tags" : [ "location-controller" ]
       }
     },
+    "/api/v1/locations/{id}/views" : {
+      "get" : {
+        "operationId" : "forLocation",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ViewList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "view-controller" ]
+      }
+    },
     "/api/v1/me" : {
       "get" : {
         "operationId" : "me",
@@ -1943,7 +2154,7 @@
     },
     "/api/v1/tasks/{id}" : {
       "delete" : {
-        "operationId" : "delete_1",
+        "operationId" : "delete_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1968,7 +2179,7 @@
         "tags" : [ "task-tree-controller" ]
       },
       "get" : {
-        "operationId" : "get_2",
+        "operationId" : "get_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1993,7 +2204,7 @@
         "tags" : [ "task-controller" ]
       },
       "patch" : {
-        "operationId" : "update",
+        "operationId" : "update_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2107,7 +2318,7 @@
         "tags" : [ "checklist-controller" ]
       },
       "post" : {
-        "operationId" : "create_3",
+        "operationId" : "create_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2184,7 +2395,7 @@
         "tags" : [ "comment-controller" ]
       },
       "post" : {
-        "operationId" : "create_2",
+        "operationId" : "create_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2331,6 +2542,114 @@
           }
         },
         "tags" : [ "task-tree-controller" ]
+      }
+    },
+    "/api/v1/views" : {
+      "post" : {
+        "operationId" : "create_2",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateViewRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ViewDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "view-controller" ]
+      }
+    },
+    "/api/v1/views/{id}" : {
+      "delete" : {
+        "operationId" : "delete_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "view-controller" ]
+      },
+      "get" : {
+        "operationId" : "get_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ViewDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "view-controller" ]
+      },
+      "patch" : {
+        "operationId" : "update",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateViewRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ViewDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "view-controller" ]
       }
     },
     "/api/v1/workspaces" : {
@@ -2828,6 +3147,33 @@
           }
         },
         "tags" : [ "location-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/views" : {
+      "get" : {
+        "operationId" : "forWorkspace",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ViewList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "view-controller" ]
       }
     }
   },

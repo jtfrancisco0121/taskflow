@@ -11,6 +11,8 @@ spring:
     open-in-view: false
   flyway:
     locations: classpath:db/migration
+  jooq:
+    sql-dialect: postgres
   mvc:
     problemdetails:
       enabled: true
