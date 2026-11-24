@@ -1,6 +1,52 @@
 {
   "components" : {
     "schemas" : {
+      "Accepted" : {
+        "properties" : {
+          "alreadyMember" : {
+            "type" : "boolean"
+          },
+          "role" : {
+            "enum" : [ "OWNER", "ADMIN", "MEMBER", "GUEST" ],
+            "type" : "string"
+          },
+          "workspaceId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ActivityView" : {
+        "properties" : {
+          "actorId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "actorName" : {
+            "type" : "string"
+          },
+          "actorType" : {
+            "enum" : [ "USER", "SERVICE_ACCOUNT", "AUTOMATION" ],
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "payload" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AppMeta" : {
         "properties" : {
           "name" : {
@@ -12,6 +58,1003 @@
         },
         "required" : [ "name", "version" ],
         "type" : "object"
+      },
+      "AuthResponse" : {
+        "properties" : {
+          "accessToken" : {
+            "type" : "string"
+          },
+          "expiresIn" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "tokenType" : {
+            "type" : "string"
+          },
+          "user" : {
+            "$ref" : "#/components/schemas/UserResponse"
+          }
+        },
+        "type" : "object"
+      },
+      "ChangeRoleRequest" : {
+        "properties" : {
+          "role" : {
+            "enum" : [ "OWNER", "ADMIN", "MEMBER", "GUEST" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "role" ],
+        "type" : "object"
+      },
+      "ChecklistView" : {
+        "properties" : {
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ItemView"
+            },
+            "type" : "array"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "taskId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "CommentRequest" : {
+        "properties" : {
+          "body" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          }
+        },
+        "required" : [ "body" ],
+        "type" : "object"
+      },
+      "CommentView" : {
+        "properties" : {
+          "authorId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "authorName" : {
+            "type" : "string"
+          },
+          "body" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "editedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "mentionIds" : {
+            "items" : {
+              "format" : "uuid",
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "taskId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "CreateChecklistRequest" : {
+        "properties" : {
+          "name" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "name" ],
+        "type" : "object"
+      },
+      "CreateInviteRequest" : {
+        "properties" : {
+          "email" : {
+            "format" : "email",
+            "maxLength" : 254,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "role" : {
+            "enum" : [ "OWNER", "ADMIN", "MEMBER", "GUEST" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "email", "role" ],
+        "type" : "object"
+      },
+      "CreateItemRequest" : {
+        "properties" : {
+          "afterId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "assigneeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "beforeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "text" : {
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "text" ],
+        "type" : "object"
+      },
+      "CreateLocationRequest" : {
+        "properties" : {
+          "isPrivate" : {
+            "type" : "boolean"
+          },
+          "name" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "parentId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "type" : {
+            "enum" : [ "SPACE", "FOLDER", "LIST" ],
+            "type" : "string"
+          },
+          "workspaceId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "name", "type" ],
+        "type" : "object"
+      },
+      "CreateTaskRequest" : {
+        "properties" : {
+          "assigneeIds" : {
+            "items" : {
+              "format" : "uuid",
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "description" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          },
+          "dueDate" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "parentTaskId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "priority" : {
+            "enum" : [ "URGENT", "HIGH", "NORMAL", "LOW", "NONE" ],
+            "type" : "string"
+          },
+          "startDate" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "statusId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "tags" : {
+            "items" : {
+              "maxLength" : 50,
+              "minLength" : 0,
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "title" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "title" ],
+        "type" : "object"
+      },
+      "CreateWorkspaceRequest" : {
+        "properties" : {
+          "key" : {
+            "pattern" : "^[A-Z]{2,6}$",
+            "type" : "string"
+          },
+          "name" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "name" ],
+        "type" : "object"
+      },
+      "DuplicateTaskRequest" : {
+        "properties" : {
+          "listId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "GrantView" : {
+        "properties" : {
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "grantedBy" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "userId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "InvitePreview" : {
+        "properties" : {
+          "email" : {
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "role" : {
+            "enum" : [ "OWNER", "ADMIN", "MEMBER", "GUEST" ],
+            "type" : "string"
+          },
+          "workspaceName" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "InviteView" : {
+        "properties" : {
+          "email" : {
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "role" : {
+            "enum" : [ "OWNER", "ADMIN", "MEMBER", "GUEST" ],
+            "type" : "string"
+          },
+          "status" : {
+            "enum" : [ "PENDING", "ACCEPTED", "REVOKED", "EXPIRED" ],
+            "type" : "string"
+          },
+          "workspaceId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ItemView" : {
+        "properties" : {
+          "assigneeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "checked" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "text" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "JsonNode" : { },
+      "LocationView" : {
+        "properties" : {
+          "archived" : {
+            "type" : "boolean"
+          },
+          "children" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LocationView"
+            },
+            "type" : "array"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "isPrivate" : {
+            "type" : "boolean"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "parentId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "type" : {
+            "enum" : [ "SPACE", "FOLDER", "LIST" ],
+            "type" : "string"
+          },
+          "workspaceId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "MemberView" : {
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "joinedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "role" : {
+            "enum" : [ "OWNER", "ADMIN", "MEMBER", "GUEST" ],
+            "type" : "string"
+          },
+          "userId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "MoveLocationRequest" : {
+        "properties" : {
+          "afterId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "beforeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "parentId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "MoveTaskRequest" : {
+        "properties" : {
+          "afterId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "beforeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "listId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "statusId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "listId" ],
+        "type" : "object"
+      },
+      "PageActivityView" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ActivityView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PageCommentView" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CommentView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PageGrantView" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/GrantView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PageInviteView" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/InviteView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PageMemberView" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/MemberView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PageTaskView" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TaskView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PageTrashItem" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TrashItem"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PageTreeNode" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/TreeNode"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PageWorkspaceView" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/WorkspaceView"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "RemapRequest" : {
+        "properties" : {
+          "from" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "to" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "from", "to" ],
+        "type" : "object"
+      },
+      "RenameWorkspaceRequest" : {
+        "properties" : {
+          "name" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "name" ],
+        "type" : "object"
+      },
+      "ReplaceStatusesRequest" : {
+        "properties" : {
+          "remap" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RemapRequest"
+            },
+            "type" : "array"
+          },
+          "statuses" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StatusRequest"
+            },
+            "maxItems" : 30,
+            "minItems" : 1,
+            "type" : "array"
+          }
+        },
+        "required" : [ "statuses" ],
+        "type" : "object"
+      },
+      "ResetStatusesRequest" : {
+        "properties" : {
+          "remap" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RemapRequest"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "SignInRequest" : {
+        "properties" : {
+          "email" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "password" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "email", "password" ],
+        "type" : "object"
+      },
+      "SignUpRequest" : {
+        "properties" : {
+          "displayName" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "email" : {
+            "format" : "email",
+            "maxLength" : 254,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "password" : {
+            "maxLength" : 128,
+            "minLength" : 10,
+            "type" : "string"
+          }
+        },
+        "required" : [ "displayName", "email", "password" ],
+        "type" : "object"
+      },
+      "StatusInfo" : {
+        "properties" : {
+          "color" : {
+            "type" : "string"
+          },
+          "definedAt" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "group" : {
+            "enum" : [ "NOT_STARTED", "ACTIVE", "DONE", "CLOSED" ],
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "StatusRequest" : {
+        "properties" : {
+          "color" : {
+            "type" : "string"
+          },
+          "group" : {
+            "enum" : [ "NOT_STARTED", "ACTIVE", "DONE", "CLOSED" ],
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "name" : {
+            "maxLength" : 50,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "group", "name" ],
+        "type" : "object"
+      },
+      "StatusSetView" : {
+        "properties" : {
+          "definedAt" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "inheritedFrom" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "locationId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "statuses" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StatusInfo"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "TaskView" : {
+        "properties" : {
+          "assigneeIds" : {
+            "items" : {
+              "format" : "uuid",
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "createdBy" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "description" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          },
+          "dueDate" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "listId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "number" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "parentTaskId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "priority" : {
+            "enum" : [ "URGENT", "HIGH", "NORMAL", "LOW", "NONE" ],
+            "type" : "string"
+          },
+          "readableId" : {
+            "type" : "string"
+          },
+          "startDate" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "statusId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "tags" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "version" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "workspaceId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "TrashItem" : {
+        "properties" : {
+          "deletedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "purgeAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "subtaskCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "task" : {
+            "$ref" : "#/components/schemas/TaskView"
+          },
+          "trashBatchId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "TreeNode" : {
+        "properties" : {
+          "archived" : {
+            "type" : "boolean"
+          },
+          "hasChildren" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "isPrivate" : {
+            "type" : "boolean"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "parentId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "type" : {
+            "enum" : [ "SPACE", "FOLDER", "LIST" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateChecklistRequest" : {
+        "properties" : {
+          "afterId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "beforeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateItemRequest" : {
+        "properties" : {
+          "afterId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "assigneeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "beforeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "checked" : {
+            "type" : "boolean"
+          },
+          "text" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateLocationRequest" : {
+        "properties" : {
+          "isPrivate" : {
+            "type" : "boolean"
+          },
+          "name" : {
+            "maxLength" : 100,
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UpdateTaskRequest" : {
+        "properties" : {
+          "assigneeIds" : {
+            "items" : {
+              "format" : "uuid",
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "description" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          },
+          "dueDate" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "parentTaskId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "priority" : {
+            "enum" : [ "URGENT", "HIGH", "NORMAL", "LOW", "NONE" ],
+            "type" : "string"
+          },
+          "startDate" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "statusId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "tags" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "UserResponse" : {
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "WorkspaceView" : {
+        "properties" : {
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "role" : {
+            "enum" : [ "OWNER", "ADMIN", "MEMBER", "GUEST" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      }
+    },
+    "securitySchemes" : {
+      "bearerAuth" : {
+        "bearerFormat" : "JWT",
+        "scheme" : "bearer",
+        "type" : "http"
       }
     }
   },
@@ -21,6 +1064,807 @@
   },
   "openapi" : "3.1.0",
   "paths" : {
+    "/api/v1/auth/refresh" : {
+      "post" : {
+        "operationId" : "refresh",
+        "parameters" : [ {
+          "in" : "cookie",
+          "name" : "refresh_token",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AuthResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "auth-controller" ]
+      }
+    },
+    "/api/v1/auth/signin" : {
+      "post" : {
+        "operationId" : "signIn",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SignInRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AuthResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "auth-controller" ]
+      }
+    },
+    "/api/v1/auth/signout" : {
+      "post" : {
+        "operationId" : "signOut",
+        "parameters" : [ {
+          "in" : "cookie",
+          "name" : "refresh_token",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "auth-controller" ]
+      }
+    },
+    "/api/v1/auth/signup" : {
+      "post" : {
+        "operationId" : "signUp",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SignUpRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AuthResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "auth-controller" ]
+      }
+    },
+    "/api/v1/checklist-items/{id}" : {
+      "delete" : {
+        "operationId" : "deleteItem",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "checklist-controller" ]
+      },
+      "patch" : {
+        "operationId" : "updateItem",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateItemRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChecklistView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "checklist-controller" ]
+      }
+    },
+    "/api/v1/checklists/{id}" : {
+      "delete" : {
+        "operationId" : "delete_4",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "checklist-controller" ]
+      },
+      "patch" : {
+        "operationId" : "update_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateChecklistRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChecklistView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "checklist-controller" ]
+      }
+    },
+    "/api/v1/checklists/{id}/items" : {
+      "post" : {
+        "operationId" : "addItem",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateItemRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChecklistView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "checklist-controller" ]
+      }
+    },
+    "/api/v1/comments/{id}" : {
+      "delete" : {
+        "operationId" : "delete_3",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "comment-controller" ]
+      },
+      "patch" : {
+        "operationId" : "edit",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CommentRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CommentView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "comment-controller" ]
+      }
+    },
+    "/api/v1/invites/{token}" : {
+      "get" : {
+        "operationId" : "preview",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "token",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InvitePreview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "invite-controller" ]
+      }
+    },
+    "/api/v1/invites/{token}/accept" : {
+      "post" : {
+        "operationId" : "accept",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "token",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Accepted"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "invite-controller" ]
+      }
+    },
+    "/api/v1/lists/{id}/tasks" : {
+      "post" : {
+        "operationId" : "create_5",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateTaskRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TaskView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-controller" ]
+      }
+    },
+    "/api/v1/locations" : {
+      "post" : {
+        "operationId" : "create_4",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateLocationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "location-controller" ]
+      }
+    },
+    "/api/v1/locations/{id}" : {
+      "delete" : {
+        "operationId" : "delete_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "location-controller" ]
+      },
+      "get" : {
+        "operationId" : "get_3",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "location-controller" ]
+      },
+      "patch" : {
+        "operationId" : "update_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateLocationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "location-controller" ]
+      }
+    },
+    "/api/v1/locations/{id}/archive" : {
+      "post" : {
+        "operationId" : "archive",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "location-controller" ]
+      }
+    },
+    "/api/v1/locations/{id}/grants" : {
+      "get" : {
+        "operationId" : "list_5",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageGrantView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "grant-controller" ]
+      }
+    },
+    "/api/v1/locations/{id}/grants/{userId}" : {
+      "delete" : {
+        "operationId" : "revoke",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "grant-controller" ]
+      },
+      "put" : {
+        "operationId" : "grant",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "grant-controller" ]
+      }
+    },
+    "/api/v1/locations/{id}/move" : {
+      "post" : {
+        "operationId" : "move_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MoveLocationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "location-controller" ]
+      }
+    },
+    "/api/v1/locations/{id}/statuses" : {
+      "delete" : {
+        "operationId" : "reset",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ResetStatusesRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StatusSetView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "status-controller" ]
+      },
+      "get" : {
+        "operationId" : "get",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StatusSetView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "status-controller" ]
+      },
+      "put" : {
+        "operationId" : "replace",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ReplaceStatusesRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StatusSetView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "status-controller" ]
+      }
+    },
+    "/api/v1/locations/{id}/unarchive" : {
+      "post" : {
+        "operationId" : "unarchive",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LocationView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "location-controller" ]
+      }
+    },
+    "/api/v1/me" : {
+      "get" : {
+        "operationId" : "me",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "auth-controller" ]
+      }
+    },
     "/api/v1/meta" : {
       "get" : {
         "operationId" : "meta",
@@ -38,8 +1882,958 @@
         },
         "tags" : [ "meta-controller" ]
       }
+    },
+    "/api/v1/tasks" : {
+      "get" : {
+        "operationId" : "list_4",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "locationId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "workspaceId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "includeArchived",
+          "required" : false,
+          "schema" : {
+            "default" : false,
+            "type" : "boolean"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageTaskView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}" : {
+      "delete" : {
+        "operationId" : "delete_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-tree-controller" ]
+      },
+      "get" : {
+        "operationId" : "get_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TaskView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-controller" ]
+      },
+      "patch" : {
+        "operationId" : "update",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateTaskRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TaskView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}/activity" : {
+      "get" : {
+        "operationId" : "activity",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageActivityView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "comment-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}/checklists" : {
+      "get" : {
+        "operationId" : "list_3",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ChecklistView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "checklist-controller" ]
+      },
+      "post" : {
+        "operationId" : "create_3",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateChecklistRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChecklistView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "checklist-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}/comments" : {
+      "get" : {
+        "operationId" : "list_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageCommentView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "comment-controller" ]
+      },
+      "post" : {
+        "operationId" : "create_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CommentRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CommentView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "comment-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}/duplicate" : {
+      "post" : {
+        "operationId" : "duplicate",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DuplicateTaskRequest"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TaskView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-tree-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}/move" : {
+      "post" : {
+        "operationId" : "move",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/MoveTaskRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TaskView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-tree-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}/restore" : {
+      "post" : {
+        "operationId" : "restore",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TaskView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-tree-controller" ]
+      }
+    },
+    "/api/v1/workspaces" : {
+      "get" : {
+        "operationId" : "list",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageWorkspaceView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "workspace-controller" ]
+      },
+      "post" : {
+        "operationId" : "create",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateWorkspaceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WorkspaceView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "workspace-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}" : {
+      "delete" : {
+        "operationId" : "delete",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "workspace-controller" ]
+      },
+      "get" : {
+        "operationId" : "get_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WorkspaceView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "workspace-controller" ]
+      },
+      "patch" : {
+        "operationId" : "rename",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RenameWorkspaceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/WorkspaceView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "workspace-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/invites" : {
+      "get" : {
+        "operationId" : "list_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageInviteView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "invite-controller" ]
+      },
+      "post" : {
+        "operationId" : "create_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateInviteRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InviteView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "invite-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/invites/{inviteId}" : {
+      "delete" : {
+        "operationId" : "revoke_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "inviteId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "invite-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/leave" : {
+      "post" : {
+        "operationId" : "leave",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "workspace-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/members" : {
+      "get" : {
+        "operationId" : "members",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageMemberView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "workspace-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/members/{userId}" : {
+      "delete" : {
+        "operationId" : "removeMember",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "workspace-controller" ]
+      },
+      "patch" : {
+        "operationId" : "changeRole",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "userId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChangeRoleRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MemberView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "workspace-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/tasks/by-ref/{ref}" : {
+      "get" : {
+        "operationId" : "byRef",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "ref",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TaskView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/trash" : {
+      "get" : {
+        "operationId" : "trash",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageTrashItem"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "task-tree-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{id}/tree" : {
+      "get" : {
+        "operationId" : "tree",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "parentId",
+          "required" : false,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "includeArchived",
+          "required" : false,
+          "schema" : {
+            "default" : false,
+            "type" : "boolean"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageTreeNode"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "location-controller" ]
+      }
     }
   },
+  "security" : [ {
+    "bearerAuth" : [ ]
+  } ],
   "servers" : [ {
     "url" : "/"
   } ]

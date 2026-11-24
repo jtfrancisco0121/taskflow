@@ -2,27 +2,29 @@ package com.taskflow.shared.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.taskflow.TestcontainersConfiguration;
+import com.taskflow.IntegrationTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(TestcontainersConfiguration.class)
-class ProblemDetailsIT {
-
-  @Autowired TestRestTemplate rest;
+class ProblemDetailsIT extends IntegrationTest {
 
   @Test
   void unknownPathIsProblemJson() {
-    ResponseEntity<String> response = rest.getForEntity("/api/v1/does-not-exist", String.class);
+    Resp response = get("/api/v1/does-not-exist", signUp("Problem").token());
 
-    assertThat(response.getStatusCode().value()).isEqualTo(404);
-    assertThat(response.getHeaders().getContentType())
+    assertThat(response.status()).isEqualTo(404);
+    assertThat(response.headers().getContentType())
+        .isNotNull()
+        .matches(type -> type.isCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+    assertThat(response.text("/code")).isEqualTo("request.404");
+  }
+
+  @Test
+  void unauthenticatedApiRequestIsProblemJson401() {
+    Resp response = get("/api/v1/does-not-exist", null);
+
+    assertThat(response.status()).isEqualTo(401);
+    assertThat(response.headers().getContentType())
         .isNotNull()
         .matches(type -> type.isCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
   }

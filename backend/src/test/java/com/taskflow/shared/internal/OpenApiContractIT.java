@@ -24,6 +24,49 @@ import org.springframework.context.annotation.Import;
 @Import(TestcontainersConfiguration.class)
 class OpenApiContractIT {
 
+  /** Every path of the contract. Add new endpoints here, then regenerate the spec. */
+  private static final java.util.List<String> EXPECTED_PATHS =
+      java.util.List.of(
+          "/api/v1/meta",
+          "/api/v1/auth/signup",
+          "/api/v1/auth/signin",
+          "/api/v1/auth/refresh",
+          "/api/v1/auth/signout",
+          "/api/v1/me",
+          "/api/v1/workspaces",
+          "/api/v1/workspaces/{id}",
+          "/api/v1/workspaces/{id}/members",
+          "/api/v1/workspaces/{id}/members/{userId}",
+          "/api/v1/workspaces/{id}/leave",
+          "/api/v1/workspaces/{id}/invites",
+          "/api/v1/workspaces/{id}/invites/{inviteId}",
+          "/api/v1/invites/{token}",
+          "/api/v1/invites/{token}/accept",
+          "/api/v1/locations",
+          "/api/v1/locations/{id}",
+          "/api/v1/locations/{id}/move",
+          "/api/v1/locations/{id}/archive",
+          "/api/v1/locations/{id}/unarchive",
+          "/api/v1/workspaces/{id}/tree",
+          "/api/v1/locations/{id}/grants",
+          "/api/v1/locations/{id}/grants/{userId}",
+          "/api/v1/locations/{id}/statuses",
+          "/api/v1/lists/{id}/tasks",
+          "/api/v1/tasks",
+          "/api/v1/tasks/{id}",
+          "/api/v1/workspaces/{id}/tasks/by-ref/{ref}",
+          "/api/v1/tasks/{id}/move",
+          "/api/v1/tasks/{id}/duplicate",
+          "/api/v1/tasks/{id}/restore",
+          "/api/v1/workspaces/{id}/trash",
+          "/api/v1/tasks/{id}/checklists",
+          "/api/v1/checklists/{id}",
+          "/api/v1/checklists/{id}/items",
+          "/api/v1/checklist-items/{id}",
+          "/api/v1/tasks/{id}/comments",
+          "/api/v1/comments/{id}",
+          "/api/v1/tasks/{id}/activity");
+
   private static final Path SPEC = Path.of("..", "docs", "api", "openapi.json");
 
   @Autowired TestRestTemplate rest;
@@ -52,7 +95,9 @@ class OpenApiContractIT {
   @Test
   void specListsOnlyApiV1Paths() throws IOException {
     JsonNode tree = new ObjectMapper().readTree(rest.getForObject("/v3/api-docs", String.class));
-    assertThat(tree.get("paths").fieldNames()).toIterable().containsExactly("/api/v1/meta");
+    assertThat(tree.get("paths").fieldNames())
+        .toIterable()
+        .containsExactlyInAnyOrderElementsOf(EXPECTED_PATHS);
     assertThat(tree.get("servers").toString()).isEqualTo("[{\"url\":\"/\"}]");
   }
 

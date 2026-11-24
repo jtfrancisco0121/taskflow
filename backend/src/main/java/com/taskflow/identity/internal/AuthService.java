@@ -1,0 +1,241 @@
+package com.taskflow.identity.internal;
+
+import com.taskflow.identity.UserInfo;
+import com.taskflow.shared.Ids;
+import com.taskflow.shared.RateLimiter;
+import com.taskflow.shared.TaskflowException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+/** Sign-up, sign-in, rotating refresh tokens and sign-out (AUTH-1, AUTH-2). */
+@Service
+class AuthService {
+
+  static final int EMAIL_FAILURE_LIMIT = 5;
+  static final Duration EMAIL_WINDOW = Duration.ofMinutes(15);
+  static final int IP_ATTEMPT_LIMIT = 20;
+  static final Duration IP_WINDOW = Duration.ofMinutes(1);
+
+  /** An issued session: the access token plus the raw refresh token for the cookie. */
+  record Session(UserInfo user, String accessToken, long expiresIn, String refreshToken) {}
+
+  private record StoredRefresh(
+      UUID id, UUID userId, UUID familyId, Instant expiresAt, boolean spent) {}
+
+  private final JdbcTemplate jdbc;
+  private final TransactionTemplate tx;
+  private final JwtService jwt;
+  private final JwtProperties properties;
+  private final RateLimiter limiter;
+  private final PasswordEncoder encoder = new BCryptPasswordEncoder();
+  private final SecureRandom random = new SecureRandom();
+  private final String dummyHash = encoder.encode("not-a-real-password");
+
+  AuthService(
+      JdbcTemplate jdbc,
+      PlatformTransactionManager transactionManager,
+      JwtService jwt,
+      JwtProperties properties,
+      RateLimiter limiter) {
+    this.jdbc = jdbc;
+    this.tx = new TransactionTemplate(transactionManager);
+    this.jwt = jwt;
+    this.properties = properties;
+    this.limiter = limiter;
+  }
+
+  Session signUp(String email, String password, String displayName) {
+    String normalized = normalize(email);
+    UUID id = Ids.newId();
+    try {
+      return tx.execute(status -> {
+        jdbc.update(
+            "INSERT INTO app_user (id, email, password_hash, display_name) VALUES (?, ?, ?, ?)",
+            id,
+            normalized,
+            encoder.encode(password),
+            displayName.trim());
+        return startSession(new UserInfo(id, normalized, displayName.trim()), UUID.randomUUID());
+      });
+    } catch (DuplicateKeyException e) {
+      throw TaskflowException.conflict("auth.email_taken", "That email is already registered");
+    }
+  }
+
+  Session signIn(String email, String password, String ip) {
+    String normalized = normalize(email);
+    String emailKey = "signin:email:" + normalized;
+    RateLimiter.Decision byIp = limiter.hit("signin:ip:" + ip, IP_ATTEMPT_LIMIT, IP_WINDOW);
+    if (!byIp.allowed()) {
+      throw rateLimited(byIp.retryAfterSeconds());
+    }
+    RateLimiter.Decision byEmail = limiter.peek(emailKey, EMAIL_FAILURE_LIMIT, EMAIL_WINDOW);
+    if (!byEmail.allowed()) {
+      throw rateLimited(byEmail.retryAfterSeconds());
+    }
+    Optional<UserRow> user =
+        jdbc
+            .query(
+                "SELECT id, email, display_name, password_hash FROM app_user WHERE lower(email) = ?",
+                (rs, i) ->
+                    new UserRow(
+                        new UserInfo(
+                            rs.getObject("id", UUID.class),
+                            rs.getString("email"),
+                            rs.getString("display_name")),
+                        rs.getString("password_hash")),
+                normalized)
+            .stream()
+            .findFirst();
+    boolean ok =
+        encoder.matches(password, user.map(UserRow::hash).orElse(dummyHash)) && user.isPresent();
+    if (!ok) {
+      limiter.hit(emailKey, EMAIL_FAILURE_LIMIT, EMAIL_WINDOW);
+      throw new TaskflowException(
+          HttpStatus.UNAUTHORIZED, "auth.invalid_credentials", "Wrong email or password");
+    }
+    limiter.reset(emailKey);
+    return tx.execute(status -> startSession(user.get().info(), UUID.randomUUID()));
+  }
+
+  /** Rotates the refresh token; presenting a rotated one revokes its family. */
+  Session refresh(String rawToken) {
+    if (rawToken == null || rawToken.isBlank()) {
+      throw invalidRefresh();
+    }
+    String hash = sha256(rawToken);
+    enum Outcome {
+      OK,
+      REUSED,
+      INVALID
+    }
+    record Result(Outcome outcome, Session session) {}
+    Result result =
+        tx.execute(status -> {
+          List<StoredRefresh> found =
+              jdbc.query(
+                  "SELECT id, user_id, family_id, expires_at, (rotated_at IS NOT NULL OR"
+                      + " revoked_at IS NOT NULL) AS spent FROM refresh_token WHERE token_hash = ?",
+                  (rs, i) ->
+                      new StoredRefresh(
+                          rs.getObject("id", UUID.class),
+                          rs.getObject("user_id", UUID.class),
+                          rs.getObject("family_id", UUID.class),
+                          rs.getTimestamp("expires_at").toInstant(),
+                          rs.getBoolean("spent")),
+                  hash);
+          if (found.isEmpty()) {
+            return new Result(Outcome.INVALID, null);
+          }
+          StoredRefresh stored = found.get(0);
+          int rotated =
+              stored.spent() || stored.expiresAt().isBefore(Instant.now())
+                  ? 0
+                  : jdbc.update(
+                      "UPDATE refresh_token SET rotated_at = now() WHERE id = ? AND rotated_at IS"
+                          + " NULL AND revoked_at IS NULL",
+                      stored.id());
+          if (rotated == 0) {
+            revokeFamily(stored.familyId());
+            return new Result(Outcome.REUSED, null);
+          }
+          Optional<UserInfo> user =
+              jdbc
+                  .query(
+                      "SELECT id, email, display_name FROM app_user WHERE id = ?",
+                      (rs, i) ->
+                          new UserInfo(
+                              rs.getObject("id", UUID.class),
+                              rs.getString("email"),
+                              rs.getString("display_name")),
+                      stored.userId())
+                  .stream()
+                  .findFirst();
+          if (user.isEmpty()) {
+            return new Result(Outcome.INVALID, null);
+          }
+          return new Result(Outcome.OK, startSession(user.get(), stored.familyId()));
+        });
+    if (result.outcome() == Outcome.OK) {
+      return result.session();
+    }
+    throw invalidRefresh();
+  }
+
+  void signOut(String rawToken) {
+    if (rawToken == null || rawToken.isBlank()) {
+      return;
+    }
+    jdbc.query(
+        "SELECT family_id FROM refresh_token WHERE token_hash = ?",
+        rs -> {
+          revokeFamily(rs.getObject("family_id", UUID.class));
+        },
+        sha256(rawToken));
+  }
+
+  private record UserRow(UserInfo info, String hash) {}
+
+  private void revokeFamily(UUID familyId) {
+    jdbc.update(
+        "UPDATE refresh_token SET revoked_at = now() WHERE family_id = ? AND revoked_at IS NULL",
+        familyId);
+  }
+
+  private Session startSession(UserInfo user, UUID familyId) {
+    byte[] bytes = new byte[32];
+    random.nextBytes(bytes);
+    String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    jdbc.update(
+        "INSERT INTO refresh_token (id, user_id, family_id, token_hash, expires_at) VALUES (?, ?,"
+            + " ?, ?, ?)",
+        Ids.newId(),
+        user.id(),
+        familyId,
+        sha256(raw),
+        java.sql.Timestamp.from(Instant.now().plus(properties.refreshTtl())));
+    return new Session(user, jwt.issue(user.id(), user.email()), jwt.expiresInSeconds(), raw);
+  }
+
+  private static TaskflowException invalidRefresh() {
+    return new TaskflowException(
+        HttpStatus.UNAUTHORIZED, "auth.invalid_refresh", "The refresh token is invalid or expired");
+  }
+
+  private static TaskflowException rateLimited(long retryAfter) {
+    return new TaskflowException(
+            HttpStatus.TOO_MANY_REQUESTS, "auth.rate_limited", "Too many sign-in attempts")
+        .header("Retry-After", String.valueOf(retryAfter));
+  }
+
+  private static String normalize(String email) {
+    return email.trim().toLowerCase(java.util.Locale.ROOT);
+  }
+
+  static String sha256(String value) {
+    try {
+      return HexFormat.of()
+          .formatHex(
+              MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+}
