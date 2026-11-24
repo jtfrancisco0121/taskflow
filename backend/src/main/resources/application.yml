@@ -32,6 +32,13 @@ spring:
 
 server:
   port: ${TASKFLOW_PORT:8080}
+  # The client IP (sign-in rate limit, failed-key log) comes from X-Forwarded-For only when the
+  # connection is from a proxy in taskflow.http.trusted-proxies (decision 006, TrustedProxyConfig).
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # Tomcat trusts private ranges by default; trust nothing unless proxies are listed.
+      internal-proxies: ""
 
 management:
   endpoints:
@@ -53,6 +60,10 @@ taskflow:
       plans:
         default: 100
   app-url: ${TASKFLOW_APP_URL:http://localhost:5173}
+  http:
+    # Comma-separated IP addresses of reverse proxies allowed to set X-Forwarded-For. Empty trusts
+    # none, so the TCP peer is the client IP (decision 006).
+    trusted-proxies: ${TASKFLOW_TRUSTED_PROXIES:}
   jwt:
     # No default outside the dev profile: startup fails when it is empty or shorter than 32 bytes.
     secret: ${TASKFLOW_JWT_SECRET:}
