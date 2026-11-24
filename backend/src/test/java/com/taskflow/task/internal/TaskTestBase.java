@@ -1,12 +1,12 @@
 package com.taskflow.task.internal;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.taskflow.IntegrationTest;
+import com.taskflow.identity.internal.McpTestBase;
 import java.util.Map;
 import java.util.UUID;
 
 /** Shared fixtures for the task integration tests. */
-abstract class TaskTestBase extends IntegrationTest {
+abstract class TaskTestBase extends McpTestBase {
 
   record Fix(Ws ws, UUID space, UUID list) {}
 

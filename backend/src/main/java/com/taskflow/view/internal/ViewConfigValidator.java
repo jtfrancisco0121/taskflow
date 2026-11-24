@@ -63,7 +63,8 @@ public final class ViewConfigValidator {
           Map.entry("createdAt", Set.of("before", "after", "between")),
           Map.entry("updatedAt", Set.of("before", "after", "between")),
           Map.entry("list", Set.of("any_of", "none_of")),
-          Map.entry("subtasks", Set.of("include", "exclude")));
+          Map.entry("subtasks", Set.of("include", "exclude")),
+          Map.entry("blocked", Set.of("is_true", "is_false")));
 
   private ViewConfigValidator() {}
 
@@ -194,7 +195,7 @@ public final class ViewConfigValidator {
           default -> day(v);
         }
       }
-      case "subtasks" -> mustBeEmpty(none);
+      case "subtasks", "blocked" -> mustBeEmpty(none);
       default -> throw invalid("Unknown filter field " + f.field());
     }
   }

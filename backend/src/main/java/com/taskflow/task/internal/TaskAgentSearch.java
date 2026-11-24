@@ -9,6 +9,7 @@ import com.taskflow.shared.CurrentActor;
 import com.taskflow.shared.Page;
 import com.taskflow.shared.PageCursor;
 import com.taskflow.shared.TaskflowException;
+import com.taskflow.task.BlockedSql;
 import com.taskflow.workspace.LocationAccess;
 import com.taskflow.workspace.LocationInfo;
 import com.taskflow.workspace.LocationTree;
@@ -76,11 +77,12 @@ class TaskAgentSearch {
       UUID locationId,
       String query,
       List<Cond> conditions,
+      Boolean blocked,
       String cursor,
       Integer requestedLimit) {
     String q = query == null || query.isBlank() ? null : query.trim();
-    if (q == null && conditions.isEmpty()) {
-      throw AgentToolArgs.invalid("Pass a query or at least one customFields condition");
+    if (q == null && conditions.isEmpty() && blocked == null) {
+      throw AgentToolArgs.invalid("Pass a query, blocked or at least one customFields condition");
     }
     if (q != null && q.length() > TaskSearchService.MAX_QUERY) {
       throw TaskflowException.badRequest(
@@ -114,6 +116,11 @@ class TaskAgentSearch {
                   () -> TaskflowException.notFound("location.not_found", "Location not found"));
       where = where.and(DSL.condition("l.path <@ CAST({0} AS ltree)", DSL.val(scope.path())));
     }
+    if (blocked != null) {
+      // The one definition of blocked (AD-3), never a second predicate here.
+      Condition isBlocked = DSL.condition(BlockedSql.blocked("t"));
+      where = where.and(blocked ? isBlocked : isBlocked.not());
+    }
     for (Cond c : conditions) {
       FieldInfo f =
           catalog
@@ -142,6 +149,7 @@ class TaskAgentSearch {
     select.add(DSL.field("w.key || '-' || t.number", String.class).as("readable_id"));
     select.add(DSL.field("t.list_id", UUID.class).as("list_id"));
     select.add(DSL.field("l.name", String.class).as("list_name"));
+    select.add(DSL.field(BlockedSql.blockerCount("t"), Integer.class).as("blocker_count"));
     List<org.jooq.SortField<?>> order = new ArrayList<>();
     Field<Double> rank = null;
     if (q != null) {
@@ -218,7 +226,9 @@ class TaskAgentSearch {
               r.get("title", String.class),
               r.get("list_id", UUID.class),
               r.get("list_name", String.class),
-              q == null ? null : r.get("snippet", String.class)));
+              q == null ? null : r.get("snippet", String.class),
+              r.get("blocker_count", Integer.class) > 0,
+              r.get("blocker_count", Integer.class)));
     }
     String next = null;
     if (more) {

@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.taskflow.field.CustomFieldSql;
 import com.taskflow.shared.PageCursor;
 import com.taskflow.shared.TaskflowException;
+import com.taskflow.task.BlockedSql;
 import com.taskflow.view.ViewConfig;
 import com.taskflow.workspace.LocationAccess;
 import com.taskflow.workspace.Role;
@@ -437,6 +438,11 @@ final class ViewQueryCompiler {
       }
       case "subtasks" -> {
         return f.op().equals("exclude") ? T_PARENT.isNull() : DSL.noCondition();
+      }
+      case "blocked" -> {
+        // The one definition of blocked lives in task (AD-3).
+        Condition blocked = DSL.condition(BlockedSql.blocked("t"));
+        return f.op().equals("is_true") ? blocked : blocked.not();
       }
       default -> throw ViewConfigValidator.invalid("Unknown filter field " + f.field());
     }

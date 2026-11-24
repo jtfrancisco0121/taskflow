@@ -8,7 +8,8 @@ import java.util.UUID;
 
 /**
  * A task as the API returns it; {@code version} is also the ETag. {@code customFields} maps field
- * id to value for the task's effective fields only (AD-13).
+ * id to value for the task's effective fields only (AD-13). {@code blocked} and {@code
+ * blockerCount} come from {@link BlockedSql}: the task waits on that many unfinished tasks.
  */
 public record TaskView(
     UUID id,
@@ -29,4 +30,6 @@ public record TaskView(
     UUID createdBy,
     Instant createdAt,
     Instant updatedAt,
-    Map<String, JsonNode> customFields) {}
+    Map<String, JsonNode> customFields,
+    boolean blocked,
+    int blockerCount) {}

@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.taskflow.field.FieldCatalog;
 import com.taskflow.field.FieldInfo;
 import com.taskflow.shared.TaskflowException;
+import com.taskflow.task.BlockedSql;
 import com.taskflow.task.Priority;
 import com.taskflow.task.TaskView;
 import java.sql.ResultSet;
@@ -49,14 +50,16 @@ class TaskRepository {
       Instant updatedAt,
       Instant deletedAt,
       UUID trashBatchId,
-      ObjectNode custom) {}
+      ObjectNode custom,
+      int blockerCount) {}
 
   static final String SELECT =
       "SELECT t.id, t.workspace_id, w.key AS workspace_key, t.list_id, t.parent_task_id, t.status_id,"
           + " t.number, t.title, t.description::text AS description, t.priority, t.start_date,"
           + " t.due_date, t.rank, t.version, t.created_by, t.created_at, t.updated_at, t.deleted_at,"
-          + " t.trash_batch_id, t.custom::text AS custom FROM task t JOIN workspace w ON w.id ="
-          + " t.workspace_id";
+          + " t.trash_batch_id, t.custom::text AS custom, "
+          + BlockedSql.blockerCount("t")
+          + " AS blocker_count FROM task t JOIN workspace w ON w.id = t.workspace_id";
 
   private final JdbcTemplate jdbc;
   private final ObjectMapper mapper;
@@ -151,7 +154,9 @@ class TaskRepository {
               r.createdBy(),
               r.createdAt(),
               r.updatedAt(),
-              fields.project(listFields, stored)));
+              fields.project(listFields, stored),
+              r.blockerCount() > 0,
+              r.blockerCount()));
     }
     return out;
   }
@@ -266,7 +271,8 @@ class TaskRepository {
         instant(rs, "updated_at"),
         instant(rs, "deleted_at"),
         rs.getObject("trash_batch_id", UUID.class),
-        custom(rs.getString("custom")));
+        custom(rs.getString("custom")),
+        rs.getInt("blocker_count"));
   }
 
   private ObjectNode custom(String json) {

@@ -4,6 +4,7 @@ import com.taskflow.shared.CurrentActor;
 import com.taskflow.shared.Page;
 import com.taskflow.shared.PageCursor;
 import com.taskflow.shared.TaskflowException;
+import com.taskflow.task.BlockedSql;
 import com.taskflow.workspace.LocationAccess;
 import com.taskflow.workspace.Role;
 import com.taskflow.workspace.WorkspaceQuery;
@@ -22,9 +23,19 @@ class TaskSearchService {
   static final int MAX_LIMIT = 50;
   static final int MAX_QUERY = 200;
 
-  /** A hit; {@code snippet} wraps the matched words in {@code <mark>}. */
+  /**
+   * A hit; {@code snippet} wraps the matched words in {@code <mark>}. {@code blocked} and {@code
+   * blockerCount} come from {@link BlockedSql}.
+   */
   record SearchHit(
-      UUID taskId, String readableId, String title, UUID listId, String listName, String snippet) {}
+      UUID taskId,
+      String readableId,
+      String title,
+      UUID listId,
+      String listName,
+      String snippet,
+      boolean blocked,
+      int blockerCount) {}
 
   private final NamedParameterJdbcTemplate named;
   private final WorkspaceQuery workspaces;
@@ -68,14 +79,17 @@ class TaskSearchService {
       keyset = " WHERE (r.rank < :ar OR (r.rank = :ar AND r.id > :aid))";
     }
     String sql =
-        "SELECT p.id, p.readable_id, p.title, p.list_id, p.list_name, p.rank, ts_headline('english',"
+        "SELECT p.id, p.readable_id, p.title, p.list_id, p.list_name, p.rank, p.blocker_count,"
+            + " ts_headline('english',"
             + " p.title || ' ' || coalesce((SELECT string_agg(v #>> '{}', ' ') FROM"
             + " jsonb_path_query(p.description, 'strict $.**.text') v), ''),"
             + " websearch_to_tsquery('english', :q),"
             + " 'StartSel=<mark>, StopSel=</mark>, MaxWords=24, MinWords=8, MaxFragments=1') AS"
             + " snippet FROM (SELECT r.* FROM (SELECT t.id, t.title, t.description, t.list_id, l.name AS"
             + " list_name, w.key || '-' || t.number AS readable_id, CAST(ts_rank(t.search,"
-            + " websearch_to_tsquery('english', :q)) AS float8) AS rank FROM task t JOIN workspace w"
+            + " websearch_to_tsquery('english', :q)) AS float8) AS rank, "
+            + BlockedSql.blockerCount("t")
+            + " AS blocker_count FROM task t JOIN workspace w"
             + " ON w.id = t.workspace_id JOIN location l ON l.workspace_id = t.workspace_id AND l.id ="
             + " t.list_id WHERE t.workspace_id = :w AND t.deleted_at IS NULL AND l.archived_at IS NULL"
             + " AND "
@@ -96,7 +110,9 @@ class TaskSearchService {
                         rs.getString("title"),
                         rs.getObject("list_id", UUID.class),
                         rs.getString("list_name"),
-                        rs.getString("snippet")),
+                        rs.getString("snippet"),
+                        rs.getInt("blocker_count") > 0,
+                        rs.getInt("blocker_count")),
                     rs.getDouble("rank")));
     boolean more = rows.size() > limit;
     List<Row> pageRows = more ? rows.subList(0, limit) : rows;
