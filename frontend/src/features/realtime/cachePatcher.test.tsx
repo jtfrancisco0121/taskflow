@@ -176,4 +176,121 @@ describe('RT-3 cache patcher', () => {
     ).toBe('own')
     expect(invalidate).not.toHaveBeenCalled()
   })
+
+  describe('DEP relationship and blocker events (CAP-6, CAP-8)', () => {
+    const blockedTask = (blocked: boolean) => ({
+      ...task(3, 'One'),
+      blocked,
+      blockerCount: +blocked,
+    })
+
+    function dependencySetup(fresh: object) {
+      const queryClient = newQueryClient()
+      const key = queryKeys.view('w1', 'l1', 'h')
+      queryClient.setQueryData<InfiniteData<ViewQueryResponse>>(key, {
+        pages: [{ items: [{ group: 'a', task: blockedTask(true) }] }],
+        pageParams: [undefined],
+      })
+      queryClient.setQueryData(queryKeys.task('t1'), blockedTask(true))
+      queryClient.setQueryData(queryKeys.dependencies('t1'), { waitingOn: [{ dependencyId: 'd' }] })
+      const stub = installFetch({ 'GET /api/v1/tasks/:id': () => json(fresh) })
+      const patcher = createCachePatcher(queryClient, { clientId: OWN, debounceMs: 500 })
+      const blockedInView = () =>
+        queryClient.getQueryData<InfiniteData<ViewQueryResponse>>(key)?.pages[0].items?.[0].task
+          ?.blocked
+      return { queryClient, stub, patcher, blockedInView, key }
+    }
+
+    const blockerEvent = (extra = {}) => ({
+      type: 'task.blocker_resolved',
+      entity: 'task',
+      entityId: 't1',
+      version: 3, // the dependent's version did not change
+      listId: 'l1',
+      clientId: 'someone-else',
+      ...extra,
+    })
+
+    it('a blocker event refetches the task without a version comparison and refreshes the badge everywhere', async () => {
+      const { patcher, stub, blockedInView, queryClient } = dependencySetup(blockedTask(false))
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+      expect(await patcher.handle('w1', blockerEvent())).toBe('applied')
+      expect(stub.calls.map((c) => c.url.pathname)).toEqual(['/api/v1/tasks/t1'])
+      expect(blockedInView()).toBe(false)
+      expect(queryClient.getQueryData<{ blocked: boolean }>(queryKeys.task('t1'))?.blocked).toBe(
+        false,
+      )
+      const keys = invalidate.mock.calls.map(([f]) => JSON.stringify(f?.queryKey))
+      expect(keys).toContain(JSON.stringify(queryKeys.dependencies('t1')))
+      await act(async () => {
+        vi.advanceTimersByTime(600)
+      })
+      expect(
+        invalidate.mock.calls.some(
+          ([f]) => JSON.stringify(f?.queryKey) === JSON.stringify(queryKeys.viewsAll('w1')),
+        ),
+      ).toBe(true)
+      patcher.dispose()
+    })
+
+    it('a blocker event caused by this tab still refreshes the dependent (it only wrote the blocker)', async () => {
+      const { patcher, blockedInView } = dependencySetup(blockedTask(false))
+      expect(await patcher.handle('w1', blockerEvent({ clientId: OWN }))).toBe('applied')
+      expect(blockedInView()).toBe(false)
+      patcher.dispose()
+    })
+
+    it('delivering the same blocker event twice leaves the caches as after the first', async () => {
+      const { patcher, queryClient, key } = dependencySetup(blockedTask(false))
+      await patcher.handle('w1', blockerEvent())
+      const after = JSON.stringify([
+        queryClient.getQueryData(queryKeys.task('t1')),
+        queryClient.getQueryData(key),
+      ])
+      expect(await patcher.handle('w1', blockerEvent())).toBe('applied')
+      expect(
+        JSON.stringify([
+          queryClient.getQueryData(queryKeys.task('t1')),
+          queryClient.getQueryData(key),
+        ]),
+      ).toBe(after)
+      patcher.dispose()
+    })
+
+    it('a reopened blocker flips the badge back on', async () => {
+      const { patcher, blockedInView } = dependencySetup(blockedTask(true))
+      expect(await patcher.handle('w1', blockerEvent({ type: 'task.blocker_reopened' }))).toBe(
+        'applied',
+      )
+      expect(blockedInView()).toBe(true)
+      patcher.dispose()
+    })
+
+    it('a blocker event for a task nobody has open only refreshes the views', async () => {
+      const queryClient = newQueryClient()
+      const stub = installFetch({})
+      const patcher = createCachePatcher(queryClient, { clientId: OWN })
+      expect(await patcher.handle('w1', blockerEvent())).toBe('invalidated')
+      expect(stub.calls).toHaveLength(0)
+      patcher.dispose()
+    })
+
+    it('a relationship event invalidates the relationship list and follows the version rules', async () => {
+      const { patcher, stub, queryClient } = dependencySetup({ ...blockedTask(true), version: 4 })
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+      const added = event({ type: 'task.dependency_added', version: 4 })
+      expect(await patcher.handle('w1', added)).toBe('applied')
+      const keys = invalidate.mock.calls.map(([f]) => JSON.stringify(f?.queryKey))
+      expect(keys).toContain(JSON.stringify(queryKeys.dependencies('t1')))
+      // the same event again is stale: no second fetch, caches unchanged
+      const calls = stub.calls.length
+      expect(await patcher.handle('w1', added)).toBe('stale')
+      expect(stub.calls).toHaveLength(calls)
+      // removal from the other end, own client id: nothing
+      expect(
+        await patcher.handle('w1', event({ type: 'task.dependency_removed', clientId: OWN })),
+      ).toBe('own')
+      patcher.dispose()
+    })
+  })
 })

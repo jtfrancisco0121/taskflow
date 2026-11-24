@@ -31,8 +31,38 @@ export function createCachePatcher(
     )
   }
 
+  /**
+   * A blocker finished or came back (CAP-6): the dependent's version did not change, so there is no
+   * version comparison. The dependent is refetched (its blocked flag), its relationship list and the
+   * open views are refreshed, also when this tab caused it: its own write only touched the blocker.
+   */
+  async function handleBlocker(workspaceId: string, event: LiveEvent): Promise<PatchResult> {
+    if (taskMutationGate.isPending(event.entityId)) {
+      taskMutationGate.whenSettled(event.entityId, () => void handleBlocker(workspaceId, event))
+      return 'held'
+    }
+    void queryClient.invalidateQueries({ queryKey: queryKeys.dependencies(event.entityId) })
+    invalidateViewsSoon(workspaceId)
+    if (cachedVersion(queryClient, workspaceId, event.entityId) == null) return 'invalidated'
+    const { data } = await api.GET('/api/v1/tasks/{id}', {
+      params: { path: { id: event.entityId } },
+    })
+    if (data) {
+      writeTaskToCaches(queryClient, data)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activity(event.entityId) })
+      options.announce?.(
+        data.blocked
+          ? `${data.readableId ?? 'A task'} is blocked.`
+          : `${data.readableId ?? 'A task'} is no longer blocked.`,
+      )
+    }
+    return 'applied'
+  }
+
   async function handle(workspaceId: string, event: LiveEvent): Promise<PatchResult> {
-    if (event.clientId && event.clientId === options.clientId) return 'own'
+    const blockerEvent =
+      event.type === 'task.blocker_resolved' || event.type === 'task.blocker_reopened'
+    if (!blockerEvent && event.clientId && event.clientId === options.clientId) return 'own'
     if (event.entity === 'location' && event.type.startsWith('custom_field.')) {
       // A definition changed (3A, AD-12): refresh the field lists and columns, and everything that
       // shows values, since a renamed Option or a retired field changes how they read.
@@ -61,6 +91,13 @@ export function createCachePatcher(
     if (event.entity !== 'task') {
       void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces() })
       return 'invalidated'
+    }
+    if (event.type === 'task.blocker_resolved' || event.type === 'task.blocker_reopened') {
+      return handleBlocker(workspaceId, event)
+    }
+    if (event.type === 'task.dependency_added' || event.type === 'task.dependency_removed') {
+      // The relationship list of either end changed; the task itself follows the version rules.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dependencies(event.entityId) })
     }
     const cached = cachedVersion(queryClient, workspaceId, event.entityId)
     if (cached != null && event.version != null && event.version <= cached) return 'stale'
