@@ -5,4 +5,10 @@ import java.time.Instant;
 import java.util.UUID;
 
 public record ActivityItem(
-    UUID id, String type, ActorType actorType, UUID actorId, JsonNode payload, Instant createdAt) {}
+    UUID id,
+    String type,
+    ActorType actorType,
+    UUID actorId,
+    UUID actorKeyId,
+    JsonNode payload,
+    Instant createdAt) {}

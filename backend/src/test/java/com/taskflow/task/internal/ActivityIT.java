@@ -71,6 +71,21 @@ class ActivityIT extends TaskTestBase {
     assertThat(items.get(0).get("actorName").asText()).isEqualTo("Admin");
     assertThat(items.get(7).get("actorId").asText()).isEqualTo(m.id().toString());
     assertThat(items.get(7).get("actorName").asText()).isEqualTo("Member");
+    // A change made with a JWT carries no API key (S1).
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM activity_event WHERE entity_id = ? AND actor_key_id IS NOT"
+                    + " NULL",
+                Integer.class,
+                task))
+        .isZero();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT count(*) FROM outbox_event WHERE entity_id = ? AND actor_key_id IS NOT"
+                    + " NULL",
+                Integer.class,
+                task))
+        .isZero();
     assertThat(items.get(5).get("payload").at("/changes/statusId/to").asText())
         .isEqualTo(statusId(f.space(), "in progress").toString());
     assertThat(items.get(6).get("payload").get("version").asLong()).isEqualTo(2);

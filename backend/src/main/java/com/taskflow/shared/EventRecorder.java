@@ -53,7 +53,7 @@ public class EventRecorder {
     }
     jdbc.update(
         "INSERT INTO outbox_event (id, workspace_id, entity, entity_id, type, payload, actor_type,"
-            + " actor_id) VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb), ?, ?)",
+            + " actor_id, actor_key_id) VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb), ?, ?, ?)",
         Ids.newId(),
         workspaceId,
         entity,
@@ -61,10 +61,12 @@ public class EventRecorder {
         type,
         outboxJson,
         actor.type().name(),
-        actor.id());
+        actor.id(),
+        actor.keyId());
     jdbc.update(
         "INSERT INTO activity_event (id, workspace_id, entity, entity_id, type, payload,"
-            + " actor_type, actor_id) VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb), ?, ?)",
+            + " actor_type, actor_id, actor_key_id) VALUES (?, ?, ?, ?, ?, CAST(? AS jsonb), ?, ?,"
+            + " ?)",
         Ids.newId(),
         workspaceId,
         entity,
@@ -72,7 +74,8 @@ public class EventRecorder {
         type,
         json,
         actor.type().name(),
-        actor.id());
+        actor.id(),
+        actor.keyId());
   }
 
   /** Records on behalf of the current caller. */

@@ -37,7 +37,8 @@ class UserDirectoryImpl implements UserDirectory {
   public Optional<UserInfo> byEmail(String email) {
     return jdbc
         .query(
-            "SELECT id, email, display_name FROM app_user WHERE lower(email) = lower(?)",
+            "SELECT id, email, display_name FROM app_user WHERE lower(email) = lower(?)"
+                + " AND kind = 'HUMAN'",
             MAPPER,
             email.trim())
         .stream()

@@ -93,7 +93,8 @@ class AuthService {
     Optional<UserRow> user =
         jdbc
             .query(
-                "SELECT id, email, display_name, password_hash FROM app_user WHERE lower(email) = ?",
+                "SELECT id, email, display_name, password_hash FROM app_user WHERE lower(email) = ?"
+                    + " AND kind = 'HUMAN'",
                 (rs, i) ->
                     new UserRow(
                         new UserInfo(
@@ -159,7 +160,7 @@ class AuthService {
           Optional<UserInfo> user =
               jdbc
                   .query(
-                      "SELECT id, email, display_name FROM app_user WHERE id = ?",
+                      "SELECT id, email, display_name FROM app_user WHERE id = ? AND kind = 'HUMAN'",
                       (rs, i) ->
                           new UserInfo(
                               rs.getObject("id", UUID.class),

@@ -26,7 +26,8 @@ public class ActivityQuery {
     List<String> after = PageCursor.decode(cursor, 2);
     StringBuilder sql =
         new StringBuilder(
-            "SELECT id, type, actor_type, actor_id, payload::text AS payload, created_at,"
+            "SELECT id, type, actor_type, actor_id, actor_key_id, payload::text AS payload,"
+                + " created_at,"
                 + " (EXTRACT(EPOCH FROM created_at) * 1000000)::bigint AS micros"
                 + " FROM activity_event WHERE workspace_id = ? AND entity = ? AND entity_id = ?");
     java.util.ArrayList<Object> args =
@@ -52,6 +53,7 @@ public class ActivityQuery {
                         rs.getString("type"),
                         ActorType.valueOf(rs.getString("actor_type")),
                         rs.getObject("actor_id", UUID.class),
+                        rs.getObject("actor_key_id", UUID.class),
                         mapper.readTree(rs.getString("payload")),
                         ts.toInstant()),
                     rs.getLong("micros"));
