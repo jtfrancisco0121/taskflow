@@ -1,9 +1,10 @@
 import { createBrowserRouter } from 'react-router'
-import { HomePage } from '../features/home/HomePage'
 import { SignInPage, SignUpPage } from '../features/auth'
+import { SetupPage, WorkspaceRedirect } from '../features/workspace'
 import { AppShell } from './AppShell'
 import { RequireSession } from './RequireSession'
 
+// AD-3: every route is declared here and only here.
 export const router = createBrowserRouter([
   { path: '/signin', element: <SignInPage /> },
   { path: '/signup', element: <SignUpPage /> },
@@ -13,10 +14,11 @@ export const router = createBrowserRouter([
       {
         element: <AppShell />,
         children: [
-          { path: '/', element: <HomePage /> },
+          { path: '/', element: <WorkspaceRedirect /> },
+          { path: '/setup', element: <SetupPage /> },
           {
-            path: '/setup',
-            element: <h1 className="text-xl font-semibold">Create your Workspace</h1>,
+            path: '/w/:workspaceId',
+            element: <p className="text-slate-600">Pick a List in the sidebar.</p>,
           },
         ],
       },

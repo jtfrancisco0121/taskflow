@@ -1,5 +1,6 @@
-import { Outlet } from 'react-router'
+import { Outlet, useParams } from 'react-router'
 import { useSession, useSignOut } from '../features/auth'
+import { useRememberWorkspace, WorkspaceSwitcher } from '../features/workspace'
 import { Button } from '../shared/ui/Button'
 import { useUiStore } from '../shared/ui-store'
 
@@ -8,6 +9,8 @@ export function AppShell() {
   const toggleSidebar = useUiStore((state) => state.toggleSidebar)
   const session = useSession()
   const signOut = useSignOut()
+  const { workspaceId } = useParams()
+  useRememberWorkspace(workspaceId)
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
@@ -22,6 +25,7 @@ export function AppShell() {
           Menu
         </button>
         <span className="text-lg font-bold">Taskflow</span>
+        <WorkspaceSwitcher currentId={workspaceId} />
         <div className="ml-auto flex items-center gap-3 text-sm">
           {session.user?.displayName && <span>{session.user.displayName}</span>}
           <Button onClick={() => void signOut()}>Sign out</Button>
