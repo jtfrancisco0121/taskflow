@@ -1,4 +1,4 @@
-import { Link, useLocation, useMatch, useNavigate } from 'react-router'
+import { Link, useLocation, type Location, useMatch, useNavigate } from 'react-router'
 import type { TaskView } from '../../api/types'
 import { formatDay } from '../../shared/dates'
 import { StatusPill } from '../../shared/ui/StatusPill'
@@ -17,7 +17,13 @@ export function TaskRow({ task, members }: TaskRowProps) {
   const statuses = useLocationStatuses(task.workspaceId, task.listId)
   const status = statuses.data?.statuses?.find((s) => s.id === task.statusId)
   const assignees = task.assigneeIds ?? []
-  const openTask = () => void navigate(`/t/${task.id}`, { state: { backgroundLocation: location } })
+  // Behind an open panel the current location is /t/<prev>: keep that panel's own background.
+  const onTaskRoute = useMatch('/t/:taskId') !== null
+  const background = onTaskRoute
+    ? ((location.state as { backgroundLocation?: Location } | null)?.backgroundLocation ?? null)
+    : location
+  const linkState = background ? { backgroundLocation: background } : undefined
+  const openTask = () => void navigate(`/t/${task.id}`, { state: linkState })
 
   return (
     <tr
@@ -30,7 +36,7 @@ export function TaskRow({ task, members }: TaskRowProps) {
       <td className="px-2 py-1.5">
         <Link
           to={`/t/${task.id}`}
-          state={{ backgroundLocation: location }}
+          state={linkState}
           onClick={(event) => event.stopPropagation()}
           className="hover:underline focus:outline-2 focus:outline-blue-600"
         >

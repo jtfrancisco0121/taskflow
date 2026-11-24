@@ -112,6 +112,18 @@ describe('TaskPanel', () => {
     )
   })
 
+  it('FR-16: a row clicked behind an open panel keeps the List as background, so Escape returns to the List', async () => {
+    serve()
+    const user = userEvent.setup()
+    renderPanel('/t/t0', { backgroundLocation: { pathname: '/w/w1/l/l1' } })
+
+    await screen.findByRole('complementary', { name: 'Task ACME-1' })
+    await user.click(await screen.findByRole('link', { name: 'Draft launch post' }))
+    await user.keyboard('{Escape}')
+
+    await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/w/w1/l/l1'))
+  })
+
   it('FR-16: a task that does not exist shows "Task not found."', async () => {
     serve({}, { 'GET /api/v1/tasks/:id': problem(404, 'task.not_found', 'No such task') } as never)
     renderPanel('/t/nope')
