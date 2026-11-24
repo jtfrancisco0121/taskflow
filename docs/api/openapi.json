@@ -87,6 +87,20 @@
         },
         "type" : "object"
       },
+      "AddDependencyRequest" : {
+        "properties" : {
+          "otherTaskId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "relation" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "otherTaskId", "relation" ],
+        "type" : "object"
+      },
       "ApiKeyView" : {
         "properties" : {
           "createdAt" : {
@@ -506,6 +520,119 @@
           },
           "day" : {
             "format" : "date",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "DependencyAdded" : {
+        "properties" : {
+          "dependency" : {
+            "$ref" : "#/components/schemas/DependencyView"
+          },
+          "task" : {
+            "$ref" : "#/components/schemas/TaskView"
+          }
+        },
+        "type" : "object"
+      },
+      "DependencyHidden" : {
+        "properties" : {
+          "blocking" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "linked" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "waitingOn" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "DependencyItem" : {
+        "properties" : {
+          "dependencyId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "task" : {
+            "$ref" : "#/components/schemas/DependencySummary"
+          }
+        },
+        "type" : "object"
+      },
+      "DependencyList" : {
+        "properties" : {
+          "blocking" : {
+            "items" : {
+              "$ref" : "#/components/schemas/DependencyItem"
+            },
+            "type" : "array"
+          },
+          "hiddenCount" : {
+            "$ref" : "#/components/schemas/DependencyHidden"
+          },
+          "linked" : {
+            "items" : {
+              "$ref" : "#/components/schemas/DependencyItem"
+            },
+            "type" : "array"
+          },
+          "waitingOn" : {
+            "items" : {
+              "$ref" : "#/components/schemas/DependencyItem"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "DependencySummary" : {
+        "properties" : {
+          "finished" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "listId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "readableId" : {
+            "type" : "string"
+          },
+          "statusId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "DependencyView" : {
+        "properties" : {
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "otherTaskId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "relation" : {
+            "enum" : [ "WAITING_ON", "BLOCKING", "LINKED" ],
             "type" : "string"
           }
         },
@@ -1191,6 +1318,13 @@
       },
       "SearchHit" : {
         "properties" : {
+          "blocked" : {
+            "type" : "boolean"
+          },
+          "blockerCount" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "listId" : {
             "format" : "uuid",
             "type" : "string"
@@ -1368,6 +1502,13 @@
               "type" : "string"
             },
             "type" : "array"
+          },
+          "blocked" : {
+            "type" : "boolean"
+          },
+          "blockerCount" : {
+            "format" : "int32",
+            "type" : "integer"
           },
           "createdAt" : {
             "format" : "date-time",
@@ -2423,7 +2564,7 @@
     },
     "/api/v1/locations/{id}/fields" : {
       "get" : {
-        "operationId" : "list_5",
+        "operationId" : "list_6",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2553,7 +2694,7 @@
     },
     "/api/v1/locations/{id}/grants" : {
       "get" : {
-        "operationId" : "list_7",
+        "operationId" : "list_8",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2872,7 +3013,7 @@
     },
     "/api/v1/tasks" : {
       "get" : {
-        "operationId" : "list_6",
+        "operationId" : "list_7",
         "parameters" : [ {
           "in" : "query",
           "name" : "locationId",
@@ -3066,7 +3207,7 @@
     },
     "/api/v1/tasks/{id}/checklists" : {
       "get" : {
-        "operationId" : "list_4",
+        "operationId" : "list_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3131,7 +3272,7 @@
     },
     "/api/v1/tasks/{id}/comments" : {
       "get" : {
-        "operationId" : "list_3",
+        "operationId" : "list_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3204,6 +3345,110 @@
           }
         },
         "tags" : [ "comment-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}/dependencies" : {
+      "get" : {
+        "operationId" : "list_3",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DependencyList"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "dependency-controller" ]
+      },
+      "post" : {
+        "operationId" : "add",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AddDependencyRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DependencyAdded"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "dependency-controller" ]
+      }
+    },
+    "/api/v1/tasks/{id}/dependencies/{dependencyId}" : {
+      "delete" : {
+        "operationId" : "remove",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "dependencyId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "If-Match",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "dependency-controller" ]
       }
     },
     "/api/v1/tasks/{id}/duplicate" : {
