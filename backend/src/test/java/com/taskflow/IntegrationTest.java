@@ -2,6 +2,7 @@ package com.taskflow;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -104,5 +105,52 @@ public abstract class IntegrationTest {
       throw new IllegalStateException("signup failed: " + r.status() + " " + r.raw());
     }
     return new TestUser(r.uuid("/user/id"), email, r.text("/accessToken"));
+  }
+
+  /** A workspace with one user in each role. */
+  public record Ws(
+      UUID id, String key, TestUser owner, TestUser admin, TestUser member, TestUser guest) {
+    public TestUser by(String role) {
+      return switch (role) {
+        case "OWNER" -> owner;
+        case "ADMIN" -> admin;
+        case "MEMBER" -> member;
+        case "GUEST" -> guest;
+        default -> throw new IllegalArgumentException(role);
+      };
+    }
+  }
+
+  protected static final java.util.List<String> ROLES =
+      java.util.List.of("OWNER", "ADMIN", "MEMBER", "GUEST");
+
+  protected UUID createWorkspace(TestUser owner, String name) {
+    Resp r = post("/api/v1/workspaces", owner.token(), Map.of("name", name));
+    if (r.status() != 201) {
+      throw new IllegalStateException("workspace failed: " + r.status() + " " + r.raw());
+    }
+    return r.uuid("/id");
+  }
+
+  protected void addMember(UUID workspaceId, TestUser user, String role) {
+    jdbc.update(
+        "INSERT INTO workspace_member (workspace_id, user_id, role) VALUES (?, ?, ?)"
+            + " ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role",
+        workspaceId,
+        user.id(),
+        role);
+  }
+
+  protected Ws workspaceWithAllRoles() {
+    TestUser owner = signUp("Owner");
+    TestUser admin = signUp("Admin");
+    TestUser member = signUp("Member");
+    TestUser guest = signUp("Guest");
+    UUID id = createWorkspace(owner, "Acme Roles");
+    addMember(id, admin, "ADMIN");
+    addMember(id, member, "MEMBER");
+    addMember(id, guest, "GUEST");
+    String key = jdbc.queryForObject("SELECT key FROM workspace WHERE id = ?", String.class, id);
+    return new Ws(id, key, owner, admin, member, guest);
   }
 }
