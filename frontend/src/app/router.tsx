@@ -20,6 +20,7 @@ export const router = createBrowserRouter([
             path: '/w/:workspaceId',
             element: <p className="text-slate-600">Pick a List in the sidebar.</p>,
           },
+          { path: '/w/:workspaceId/l/:locationId', element: <p>List</p> },
         ],
       },
     ],

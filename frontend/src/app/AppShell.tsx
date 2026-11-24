@@ -1,4 +1,5 @@
 import { Outlet, useParams } from 'react-router'
+import { SidebarTree } from '../features/locations'
 import { useSession, useSignOut } from '../features/auth'
 import { useRememberWorkspace, WorkspaceSwitcher } from '../features/workspace'
 import { Button } from '../shared/ui/Button'
@@ -37,10 +38,8 @@ export function AppShell() {
             aria-label="Sidebar"
             className="w-56 border-r border-slate-200 bg-white p-4 text-sm"
           >
-            <nav>
-              <a href="/" className="font-medium">
-                Home
-              </a>
+            <nav aria-label="Locations">
+              {workspaceId && <SidebarTree workspaceId={workspaceId} />}
             </nav>
           </aside>
         )}

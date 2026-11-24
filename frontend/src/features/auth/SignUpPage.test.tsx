@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { getAccessToken } from '../../api/session'
-import { json, problem, renderWithProviders, useStubFetch } from '../../test/api'
+import { json, problem, renderWithProviders, installFetch } from '../../test/api'
 import { SignUpPage } from './SignUpPage'
 
 function renderPage() {
@@ -24,7 +24,7 @@ async function fill(user: ReturnType<typeof userEvent.setup>, email = 'maya@exam
 
 describe('SignUpPage', () => {
   it('FR-1: a valid sign-up stores the session and routes to /setup', async () => {
-    const stub = useStubFetch({
+    const stub = installFetch({
       'POST /api/v1/auth/signup': json(
         { accessToken: 'tok', user: { id: 'u1', displayName: 'Maya', email: 'maya@example.com' } },
         201,
@@ -46,7 +46,7 @@ describe('SignUpPage', () => {
   })
 
   it('FR-1: a server refusal shows its detail and keeps name and email', async () => {
-    useStubFetch({
+    installFetch({
       'POST /api/v1/auth/signup': problem(409, 'auth.email_taken', 'That email is already in use.'),
     })
     const user = userEvent.setup()
@@ -62,7 +62,7 @@ describe('SignUpPage', () => {
   })
 
   it('FR-1: client validation blocks a bad email and a short password without a request', async () => {
-    const stub = useStubFetch()
+    const stub = installFetch()
     const user = userEvent.setup()
     renderPage()
 

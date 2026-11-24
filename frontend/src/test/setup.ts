@@ -5,7 +5,7 @@ import { clearSession, resetSessionForTests } from '../api/session'
 import { useToastStore } from '../shared/toast-store'
 import { useUiStore } from '../shared/ui-store'
 
-// AD-12: component tests stub HTTP by giving `api` a stub fetch (see useStubFetch in test/api.tsx).
+// AD-12: component tests stub HTTP by giving `api` a stub fetch (see installFetch in test/api.tsx).
 // Registered here so every test file gets it; a file may still mock the module itself.
 vi.mock('../api/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/client')>()

@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes, useParams } from 'react-router'
 import { describe, expect, it } from 'vitest'
-import { json, renderWithProviders, useStubFetch } from '../../test/api'
+import { json, renderWithProviders, installFetch } from '../../test/api'
 import { SetupPage } from './SetupPage'
 import { WorkspaceRedirect } from './WorkspaceRedirect'
 
@@ -23,14 +23,14 @@ function renderApp(route: string) {
 
 describe('SetupPage', () => {
   it('FR-6: a user with zero Workspaces is redirected to the setup screen', async () => {
-    useStubFetch({ 'GET /api/v1/workspaces': { items: [] } })
+    installFetch({ 'GET /api/v1/workspaces': { items: [] } })
     renderApp('/')
 
     expect(await screen.findByRole('heading', { name: 'Create your Workspace' })).toBeVisible()
   })
 
   it('FR-6: creating a Workspace sends name and key and navigates to it', async () => {
-    const stub = useStubFetch({
+    const stub = installFetch({
       'GET /api/v1/workspaces': { items: [] },
       'POST /api/v1/workspaces': json({ id: 'w1', name: 'Acme', key: 'ACME', role: 'OWNER' }),
     })
@@ -48,7 +48,7 @@ describe('SetupPage', () => {
   })
 
   it('FR-6: an empty name and a bad key are refused before sending', async () => {
-    const stub = useStubFetch({ 'GET /api/v1/workspaces': { items: [] } })
+    const stub = installFetch({ 'GET /api/v1/workspaces': { items: [] } })
     const user = userEvent.setup()
     renderApp('/setup')
 

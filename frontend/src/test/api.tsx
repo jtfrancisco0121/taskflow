@@ -72,7 +72,7 @@ export function stubFetch(routes: Record<string, StubHandler | Response | object
 }
 
 /** Installs a stub as the fetch behind the test `api` client (AD-12). */
-export function useStubFetch(routes: Record<string, StubHandler | Response | object> = {}) {
+export function installFetch(routes: Record<string, StubHandler | Response | object> = {}) {
   const stub = stubFetch(routes)
   testFetch.current = stub
   return stub

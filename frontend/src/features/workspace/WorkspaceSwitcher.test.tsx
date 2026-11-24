@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes, useParams } from 'react-router'
 import { describe, expect, it } from 'vitest'
-import { renderWithProviders, useStubFetch } from '../../test/api'
+import { renderWithProviders, installFetch } from '../../test/api'
 import { writeLastWorkspace } from './lastWorkspace'
 import { WorkspaceRedirect } from './WorkspaceRedirect'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
@@ -33,7 +33,7 @@ function renderApp(route: string) {
 
 describe('WorkspaceSwitcher', () => {
   it('FR-7: lists each Workspace with its name and role, checks the current one and offers New Workspace', async () => {
-    useStubFetch({ 'GET /api/v1/workspaces': { items: [acme, beta] } })
+    installFetch({ 'GET /api/v1/workspaces': { items: [acme, beta] } })
     const user = userEvent.setup()
     renderApp('/w/w1')
 
@@ -47,7 +47,7 @@ describe('WorkspaceSwitcher', () => {
   })
 
   it('FR-7: switching navigates to the other Workspace', async () => {
-    useStubFetch({ 'GET /api/v1/workspaces': { items: [acme, beta] } })
+    installFetch({ 'GET /api/v1/workspaces': { items: [acme, beta] } })
     const user = userEvent.setup()
     renderApp('/w/w1')
 
@@ -58,7 +58,7 @@ describe('WorkspaceSwitcher', () => {
   })
 
   it('FR-7: shows Show more and loads the next page with the server cursor', async () => {
-    const stub = useStubFetch({
+    const stub = installFetch({
       'GET /api/v1/workspaces': (request) =>
         new URL(request.url).searchParams.get('cursor') === 'c2'
           ? Response.json({ items: [beta] })
@@ -75,7 +75,7 @@ describe('WorkspaceSwitcher', () => {
   })
 
   it('FR-7: / restores the last Workspace', async () => {
-    useStubFetch({ 'GET /api/v1/workspaces': { items: [acme, beta] } })
+    installFetch({ 'GET /api/v1/workspaces': { items: [acme, beta] } })
     writeLastWorkspace('w2')
     renderApp('/')
 
@@ -83,7 +83,7 @@ describe('WorkspaceSwitcher', () => {
   })
 
   it('FR-7: a last Workspace the user lost access to falls back to the first', async () => {
-    useStubFetch({ 'GET /api/v1/workspaces': { items: [acme, beta] } })
+    installFetch({ 'GET /api/v1/workspaces': { items: [acme, beta] } })
     writeLastWorkspace('gone')
     renderApp('/')
 

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { getAccessToken } from '../../api/session'
-import { json, problem, renderWithProviders, useStubFetch } from '../../test/api'
+import { json, problem, renderWithProviders, installFetch } from '../../test/api'
 import { SignInPage } from './SignInPage'
 
 function renderPage(state?: object) {
@@ -25,7 +25,7 @@ async function submit(user: ReturnType<typeof userEvent.setup>) {
 
 describe('SignInPage', () => {
   it('FR-2: signing in returns to the page the user came from', async () => {
-    useStubFetch({
+    installFetch({
       'POST /api/v1/auth/signin': json({ accessToken: 'tok', user: { id: 'u1' } }),
     })
     const user = userEvent.setup()
@@ -38,7 +38,7 @@ describe('SignInPage', () => {
   })
 
   it('FR-2: a wrong password shows one generic error, stores no token and clears the password', async () => {
-    useStubFetch({
+    installFetch({
       'POST /api/v1/auth/signin': problem(401, 'auth.invalid_credentials', 'Bad credentials'),
     })
     const user = userEvent.setup()
@@ -54,7 +54,7 @@ describe('SignInPage', () => {
   })
 
   it('FR-2: a 429 shows the rate-limit message', async () => {
-    useStubFetch({
+    installFetch({
       'POST /api/v1/auth/signin': problem(429, 'auth.rate_limited', 'Slow down'),
     })
     const user = userEvent.setup()

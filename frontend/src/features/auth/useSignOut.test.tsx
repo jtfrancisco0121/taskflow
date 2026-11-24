@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { getAccessToken, setSession } from '../../api/session'
-import { newQueryClient, useStubFetch } from '../../test/api'
+import { newQueryClient, installFetch } from '../../test/api'
 import { useSignOut } from './useSignOut'
 
 function SignOutButton() {
@@ -14,7 +14,7 @@ function SignOutButton() {
 
 describe('useSignOut', () => {
   it('FR-3: calls signout, clears the token and the cache, and routes to sign-in', async () => {
-    const stub = useStubFetch({
+    const stub = installFetch({
       'POST /api/v1/auth/signout': new Response(null, { status: 204 }),
     })
     setSession('tok', { id: 'u1' })

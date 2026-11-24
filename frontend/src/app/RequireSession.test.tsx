@@ -4,7 +4,7 @@ import { Route, Routes } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { SignInPage } from '../features/auth'
 import { getAccessToken } from '../api/session'
-import { json, problem, renderWithProviders, useStubFetch } from '../test/api'
+import { json, problem, renderWithProviders, installFetch } from '../test/api'
 import { RequireSession } from './RequireSession'
 
 function renderApp(route: string) {
@@ -22,7 +22,7 @@ function renderApp(route: string) {
 
 describe('RequireSession', () => {
   it('FR-4: shows a loading screen, then restores the session from the refresh cookie', async () => {
-    useStubFetch({
+    installFetch({
       'POST /api/v1/auth/refresh': json({ accessToken: 'tok', user: { id: 'u1' } }),
     })
     renderApp('/')
@@ -34,7 +34,7 @@ describe('RequireSession', () => {
   })
 
   it('FR-4: sends exactly one refresh even when the boot effect runs twice', async () => {
-    const stub = useStubFetch({
+    const stub = installFetch({
       'POST /api/v1/auth/refresh': json({ accessToken: 'tok', user: { id: 'u1' } }),
     })
     renderApp('/')
@@ -43,7 +43,7 @@ describe('RequireSession', () => {
   })
 
   it('FR-5: /t/abc signed out goes to sign-in and back to /t/abc after signing in', async () => {
-    useStubFetch({
+    installFetch({
       'POST /api/v1/auth/refresh': problem(401, 'auth.invalid_refresh', 'No session'),
       'POST /api/v1/auth/signin': json({ accessToken: 'tok', user: { id: 'u1' } }),
     })
