@@ -1,33 +1,14 @@
-import { expect, test, type Page } from '@playwright/test'
-import { createList, createSpace, signUpAndCreateWorkspace } from './helpers'
+import { expect, test } from '@playwright/test'
+import {
+  createField,
+  createList,
+  createSpace,
+  openFields,
+  signUpAndCreateWorkspace,
+} from './helpers'
 import { snap } from './screenshots'
 
 // FIELD-1/FIELD-2 (3A S2, UJ-1): define fields at a Space and a List, see where an inherited one comes from, hide it.
-
-async function openFields(page: Page, location: string) {
-  await page.getByRole('button', { name: `Actions for ${location}` }).click()
-  await page.getByRole('menuitem', { name: 'Fields' }).click()
-  const dialog = page.getByRole('dialog', { name: `Fields: ${location}` })
-  await expect(dialog).toBeVisible()
-  return dialog
-}
-
-async function createField(
-  dialog: ReturnType<Page['getByRole']>,
-  name: string,
-  type: string,
-  options: string[] = [],
-) {
-  await dialog.getByRole('button', { name: 'New field' }).click()
-  await dialog.getByLabel('Name', { exact: true }).fill(name)
-  await dialog.getByLabel('Field type').selectOption(type)
-  for (const [i, option] of options.entries()) {
-    await dialog.getByRole('button', { name: 'Add option' }).click()
-    await dialog.getByLabel(`Option ${i + 1} name`).fill(option)
-  }
-  await dialog.getByRole('button', { name: 'Create field' }).click()
-  await expect(dialog.getByRole('heading', { name: 'Fields here' })).toBeVisible()
-}
 
 test('UJ-1: fields defined on a Space show on its List as inherited, hidden and unhidden there', async ({
   page,

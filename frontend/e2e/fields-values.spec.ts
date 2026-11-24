@@ -1,0 +1,85 @@
+import { expect, test } from '@playwright/test'
+import {
+  addTask,
+  createField,
+  createList,
+  createSpace,
+  openFields,
+  signUpAndCreateWorkspace,
+} from './helpers'
+import { snap } from './screenshots'
+
+// FIELD-1 (3A S3, UJ-2): set and clear values of several types in the task panel.
+
+test('UJ-2: values are set and cleared in the task panel, a refusal shows the server message, a reload keeps them', async ({
+  page,
+}, testInfo) => {
+  await signUpAndCreateWorkspace(page, 'Values Co')
+
+  // A List with no fields at all: the panel group says so.
+  await createSpace(page, 'Bare')
+  await createList(page, 'Bare', 'Plain')
+  await addTask(page, 'Nothing to fill')
+  await page.getByRole('link', { name: 'Nothing to fill' }).click()
+  const barePanel = page.getByRole('complementary', { name: /^Task / })
+  await expect(
+    barePanel.getByText("No custom fields here. Add one from the location's Fields."),
+  ).toBeVisible()
+  await snap(page, testInfo, 'fields-panel-empty')
+  await barePanel.getByRole('button', { name: 'Close task panel' }).click()
+
+  // A Space with fields; its List inherits them.
+  await createSpace(page, 'Engineering')
+  await createList(page, 'Engineering', 'Backlog')
+  const dialog = await openFields(page, 'Engineering')
+  await createField(dialog, 'Story points', 'NUMBER')
+  await createField(dialog, 'Customer tier', 'DROPDOWN', ['Free', 'Pro', 'Enterprise'])
+  await createField(dialog, 'Done', 'CHECKBOX')
+  await createField(dialog, 'Notes', 'TEXT')
+  await dialog.getByRole('button', { name: 'Close' }).click()
+
+  await addTask(page, 'Ship it')
+  await page.getByRole('link', { name: 'Ship it' }).click()
+  const panel = page.getByRole('complementary', { name: /^Task / })
+  await expect(panel.getByRole('heading', { name: 'Custom fields' })).toBeVisible()
+  await expect(panel.getByText('from Engineering').first()).toBeVisible()
+
+  const points = panel.getByRole('textbox', { name: /^Story points for / })
+  await points.fill('5')
+  await points.press('Enter')
+  await expect(panel.getByText('Saved').first()).toBeVisible()
+  await panel.getByLabel(/^Customer tier for /).selectOption('Enterprise')
+  await panel.getByRole('checkbox', { name: /^Done for / }).check()
+  await panel.getByRole('textbox', { name: /^Notes for / }).fill('call back')
+  await panel.getByRole('textbox', { name: /^Notes for / }).press('Enter')
+  await expect(panel.getByRole('checkbox', { name: /^Done for / })).toBeChecked()
+  await snap(page, testInfo, 'fields-panel-values')
+
+  // A reload keeps every value.
+  await page.reload()
+  const reloaded = page.getByRole('complementary', { name: /^Task / })
+  await expect(reloaded.getByRole('textbox', { name: /^Story points for / })).toHaveValue('5')
+  await expect(reloaded.getByLabel(/^Customer tier for /).locator('option:checked')).toHaveText(
+    'Enterprise',
+  )
+  await expect(reloaded.getByRole('checkbox', { name: /^Done for / })).toBeChecked()
+  await expect(reloaded.getByRole('textbox', { name: /^Notes for / })).toHaveValue('call back')
+
+  // A value the server refuses rolls back and the message is shown.
+  const again = reloaded.getByRole('textbox', { name: /^Story points for / })
+  await again.fill('abc')
+  await again.press('Enter')
+  await expect(reloaded.getByText(/Story points expects a number/)).toBeVisible()
+  await expect(again).toHaveValue('5')
+  await snap(page, testInfo, 'fields-panel-error')
+
+  // Clearing removes the value, and it stays cleared after a reload.
+  await again.fill('')
+  await again.press('Enter')
+  await expect(reloaded.getByText('Saved').first()).toBeVisible()
+  await reloaded.getByLabel(/^Customer tier for /).selectOption('—')
+  await page.reload()
+  const cleared = page.getByRole('complementary', { name: /^Task / })
+  await expect(cleared.getByRole('textbox', { name: /^Story points for / })).toHaveValue('')
+  await expect(cleared.getByLabel(/^Customer tier for /).locator('option:checked')).toHaveText('—')
+})

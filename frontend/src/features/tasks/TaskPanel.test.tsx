@@ -53,6 +53,7 @@ function serve(initial: Record<string, unknown> = {}, extra: Record<string, neve
       workspaceId: 'w1',
     }),
     'GET /api/v1/locations/:id/statuses': json(statuses),
+    'GET /api/v1/locations/:id/fields': json({ locationId: 'l1', canEdit: true, fields: [] }),
     'GET /api/v1/workspaces/:id/members': {
       items: [
         { userId: 'u1', displayName: 'Maya Lopez', role: 'OWNER' },
@@ -305,5 +306,115 @@ describe('TaskPanel', () => {
     expect(screen.queryByText(/Someone else changed/)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Status')).toHaveDisplayValue('To do')
     expect(patches(stub)).toHaveLength(1)
+  })
+
+  describe('custom fields (FIELD-1, 3A S3)', () => {
+    const points = {
+      id: 'f-points',
+      name: 'Story points',
+      type: 'NUMBER',
+      config: { decimals: 0 },
+      options: [],
+      definedAt: 's1',
+      definedAtName: 'Engineering',
+      inherited: true,
+      hidden: false,
+      version: 1,
+    }
+    const fieldsRoute = (fields: object[]) => ({
+      'GET /api/v1/locations/:id/fields': json({ locationId: 'l1', canEdit: true, fields }),
+    })
+
+    it('shows each field with where it comes from and saves an edit with If-Match, keeping it after a reload', async () => {
+      const { stub, task } = serve({ customFields: {} }, {
+        ...fieldsRoute([points]),
+        'PATCH /api/v1/tasks/:id': (_request: Request, body: unknown) => {
+          const patch = body as { customFields: Record<string, unknown> }
+          Object.assign(task, {
+            customFields: {
+              ...((task as { customFields?: object }).customFields ?? {}),
+              ...patch.customFields,
+            },
+            version: (task.version as number) + 1,
+          })
+          return json(task)
+        },
+      } as never)
+      const user = userEvent.setup()
+      renderPanel()
+
+      const panel = await screen.findByRole('complementary', { name: 'Task ACME-1' })
+      expect(await within(panel).findByText('from Engineering')).toBeVisible()
+      const box = within(panel).getByRole('textbox', { name: 'Story points for ACME-1' })
+      await user.type(box, '5{Enter}')
+
+      await waitFor(() => expect(patches(stub)).toHaveLength(1))
+      expect(patches(stub)[0].body).toEqual({ customFields: { 'f-points': 5 } })
+      expect(patches(stub)[0].headers.get('If-Match')).toBe('"3"')
+      await waitFor(() => expect(box).toHaveValue('5'))
+    })
+
+    it('a refused value rolls back and shows the server message', async () => {
+      serve({ customFields: { 'f-points': 2 } }, {
+        ...fieldsRoute([points]),
+        'PATCH /api/v1/tasks/:id': problem(
+          400,
+          'field.invalid_value',
+          'Story points expects a number',
+        ),
+      } as never)
+      const user = userEvent.setup()
+      renderPanel()
+
+      const box = await screen.findByRole('textbox', { name: 'Story points for ACME-1' })
+      await waitFor(() => expect(box).toHaveValue('2'))
+      await user.clear(box)
+      await user.type(box, 'abc{Enter}')
+
+      expect(await screen.findByText(/Story points expects a number/)).toBeVisible()
+      expect(box).toHaveValue('2')
+    })
+
+    it('a 409 shows the banner with the attempted change and the current value', async () => {
+      serve({ customFields: { 'f-points': 2 } }, {
+        ...fieldsRoute([points]),
+        'PATCH /api/v1/tasks/:id': problem(409, 'task.version_conflict', 'changed', {
+          current: { ...base, version: 4, customFields: { 'f-points': 9 } },
+        }),
+      } as never)
+      const user = userEvent.setup()
+      renderPanel()
+
+      const box = await screen.findByRole('textbox', { name: 'Story points for ACME-1' })
+      await waitFor(() => expect(box).toHaveValue('2'))
+      await user.clear(box)
+      await user.type(box, '7{Enter}')
+
+      expect(await screen.findByText(/Story points: 7/)).toBeVisible()
+      await waitFor(() => expect(box).toHaveValue('9'))
+    })
+
+    it('shows the empty state when the List has no fields, and an error with Retry', async () => {
+      serve({}, fieldsRoute([]) as never)
+      renderPanel()
+      expect(
+        await screen.findByText("No custom fields here. Add one from the location's Fields."),
+      ).toBeVisible()
+    })
+
+    it('hidden fields are not shown', async () => {
+      serve({}, fieldsRoute([{ ...points, hidden: true }]) as never)
+      renderPanel()
+      await screen.findByText(/No custom fields here/)
+      expect(screen.queryByRole('textbox', { name: /Story points/ })).not.toBeInTheDocument()
+    })
+
+    it('a failed load of the fields shows an error', async () => {
+      serve({}, {
+        'GET /api/v1/locations/:id/fields': problem(500, 'internal.error', 'The request failed'),
+      } as never)
+      renderPanel()
+      expect(await screen.findByText(/Couldn't load the custom fields/)).toBeVisible()
+    })
   })
 })

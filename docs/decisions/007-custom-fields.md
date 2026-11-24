@@ -49,3 +49,25 @@ Status: accepted (built in slices 3A S2..S8; this record grows with each). Conte
     later migration is needed; until S8 the API answers 400 `field.invalid_type` for it.
 12. **Deviation: no request-scoped catalog cache.** The effective set is one query; the task projection
     (S3) resolves it once per distinct List, which is where repeated lookups would happen.
+13. **Values: key-level merge only (AD-2).** `task.custom` holds `{fieldId: value}`. A write is
+    `custom = (custom - <cleared keys>) || <set object>` inside the versioned `UPDATE` (one version bump
+    per request, whatever the number of fields); no code path assigns `task.custom` from a client object and
+    no definition change updates a `task` row, so hidden, retired and out-of-scope values survive.
+    `customFields` keys may be field ids or, for agents, field names of the List's effective fields; a
+    Dropdown or Labels value may be an Option id or its name (case-insensitive), stored as the id. Errors:
+    400 `field.invalid_value` (naming the field and, for Options, the valid names) and
+    400 `field.not_available` (not effective on the List, or hidden there). A value equal to the stored one
+    is a no-op: no version, no event.
+14. **Projection (AD-13).** `TaskView.customFields` holds only values of the task's effective fields,
+    with retired Options removed (a Dropdown on a retired Option is omitted; Labels are filtered). The
+    task repository resolves the effective set once per distinct List of a page.
+15. **Activity snapshots (AD-7).** `changes.customFields` carries, per field, `from`/`to` (the stored
+    shapes, omitted for LONG_TEXT whose value is read from the task) plus `field`, `fromText`, `toText`
+    taken at write time and cut to 200 characters, so a later rename does not rewrite history and one
+    request cannot publish events of hundreds of KB.
+16. **One GIN index instead of per-field expression indexes.** `task_custom_gin_idx` (`jsonb_path_ops`)
+    serves containment predicates; this deviates from architecture "index hot fields" because DDL from
+    user actions is unsafe and the demo size does not need more. It is a plain `CREATE INDEX` in Flyway's
+    transaction, so it blocks task writes while it builds: harmless at current sizes. A large deployment
+    should build it out of band with `CREATE INDEX CONCURRENTLY` (`executeInTransaction=false`) first.
+    Expression indexes are the follow-up if SM-2 (p95 under 300 ms with a custom filter and sort) fails.

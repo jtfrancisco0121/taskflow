@@ -4,9 +4,11 @@ import type { StatusInfo, TaskView } from '../../api/types'
 import { formatDay } from '../../shared/dates'
 import { RichTextEditor, isEmptyDoc, type RichDoc } from '../../shared/richtext'
 import { Button } from '../../shared/ui/Button'
+import { formatValue, useLocationFields } from '../fields'
 import { useLocationStatuses } from '../statuses'
 import { useMembers } from '../workspace'
 import { ConflictBanner, type ConflictChange } from './ConflictBanner'
+import { CustomFieldsGroup } from './CustomFieldsGroup'
 import { FieldShell } from './FieldShell'
 import { PRIORITY_LABEL } from './labels'
 import {
@@ -32,6 +34,7 @@ const FIELD_OF: Record<keyof TaskPatch, { field: string; label: string }> = {
   assigneeIds: { field: 'assignees', label: 'Assignees' },
   description: { field: 'description', label: 'Description' },
   parentTaskId: { field: 'parentTaskId', label: 'Parent task' },
+  customFields: { field: 'customFields', label: 'Custom fields' },
 }
 
 type TaskPanelProps = {
@@ -125,6 +128,7 @@ function TaskPanelBody({ task, panelRef, onClose, onKeyDown, children }: BodyPro
   const statusList: StatusInfo[] = statuses.data?.statuses ?? []
   const { members } = useMembers(task.workspaceId)
   const memberList = members.map((m) => ({ id: m.userId!, name: m.displayName ?? m.email ?? '' }))
+  const customFields = useLocationFields(task.listId)
   const { hints, set } = useFieldHints()
   const [conflict, setConflict] = useState<TaskPatch | null>(null)
   const titleRef = useRef<HTMLInputElement>(null)
@@ -182,6 +186,13 @@ function TaskPanelBody({ task, panelRef, onClose, onKeyDown, children }: BodyPro
         )
       case 'description':
         return value ? '(edited text)' : '(cleared)'
+      case 'customFields':
+        return Object.entries(value as Record<string, unknown>)
+          .map(([id, v]) => {
+            const field = customFields.data?.fields?.find((f) => f.id === id)
+            return `${field?.name ?? 'a field'}: ${field ? formatValue(field, v) || 'none' : 'changed'}`
+          })
+          .join('; ')
       default:
         return String(value)
     }
@@ -237,6 +248,7 @@ function TaskPanelBody({ task, panelRef, onClose, onKeyDown, children }: BodyPro
       <TagsField {...common} />
       <AssigneesField {...common} members={memberList} />
       <DescriptionField {...common} members={memberList} />
+      <CustomFieldsGroup {...common} />
       {children?.(task)}
     </aside>
   )
