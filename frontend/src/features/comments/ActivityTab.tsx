@@ -1,6 +1,6 @@
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueries } from '@tanstack/react-query'
 import { api } from '../../api/client'
-import { messageOf, unwrap } from '../../api/errors'
+import { ApiError, messageOf, unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
 import type { TaskView } from '../../api/types'
 import { formatDateTime, relativeTime } from '../../shared/dates'
@@ -8,7 +8,7 @@ import { AgentBadge } from '../../shared/ui/AgentBadge'
 import { Button } from '../../shared/ui/Button'
 import { useLocationStatuses } from '../statuses'
 import { useMembers } from '../workspace'
-import { actorLabel, activitySentences, type NameLookup } from './activitySentence'
+import { actorLabel, activitySentences, relatedTaskIds, type NameLookup } from './activitySentence'
 
 function useActivity(taskId: string) {
   return useInfiniteQuery({
@@ -29,19 +29,37 @@ export function ActivityTab({ task }: { task: TaskView }) {
   const activity = useActivity(task.id!)
   const statuses = useLocationStatuses(task.workspaceId, task.listId)
   const { members } = useMembers(task.workspaceId)
+  const entries = [
+    ...new Map(
+      (activity.data?.pages.flatMap((page) => page.items ?? []) ?? []).map((e) => [e.id, e]),
+    ).values(),
+  ]
+  // The other task of a relationship is read like any task: a refused read is "a task you can't
+  // see", so a hidden task's id or title never reaches the page (AD-6).
+  const relatedIds = [...new Set(entries.flatMap(relatedTaskIds))]
+  const related = useQueries({
+    queries: relatedIds.map((id) => ({
+      queryKey: queryKeys.task(id),
+      retry: false,
+      queryFn: () => unwrap(api.GET('/api/v1/tasks/{id}', { params: { path: { id } } })),
+    })),
+  })
   const lookup: NameLookup = {
+    taskName: (id) => {
+      const result = related[relatedIds.indexOf(id)]
+      if (!result) return undefined
+      if (result.data) return result.data.readableId
+      return result.error instanceof ApiError &&
+        (result.error.status === 404 || result.error.status === 403)
+        ? null
+        : undefined
+    },
     statusName: (id) => statuses.data?.statuses?.find((s) => s.id === id)?.name,
     memberName: (id) => {
       const member = members.find((m) => m.userId === id)
       return member ? (member.displayName ?? member.email) : undefined
     },
   }
-  const entries = [
-    ...new Map(
-      (activity.data?.pages.flatMap((page) => page.items ?? []) ?? []).map((e) => [e.id, e]),
-    ).values(),
-  ]
-
   return (
     <div className="flex flex-col gap-2">
       {activity.isPending && <p role="status">Loading…</p>}

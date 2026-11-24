@@ -151,3 +151,16 @@ describe('VIEW-3 URL state', () => {
     expect(patch.c).toEqual([{ field: 'title' }])
   })
 })
+
+describe('VIEW-3 blocked filter in the URL (FR-7)', () => {
+  it('round-trips {field: "blocked", op: "is_true"} through f', () => {
+    const state: UrlState = {
+      f: { op: 'AND', items: [{ field: 'blocked', op: 'is_true' }] },
+    }
+    const params = writeUrlState(new URLSearchParams(), state)
+    expect(params.get('f')).toBeTruthy()
+    const parsed = parseUrlState(new URLSearchParams(params.toString()))
+    expect(parsed.dropped).toEqual([])
+    expect(parsed.state.f).toEqual(state.f)
+  })
+})

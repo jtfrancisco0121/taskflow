@@ -27,6 +27,8 @@ const OP_LABEL: Record<string, string> = {
   overdue: 'is overdue',
   include: 'include subtasks',
   exclude: 'exclude subtasks',
+  is_true: 'is blocked',
+  is_false: 'is not blocked',
 }
 
 type Kind = 'text' | 'priority' | 'status' | 'assignee' | 'tags' | 'date' | 'none'
@@ -56,9 +58,18 @@ const FIELDS: Record<string, { label: string; ops: string[]; kind: Kind }> = {
     kind: 'date',
   },
   subtasks: { label: 'Subtasks', ops: ['include', 'exclude'], kind: 'none' },
+  blocked: { label: 'Blocked', ops: ['is_true', 'is_false'], kind: 'none' },
 }
 
-const NO_VALUE = new Set(['is_set', 'is_empty', 'overdue', 'include', 'exclude'])
+const NO_VALUE = new Set([
+  'is_set',
+  'is_empty',
+  'overdue',
+  'include',
+  'exclude',
+  'is_true',
+  'is_false',
+])
 
 /** A fresh condition on a custom field: its first operator and a usable default value. */
 function newCustomCondition(field: FieldView): ViewFilter {

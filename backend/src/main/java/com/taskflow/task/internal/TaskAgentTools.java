@@ -35,6 +35,7 @@ class TaskAgentTools {
   private final CommentService comments;
   private final TaskSearchService search;
   private final TaskAgentSearch agentSearch;
+  private final DependencyService dependencies;
   private final Permissions permissions;
   private final ServiceAccounts serviceAccounts;
   private final ObjectMapper mapper;
@@ -45,6 +46,7 @@ class TaskAgentTools {
       CommentService comments,
       TaskSearchService search,
       TaskAgentSearch agentSearch,
+      DependencyService dependencies,
       Permissions permissions,
       ServiceAccounts serviceAccounts,
       ObjectMapper mapper) {
@@ -53,6 +55,7 @@ class TaskAgentTools {
     this.comments = comments;
     this.search = search;
     this.agentSearch = agentSearch;
+    this.dependencies = dependencies;
     this.permissions = permissions;
     this.serviceAccounts = serviceAccounts;
     this.mapper = mapper;
@@ -88,11 +91,14 @@ class TaskAgentTools {
             + " gte, lt, lte, between, is_set, is_empty; date before, after, on, between, is_set,"
             + " is_empty; dropdown any_of, none_of, is_set, is_empty (values are Option names); labels"
             + " also all_of; checkbox is_checked, is_unchecked; rating eq, gte, lte; progress gte,"
-            + " lte, between.",
+            + " lte, between. blocked: true returns only tasks that wait on an unfinished task, false"
+            + " only tasks that do not; it can be the only argument and every hit carries blocked"
+            + " and blockerCount.",
         """
         {"type": "object", "properties": {
           "query": {"type": "string", "minLength": 1, "maxLength": 200},
           "locationId": {"type": "string", "format": "uuid"},
+          "blocked": {"type": "boolean"},
           "customFields": {"type": "array", "maxItems": 10, "items": {
             "type": "object", "required": ["fieldId", "op"], "properties": {
               "fieldId": {"type": "string", "format": "uuid"},
@@ -101,7 +107,7 @@ class TaskAgentTools {
             }}},
           "cursor": {"type": "string", "description": "nextCursor of the previous page"},
           "limit": {"type": "integer", "minimum": 1}
-        }, "anyOf": [{"required": ["query"]}, {"required": ["customFields"]}]}
+        }, "anyOf": [{"required": ["query"]}, {"required": ["customFields"]}, {"required": ["blocked"]}]}
         """,
         args -> {
           UUID workspace = workspaceOfCaller();
@@ -109,11 +115,13 @@ class TaskAgentTools {
           String query = AgentToolArgs.optText(args, "query");
           UUID locationId = AgentToolArgs.optUuid(args, "locationId");
           List<TaskAgentSearch.Cond> conditions = conditions(args);
+          Boolean blocked = optBoolean(args, "blocked");
           boolean hasQuery = query != null && !query.isBlank();
-          if (!hasQuery && conditions.isEmpty()) {
-            throw AgentToolArgs.invalid("Pass a query or at least one customFields condition");
+          if (!hasQuery && conditions.isEmpty() && blocked == null) {
+            throw AgentToolArgs.invalid(
+                "Pass a query, blocked or at least one customFields condition");
           }
-          if (locationId == null && conditions.isEmpty()) {
+          if (locationId == null && conditions.isEmpty() && blocked == null) {
             // The plain text search, unchanged (REST /search uses it too).
             return search.search(
                 workspace,
@@ -129,9 +137,22 @@ class TaskAgentTools {
               locationId,
               query,
               conditions,
+              blocked,
               AgentToolArgs.optText(args, "cursor"),
               AgentToolArgs.optInt(args, "limit"));
         });
+  }
+
+  /** An optional boolean argument: absent or null is null, anything but true/false is invalid. */
+  private static Boolean optBoolean(JsonNode args, String field) {
+    JsonNode v = args.get(field);
+    if (v == null || v.isNull()) {
+      return null;
+    }
+    if (!v.isBoolean()) {
+      throw AgentToolArgs.invalid(field + " must be true or false");
+    }
+    return v.asBoolean();
   }
 
   private static List<TaskAgentSearch.Cond> conditions(JsonNode args) {
@@ -174,7 +195,10 @@ class TaskAgentTools {
     return AgentTool.of(
         "get_task",
         "Read one task by taskId or by readable reference such as TF-12. Its version is what"
-            + " update_task, move_task and delete_task expect.",
+            + " update_task, move_task and delete_task expect. blocked and blockerCount say whether"
+            + " it waits on unfinished tasks; dependencies lists what it is waiting on, what it is"
+            + " blocking and what it is linked to (relationships you cannot see are only counted in"
+            + " hiddenCount).",
         """
         {"type": "object", "properties": {
           "taskId": {"type": "string", "format": "uuid"},
@@ -185,7 +209,7 @@ class TaskAgentTools {
           UUID id = AgentToolArgs.optUuid(args, "taskId");
           if (id != null) {
             permissions.require(Permissions.TASK, id, Action.VIEW);
-            return tasks.get(id);
+            return withDependencies(tasks.get(id));
           }
           String ref = AgentToolArgs.optText(args, "ref");
           if (ref == null || ref.isBlank()) {
@@ -193,7 +217,87 @@ class TaskAgentTools {
           }
           UUID workspace = workspaceOfCaller();
           permissions.require(Permissions.WORKSPACE, workspace, Action.VIEW);
-          return tasks.byRef(workspace, ref);
+          return withDependencies(tasks.byRef(workspace, ref));
+        });
+  }
+
+  /** The task as REST returns it plus its relationships (same shape as the REST list). */
+  private ObjectNode withDependencies(TaskView task) {
+    ObjectNode out = mapper.valueToTree(task);
+    out.set("dependencies", mapper.valueToTree(dependencies.list(task.id())));
+    return out;
+  }
+
+  @Bean
+  AgentTool addDependencyTool() {
+    return AgentTool.withIdempotencyKey(addDependency());
+  }
+
+  private AgentTool addDependency() {
+    return AgentTool.of(
+        "add_dependency",
+        "Relate a task to another task of the same Workspace, in any List. relation is seen from"
+            + " taskId: WAITING_ON (alias BLOCKED_BY: taskId waits on the other task, so it is"
+            + " blocked until that one is done), BLOCKING (the other task waits on taskId) or"
+            + " LINKED (a plain link). Pass the other task as otherTaskId or otherRef (for example"
+            + " TF-12). version is taskId's current version. A relationship that would make tasks"
+            + " wait on each other in a loop fails with dependency.cycle and the path; a second"
+            + " relationship between the same two tasks fails with dependency.exists. Both tasks'"
+            + " versions go up by one.",
+        """
+        {"type": "object", "required": ["taskId", "version", "relation"], "properties": {
+          "taskId": {"type": "string", "format": "uuid"},
+          "version": {"type": "integer"},
+          "otherTaskId": {"type": "string", "format": "uuid"},
+          "otherRef": {"type": "string", "description": "Readable id, for example TF-12"},
+          "relation": {"type": "string", "enum": ["WAITING_ON", "BLOCKED_BY", "BLOCKING", "LINKED"]}
+        }, "anyOf": [{"required": ["otherTaskId"]}, {"required": ["otherRef"]}]}
+        """,
+        args -> {
+          UUID id = AgentToolArgs.uuid(args, "taskId");
+          permissions.require(Permissions.TASK, id, Action.EDIT);
+          Long version = AgentToolArgs.optLong(args, "version");
+          if (version == null) {
+            throw AgentToolArgs.invalid("version is required");
+          }
+          UUID other = AgentToolArgs.optUuid(args, "otherTaskId");
+          if (other == null) {
+            String ref = AgentToolArgs.optText(args, "otherRef");
+            if (ref == null || ref.isBlank()) {
+              throw AgentToolArgs.invalid("otherTaskId or otherRef is required");
+            }
+            other = tasks.byRef(tasks.get(id).workspaceId(), ref).id();
+          }
+          return dependencies.add(
+              id,
+              version,
+              other,
+              DependencyService.Relation.parse(AgentToolArgs.text(args, "relation")));
+        });
+  }
+
+  @Bean
+  AgentTool removeDependencyTool() {
+    return AgentTool.of(
+        "remove_dependency",
+        "Remove a relationship of a task. dependencyId comes from the dependencies of get_task and"
+            + " must belong to taskId. version is taskId's current version; both tasks' versions go"
+            + " up by one.",
+        """
+        {"type": "object", "required": ["taskId", "version", "dependencyId"], "properties": {
+          "taskId": {"type": "string", "format": "uuid"},
+          "version": {"type": "integer"},
+          "dependencyId": {"type": "string", "format": "uuid"}
+        }}
+        """,
+        args -> {
+          UUID id = AgentToolArgs.uuid(args, "taskId");
+          permissions.require(Permissions.TASK, id, Action.EDIT);
+          Long version = AgentToolArgs.optLong(args, "version");
+          if (version == null) {
+            throw AgentToolArgs.invalid("version is required");
+          }
+          return dependencies.remove(id, version, AgentToolArgs.uuid(args, "dependencyId"));
         });
   }
 

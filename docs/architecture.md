@@ -95,7 +95,7 @@ erDiagram
 | `task` | id, list_id, parent_task_id, status_id, title, description, priority, start_date, due_date, rank, custom (jsonb), version, deleted_at, created_by | `list_id` is the home List. `rank` is a fractional-index string. `version` is for optimistic locking |
 | `task_list_link` | task_id, list_id | Lets a task also appear in other Lists (later) |
 | `task_assignee`, `task_tag`, `checklist`, `checklist_item` | task_id, user_id and similar | Join and child tables |
-| `task_dependency` | task_id, depends_on_id, type | Cycle check on write |
+| `task_dependency` | id, workspace_id, task_id, depends_on_id, type, created_by, created_at | One row per related pair. `type` is `WAITING_ON` (`task_id` waits on `depends_on_id`) or `LINKED` (stored with `task_id < depends_on_id`). Composite FKs to `task (workspace_id, id)` keep both ends in one Workspace and cascade on purge; a unique index on the unordered pair forbids a second relationship of any kind. Cycle check on write, under a per-Workspace advisory lock (decision 008) |
 | `custom_field` | id, workspace_id, location_id, name, type, config (jsonb), rank, version, retired_at | Applies to every task under the location ("defined at"). Never deleted, `type` never updated (decision 007). Values live in `task.custom`, keyed by field id |
 | `custom_field_option` | id, field_id, name, color, rank, retired_at | Options of Dropdown and Labels fields; values store the option id |
 | `custom_field_hidden` | location_id, field_id | A lower location hides an inherited field for its subtree |
@@ -155,6 +155,10 @@ PostgreSQL full-text search with a generated `tsvector` column on title and desc
 3. **Live UI.** Each API instance subscribes to Redis and forwards events to its connected browsers over STOMP, on topics such as `/topic/location/{id}` and `/topic/task/{id}`. Redis lets several API instances share one real-time layer.
 4. **Workers.** The automation, notification and search workers consume from RabbitMQ queues. Failed messages retry with backoff, then land in a dead-letter queue.
 5. **Activity feed.** The same events are written to `activity_event`.
+
+**Task relationship events** (3B, decision 008). All have entity `task`, the receiving task's id and its `listId` and `version`, and carry ids only: `task.dependency_added` and `task.dependency_removed` (on both ends; `dependencyId`, `relation` from that end, `otherTaskId`), `task.blocker_resolved` (`blockerId`, `reason` `completed` or `trashed`, `stillBlocked`) and `task.blocker_reopened` (`blockerId`, `reason` `reopened` or `restored`). The blocker events are recorded by `BlockerTransitions` on every live dependent, in the transaction of the change that moved the blocker across the finished boundary, and do not bump the dependent's version.
+
+**Blocked** is derived at read time, never stored: `com.taskflow.task.BlockedSql` is the one SQL definition (a `WAITING_ON` blocker that is not trashed, whose List is not deleted and whose status group is NOT_STARTED or ACTIVE), used by task reads, the view filter `blocked`, workspace search and the agent search.
 
 Browsers receive only events they are allowed to see, so the subscription handler checks permission before joining a topic. Events carry the task version, so a client can ignore a stale message that arrives after a newer one.
 

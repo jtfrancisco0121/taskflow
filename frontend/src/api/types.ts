@@ -26,3 +26,7 @@ export type FieldView = components['schemas']['FieldView']
 export type FieldListView = components['schemas']['FieldListView']
 export type FieldOption = components['schemas']['OptionInfo']
 export type FieldType = NonNullable<FieldView['type']>
+export type DependencyList = components['schemas']['DependencyList']
+export type DependencyItem = components['schemas']['DependencyItem']
+export type DependencyAdded = components['schemas']['DependencyAdded']
+export type DependencyRelation = NonNullable<components['schemas']['DependencyView']['relation']>

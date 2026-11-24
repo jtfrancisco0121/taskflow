@@ -36,7 +36,9 @@ class ViewConfigValidatorTest {
         || op.equals("is_empty")
         || op.equals("overdue")
         || op.equals("include")
-        || op.equals("exclude")) {
+        || op.equals("exclude")
+        || op.equals("is_true")
+        || op.equals("is_false")) {
       return null;
     }
     return switch (field) {
@@ -70,6 +72,9 @@ class ViewConfigValidatorTest {
     assertRefused(with(cond("dueDate", "before", "\"yesterday\"")));
     assertRefused(with(cond("startDate", "overdue", null)));
     assertRefused(with(cond("status", "any_of", "[\"not-a-uuid\"]")));
+    // blocked takes no value and only is_true / is_false (DEP-4)
+    assertRefused(with(cond("blocked", "is_true", "true")));
+    assertRefused(with(cond("blocked", "contains", null)));
   }
 
   @Test

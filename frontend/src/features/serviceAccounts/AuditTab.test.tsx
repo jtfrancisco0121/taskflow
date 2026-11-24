@@ -136,4 +136,22 @@ describe('AuditTab', () => {
       unmount()
     }
   })
+
+  it('DEP: relationship changes read as sentences and link to the task', async () => {
+    installFetch({
+      [`GET ${BASE}/audit`]: { totalCalls: 0, days, keys: [] },
+      [`GET ${BASE}/activity`]: {
+        items: [
+          change('c1', 'task.dependency_added', 'task', TASK),
+          change('c2', 'task.dependency_removed', 'task', TASK),
+        ],
+      },
+    })
+    renderAudit()
+    expect(await screen.findByRole('link', { name: 'added a relationship' })).toHaveAttribute(
+      'href',
+      `/t/${TASK}`,
+    )
+    expect(screen.getByRole('link', { name: 'removed a relationship' })).toBeVisible()
+  })
 })

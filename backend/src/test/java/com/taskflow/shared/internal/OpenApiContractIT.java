@@ -62,6 +62,8 @@ class OpenApiContractIT {
           "/api/v1/tasks/{id}/duplicate",
           "/api/v1/tasks/{id}/restore",
           "/api/v1/workspaces/{id}/trash",
+          "/api/v1/tasks/{id}/dependencies",
+          "/api/v1/tasks/{id}/dependencies/{dependencyId}",
           "/api/v1/tasks/{id}/checklists",
           "/api/v1/checklists/{id}",
           "/api/v1/checklists/{id}/items",

@@ -184,4 +184,44 @@ describe('ActivityTab', () => {
 
     await waitFor(() => expect(stub.count('GET', /\/activity$/)).toBeGreaterThan(before))
   })
+
+  it('DEP: an agent adding a relationship reads "<name> (key <key>)" and the other task by its id', async () => {
+    serve(
+      [
+        entry(
+          'a1',
+          'task.dependency_added',
+          'triage-agent',
+          { relation: 'WAITING_ON', otherTaskId: 'b1', dependencyId: 'd1' },
+          { actorType: 'SERVICE_ACCOUNT', actorKeyName: 'CI-1' },
+        ),
+        entry('a2', 'task.dependency_removed', 'Maya Lopez', {
+          relation: 'LINKED',
+          otherTaskId: 'secret',
+          dependencyId: 'd2',
+        }),
+        entry('a3', 'task.blocker_resolved', 'Omar Haddad', {
+          blockerId: 'b1',
+          reason: 'completed',
+          stillBlocked: false,
+        }),
+      ],
+      {
+        'GET /api/v1/tasks/:id': (request: Request) =>
+          new URL(request.url).pathname.endsWith('/b1')
+            ? json({ id: 'b1', readableId: 'ACME-87' })
+            : json({ title: 'Not found', status: 404 }, 404),
+      } as never,
+    )
+    renderWithProviders(<ActivityTab task={task} />)
+
+    const added = (await screen.findByText('added: waiting on ACME-87')).closest('li')!
+    expect(within(added).getByText('triage-agent (key CI-1)')).toBeVisible()
+    expect(within(added).getByText('Agent')).toBeVisible()
+    // a task the caller cannot read is never named
+    expect(await screen.findByText("removed: linked to a task you can't see")).toBeVisible()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Show more' }))
+    expect(await screen.findByText('ACME-87 was completed')).toBeVisible()
+    expect(document.body.textContent).not.toMatch(/secret/)
+  })
 })

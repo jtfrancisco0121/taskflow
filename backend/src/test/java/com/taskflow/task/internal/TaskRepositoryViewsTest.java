@@ -44,7 +44,8 @@ class TaskRepositoryViewsTest {
         Instant.EPOCH,
         null,
         null,
-        M.createObjectNode());
+        M.createObjectNode(),
+        0);
   }
 
   @Test

@@ -31,4 +31,6 @@ export const queryKeys = {
   taskAll: () => ['task'] as const,
   comments: (taskId: string) => ['task', taskId, 'comments'] as const,
   activity: (taskId: string) => ['task', taskId, 'activity'] as const,
+  /** DEP: a task's relationships, under ['task', id] so a task refresh reaches them too. */
+  dependencies: (taskId: string) => ['task', taskId, 'dependencies'] as const,
 }

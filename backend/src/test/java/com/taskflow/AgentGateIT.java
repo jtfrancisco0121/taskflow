@@ -59,7 +59,9 @@ class AgentGateIT extends ServiceAccountTestBase {
       client.listTools().tools().forEach(t -> names.add(t.name()));
       assertThat(names)
           .contains("create_task", "update_task", "move_task", "add_comment", "delete_task");
-      assertThat(names).hasSize(10).contains("list_custom_fields");
+      assertThat(names)
+          .hasSize(12)
+          .contains("list_custom_fields", "add_dependency", "remove_dependency");
 
       JsonNode created =
           tool(client, "create_task", Map.of("listId", backlog.toString(), "title", "Fix login"));

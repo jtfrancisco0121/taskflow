@@ -30,6 +30,13 @@ const statuses = {
   ],
 }
 
+const noDependencies = {
+  waitingOn: [],
+  blocking: [],
+  linked: [],
+  hiddenCount: { waitingOn: 0, blocking: 0, linked: 0 },
+}
+
 function Where() {
   return <p data-testid="where">{useLocation().pathname}</p>
 }
@@ -38,6 +45,7 @@ function serve(initial: Record<string, unknown> = {}, extra: Record<string, neve
   const task = { ...base, ...initial }
   const stub = installFetch({
     'GET /api/v1/tasks/:id': () => json(task),
+    'GET /api/v1/tasks/:id/dependencies': () => json(noDependencies),
     'GET /api/v1/tasks': () => json({ items: [task] }),
     'GET /api/v1/locations/:id/views': {
       items: [
@@ -415,6 +423,79 @@ describe('TaskPanel', () => {
       } as never)
       renderPanel()
       expect(await screen.findByText(/Couldn't load the custom fields/)).toBeVisible()
+    })
+  })
+
+  describe('dependencies (DEP, FR-6, FR-9, FR-10)', () => {
+    const waiting = {
+      waitingOn: [
+        {
+          dependencyId: 'd1',
+          task: { id: 'b1', readableId: 'ACME-87', title: 'Fix login', finished: false },
+        },
+      ],
+      blocking: [],
+      linked: [],
+      hiddenCount: { waitingOn: 0, blocking: 0, linked: 0 },
+    }
+
+    it('FR-10 / FR-9: a blocked task shows the badge with its count and the Dependencies section', async () => {
+      serve({ blocked: true, blockerCount: 1 }, {
+        'GET /api/v1/tasks/:id/dependencies': () => json(waiting),
+      } as never)
+      renderPanel()
+      const panel = await screen.findByRole('complementary', { name: 'Task ACME-1' })
+      expect(within(panel).getByRole('img', { name: 'Blocked by 1 task' })).toHaveTextContent(
+        'Blocked · 1',
+      )
+      const section = within(panel).getByRole('region', { name: 'Dependencies' })
+      expect(await within(section).findByRole('link', { name: /ACME-87/ })).toBeVisible()
+      expect(within(section).getByRole('heading', { name: 'Waiting on (1)' })).toBeVisible()
+    })
+
+    it('FR-10: a task that is not blocked has no badge', async () => {
+      serve()
+      renderPanel()
+      const panel = await screen.findByRole('complementary', { name: 'Task ACME-1' })
+      await within(panel).findByText('No dependencies yet.')
+      expect(within(panel).queryByRole('img', { name: /Blocked/ })).not.toBeInTheDocument()
+    })
+
+    it('FR-6: completing a blocked task asks first; Cancel sends no request and keeps the status', async () => {
+      const { stub } = serve({ blocked: true, blockerCount: 1 }, {
+        'GET /api/v1/tasks/:id/dependencies': () => json(waiting),
+      } as never)
+      const user = userEvent.setup()
+      renderPanel()
+      const status = await screen.findByLabelText('Status')
+      await within(status).findByRole('option', { name: 'Done' })
+
+      await user.selectOptions(status, 'Done')
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Draft launch post is waiting on 1 unfinished task',
+      })
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+      expect(patches(stub)).toHaveLength(0)
+      expect(screen.getByLabelText('Status')).toHaveDisplayValue('To do')
+
+      // a change that does not complete asks nothing
+      await user.selectOptions(screen.getByLabelText('Status'), 'In progress')
+      await waitFor(() => expect(patches(stub)).toHaveLength(1))
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('FR-6: "Complete anyway" sends the change', async () => {
+      const { stub } = serve({ blocked: true, blockerCount: 1 }, {
+        'GET /api/v1/tasks/:id/dependencies': () => json(waiting),
+      } as never)
+      const user = userEvent.setup()
+      renderPanel()
+      const status = await screen.findByLabelText('Status')
+      await within(status).findByRole('option', { name: 'Done' })
+      await user.selectOptions(status, 'Done')
+      await user.click(await screen.findByRole('button', { name: 'Complete anyway' }))
+      await waitFor(() => expect(patches(stub)).toHaveLength(1))
+      expect(patches(stub)[0].body).toEqual({ statusId: 'st3' })
     })
   })
 })

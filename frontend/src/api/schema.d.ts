@@ -251,7 +251,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_5"];
+        get: operations["list_6"];
         put?: never;
         post: operations["create_7"];
         delete?: never;
@@ -283,7 +283,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_7"];
+        get: operations["list_8"];
         put?: never;
         post?: never;
         delete?: never;
@@ -411,7 +411,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_6"];
+        get: operations["list_7"];
         put?: never;
         post?: never;
         delete?: never;
@@ -459,7 +459,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_4"];
+        get: operations["list_5"];
         put?: never;
         post: operations["create_5"];
         delete?: never;
@@ -475,10 +475,42 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_3"];
+        get: operations["list_4"];
         put?: never;
         post: operations["create_4"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/dependencies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_3"];
+        put?: never;
+        post: operations["add"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/dependencies/{dependencyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["remove"];
         options?: never;
         head?: never;
         patch?: never;
@@ -941,6 +973,11 @@ export interface components {
             payload?: components["schemas"]["JsonNode"];
             type?: string;
         };
+        AddDependencyRequest: {
+            /** Format: uuid */
+            otherTaskId: string;
+            relation: string;
+        };
         ApiKeyView: {
             /** Format: date-time */
             createdAt?: string;
@@ -1094,6 +1131,50 @@ export interface components {
             calls?: number;
             /** Format: date */
             day?: string;
+        };
+        DependencyAdded: {
+            dependency?: components["schemas"]["DependencyView"];
+            task?: components["schemas"]["TaskView"];
+        };
+        DependencyHidden: {
+            /** Format: int32 */
+            blocking?: number;
+            /** Format: int32 */
+            linked?: number;
+            /** Format: int32 */
+            waitingOn?: number;
+        };
+        DependencyItem: {
+            /** Format: uuid */
+            dependencyId?: string;
+            task?: components["schemas"]["DependencySummary"];
+        };
+        DependencyList: {
+            blocking?: components["schemas"]["DependencyItem"][];
+            hiddenCount?: components["schemas"]["DependencyHidden"];
+            linked?: components["schemas"]["DependencyItem"][];
+            waitingOn?: components["schemas"]["DependencyItem"][];
+        };
+        DependencySummary: {
+            finished?: boolean;
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            listId?: string;
+            readableId?: string;
+            /** Format: uuid */
+            statusId?: string;
+            title?: string;
+        };
+        DependencyView: {
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            otherTaskId?: string;
+            /** @enum {string} */
+            relation?: "WAITING_ON" | "BLOCKING" | "LINKED";
         };
         DroppedField: {
             name?: string;
@@ -1340,6 +1421,9 @@ export interface components {
             remap?: components["schemas"]["RemapRequest"][];
         };
         SearchHit: {
+            blocked?: boolean;
+            /** Format: int32 */
+            blockerCount?: number;
             /** Format: uuid */
             listId?: string;
             listName?: string;
@@ -1406,6 +1490,9 @@ export interface components {
         };
         TaskView: {
             assigneeIds?: string[];
+            blocked?: boolean;
+            /** Format: int32 */
+            blockerCount?: number;
             /** Format: date-time */
             createdAt?: string;
             /** Format: uuid */
@@ -2088,7 +2175,7 @@ export interface operations {
             };
         };
     };
-    list_5: {
+    list_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -2182,7 +2269,7 @@ export interface operations {
             };
         };
     };
-    list_7: {
+    list_8: {
         parameters: {
             query?: {
                 cursor?: string;
@@ -2433,7 +2520,7 @@ export interface operations {
             };
         };
     };
-    list_6: {
+    list_7: {
         parameters: {
             query?: {
                 locationId?: string;
@@ -2556,7 +2643,7 @@ export interface operations {
             };
         };
     };
-    list_4: {
+    list_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -2604,7 +2691,7 @@ export interface operations {
             };
         };
     };
-    list_3: {
+    list_4: {
         parameters: {
             query?: {
                 cursor?: string;
@@ -2652,6 +2739,79 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["CommentView"];
                 };
+            };
+        };
+    };
+    list_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["DependencyList"];
+                };
+            };
+        };
+    };
+    add: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddDependencyRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["DependencyAdded"];
+                };
+            };
+        };
+    };
+    remove: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+                dependencyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

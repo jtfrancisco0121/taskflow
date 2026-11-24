@@ -15,6 +15,7 @@ class McpEndpointIT extends McpTestBase {
   private static final List<String> TOOLS =
       List.of(
           "add_comment",
+          "add_dependency",
           "create_task",
           "delete_task",
           "get_task",
@@ -22,6 +23,7 @@ class McpEndpointIT extends McpTestBase {
           "list_locations",
           "list_views",
           "move_task",
+          "remove_dependency",
           "search_tasks",
           "update_task");
 
@@ -48,7 +50,7 @@ class McpEndpointIT extends McpTestBase {
   }
 
   @Test
-  void initializeAndListToolsReturnExactlyTheTenTools() {
+  void initializeAndListToolsReturnExactlyTheTwelveTools() {
     Ws ws = workspaceWithAllRoles();
     Agent agent = agent(ws.admin(), ws.id());
     for (String key : new String[] {agent.secret()}) {
@@ -74,7 +76,7 @@ class McpEndpointIT extends McpTestBase {
       assertThat(t.get("description").asText()).isNotBlank();
       assertThat(t.at("/inputSchema/type").asText()).isEqualTo("object");
     }
-    assertThat(names).containsExactlyInAnyOrderElementsOf(TOOLS).hasSize(10);
+    assertThat(names).containsExactlyInAnyOrderElementsOf(TOOLS).hasSize(12);
   }
 
   @Test
