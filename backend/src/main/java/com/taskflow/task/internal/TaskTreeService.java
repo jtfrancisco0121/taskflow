@@ -10,6 +10,7 @@ import com.taskflow.shared.Page;
 import com.taskflow.shared.PageCursor;
 import com.taskflow.shared.RankAllocator;
 import com.taskflow.shared.TaskflowException;
+import com.taskflow.task.Priority;
 import com.taskflow.task.TaskView;
 import com.taskflow.workspace.Action;
 import com.taskflow.workspace.LocationAccess;
@@ -74,14 +75,24 @@ class TaskTreeService {
 
   // ---- move ----
 
-  @Transactional
-  TaskView move(
-      UUID id,
-      long expectedVersion,
-      UUID targetListId,
+  /**
+   * What a move asks for. A Board drop adds {@code statusName}, {@code priority} or an assignee
+   * change and {@code keepRank} (the client never sends a rank); see AD-9.
+   */
+  record MoveInput(
+      UUID listId,
       UUID beforeId,
       UUID afterId,
-      UUID statusId) {
+      UUID statusId,
+      String statusName,
+      Priority priority,
+      UUID assigneeFrom,
+      UUID assigneeTo,
+      boolean keepRank) {}
+
+  @Transactional
+  TaskView move(UUID id, long expectedVersion, MoveInput in) {
+    UUID targetListId = in.listId();
     TaskRepository.Row seen = repo.live(id);
     permissions.require(Permissions.LOCATION, targetListId, Action.CREATE);
     LocationInfo target = tasks.requireList(targetListId);
@@ -95,35 +106,90 @@ class TaskTreeService {
     }
     boolean sameList = task.listId().equals(targetListId);
     UUID newParent = sameList ? task.parentTaskId() : null;
-    for (UUID neighbour : new UUID[] {beforeId, afterId}) {
+    for (UUID neighbour : new UUID[] {in.beforeId(), in.afterId()}) {
       if (neighbour != null) {
         permissions.require(Permissions.TASK, neighbour, Action.VIEW);
       }
     }
+    UUID statusId = in.statusId();
     if (statusId != null && !statuses.isValid(targetListId, statusId)) {
       throw TaskflowException.badRequest(
           "task.invalid_status", "The status is not offered by the target List");
     }
-    String rank =
-        ranks.place(
-            TaskService.siblings(task.workspaceId(), targetListId, newParent),
-            id,
-            beforeId,
-            afterId);
-    long newVersion = task.version() + 1;
-    if (sameList) {
-      guardedUpdate(task, "rank = ?, status_id = COALESCE(?, status_id)", rank, statusId);
-      Map<String, Object> changes = new LinkedHashMap<>();
-      changes.put("rank", TaskService.change(task.rank(), rank));
-      if (statusId != null && !statusId.equals(task.statusId())) {
-        changes.put("statusId", TaskService.change(task.statusId(), statusId));
+    if (statusId == null && in.statusName() != null) {
+      statusId = statusByName(targetListId, in.statusName());
+    }
+    // Assignees: validated before anything is written (a non-member is a 400, never a PK/FK 500).
+    List<UUID> assigneesBefore = null;
+    List<UUID> assigneesAfter = null;
+    if (in.assigneeTo() != null) {
+      tasks.checkAssignees(task.workspaceId(), List.of(in.assigneeTo()));
+    }
+    if (!java.util.Objects.equals(in.assigneeFrom(), in.assigneeTo())) {
+      assigneesBefore = repo.viewOf(task).assigneeIds();
+      java.util.Set<UUID> next = new java.util.LinkedHashSet<>(assigneesBefore);
+      if (in.assigneeTo() == null) {
+        next.clear();
+      } else {
+        if (in.assigneeFrom() != null) {
+          next.remove(in.assigneeFrom());
+        }
+        next.add(in.assigneeTo());
       }
+      assigneesAfter = new ArrayList<>(next);
+      if (new java.util.HashSet<>(assigneesBefore).equals(next)) {
+        assigneesAfter = null;
+      }
+    }
+    String rank =
+        in.keepRank()
+            ? task.rank()
+            : ranks.place(
+                TaskService.siblings(task.workspaceId(), targetListId, newParent),
+                id,
+                in.beforeId(),
+                in.afterId());
+    long newVersion = task.version() + 1;
+    Map<String, Object> changes = new LinkedHashMap<>();
+    if (in.priority() != null && in.priority() != task.priority()) {
+      changes.put("priority", TaskService.change(task.priority(), in.priority()));
+    }
+    if (assigneesAfter != null) {
+      changes.put("assigneeIds", TaskService.change(assigneesBefore, assigneesAfter));
+    }
+    if (sameList) {
+      List<String> sets = new ArrayList<>();
+      List<Object> args = new ArrayList<>();
+      if (!rank.equals(task.rank())) {
+        sets.add("rank = ?");
+        args.add(rank);
+      }
+      if (statusId != null && !statusId.equals(task.statusId())) {
+        sets.add("status_id = ?");
+        args.add(statusId);
+      }
+      if (in.priority() != null && in.priority() != task.priority()) {
+        sets.add("priority = ?");
+        args.add(in.priority().name());
+      }
+      guardedUpdate(task, sets.isEmpty() ? "rank = rank" : String.join(", ", sets), args.toArray());
+      if (assigneesAfter != null) {
+        repo.replaceAssignees(task.workspaceId(), id, assigneesAfter);
+      }
+      Map<String, Object> all = new LinkedHashMap<>();
+      if (!rank.equals(task.rank())) {
+        all.put("rank", TaskService.change(task.rank(), rank));
+      }
+      if (statusId != null && !statusId.equals(task.statusId())) {
+        all.put("statusId", TaskService.change(task.statusId(), statusId));
+      }
+      all.putAll(changes);
       events.record(
           task.workspaceId(),
           "task",
           id,
           "task.moved",
-          Map.of("version", newVersion, "changes", changes));
+          Map.of("version", newVersion, "changes", all));
       return repo.view(id);
     }
     List<TaskRepository.SubRow> subtree = repo.subtree(id, false);
@@ -132,10 +198,15 @@ class TaskTreeService {
         statusId != null ? statusId : mapStatus(task.statusId(), targetListId, statusMap);
     guardedUpdate(
         task,
-        "list_id = ?, parent_task_id = NULL, rank = ?, status_id = ?",
+        "list_id = ?, parent_task_id = NULL, rank = ?, status_id = ?, priority = COALESCE(?,"
+            + " priority)",
         targetListId,
         rank,
-        rootStatus);
+        rootStatus,
+        in.priority() == null ? null : in.priority().name());
+    if (assigneesAfter != null) {
+      repo.replaceAssignees(task.workspaceId(), id, assigneesAfter);
+    }
     Map<String, Object> rootChanges = new LinkedHashMap<>();
     rootChanges.put("listId", TaskService.change(task.listId(), targetListId));
     if (!rootStatus.equals(task.statusId())) {
@@ -144,6 +215,7 @@ class TaskTreeService {
     if (task.parentTaskId() != null) {
       rootChanges.put("parentTaskId", TaskService.change(task.parentTaskId(), null));
     }
+    rootChanges.putAll(changes);
     events.record(
         task.workspaceId(),
         "task",
@@ -162,19 +234,31 @@ class TaskTreeService {
           targetListId,
           childStatus,
           child.id());
-      Map<String, Object> changes = new LinkedHashMap<>();
-      changes.put("listId", TaskService.change(child.listId(), targetListId));
+      Map<String, Object> childChanges = new LinkedHashMap<>();
+      childChanges.put("listId", TaskService.change(child.listId(), targetListId));
       if (!childStatus.equals(child.statusId())) {
-        changes.put("statusId", TaskService.change(child.statusId(), childStatus));
+        childChanges.put("statusId", TaskService.change(child.statusId(), childStatus));
       }
       events.record(
           child.workspaceId(),
           "task",
           child.id(),
           "task.moved",
-          Map.of("version", child.version() + 1, "changes", changes));
+          Map.of("version", child.version() + 1, "changes", childChanges));
     }
     return repo.view(id);
+  }
+
+  /** The status of the List's effective set with this name (trimmed, case-insensitive). */
+  private UUID statusByName(UUID listId, String name) {
+    String wanted = name.trim().toLowerCase(java.util.Locale.ROOT);
+    return statuses.effectiveSet(listId).stream()
+        .filter(s -> s.name().trim().toLowerCase(java.util.Locale.ROOT).equals(wanted))
+        .map(StatusInfo::id)
+        .findFirst()
+        .orElseThrow(() ->
+            TaskflowException.badRequest(
+                "task.invalid_status", "The target List has no status named " + name));
   }
 
   /** The status a task gets in a List: kept when valid, else the first of its group, else to do. */

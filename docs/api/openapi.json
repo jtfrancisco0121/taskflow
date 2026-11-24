@@ -564,16 +564,34 @@
             "format" : "uuid",
             "type" : "string"
           },
+          "assigneeFrom" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "assigneeTo" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
           "beforeId" : {
             "format" : "uuid",
             "type" : "string"
+          },
+          "keepRank" : {
+            "type" : "boolean"
           },
           "listId" : {
             "format" : "uuid",
             "type" : "string"
           },
+          "priority" : {
+            "enum" : [ "URGENT", "HIGH", "NORMAL", "LOW", "NONE" ],
+            "type" : "string"
+          },
           "statusId" : {
             "format" : "uuid",
+            "type" : "string"
+          },
+          "statusName" : {
             "type" : "string"
           }
         },

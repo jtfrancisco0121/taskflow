@@ -2,6 +2,7 @@ package com.taskflow.task.internal;
 
 import com.taskflow.shared.Idempotent;
 import com.taskflow.shared.Page;
+import com.taskflow.task.Priority;
 import com.taskflow.task.TaskView;
 import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
@@ -23,7 +24,21 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1")
 class TaskTreeController {
 
-  record MoveTaskRequest(@NotNull UUID listId, UUID beforeId, UUID afterId, UUID statusId) {}
+  /**
+   * A move or a Board drop (AD-9). Neighbour ids order the task; {@code keepRank} leaves its rank
+   * alone (non-manual sorts, cross-List neighbours). {@code assigneeFrom} null is the Unassigned
+   * column as a source, {@code assigneeTo} null as a target. There is no rank field on purpose.
+   */
+  record MoveTaskRequest(
+      @NotNull UUID listId,
+      UUID beforeId,
+      UUID afterId,
+      UUID statusId,
+      String statusName,
+      Priority priority,
+      UUID assigneeFrom,
+      UUID assigneeTo,
+      Boolean keepRank) {}
 
   record DuplicateTaskRequest(UUID listId) {}
 
@@ -44,10 +59,16 @@ class TaskTreeController {
         service.move(
             id,
             TaskController.version(ifMatch),
-            request.listId(),
-            request.beforeId(),
-            request.afterId(),
-            request.statusId()));
+            new TaskTreeService.MoveInput(
+                request.listId(),
+                request.beforeId(),
+                request.afterId(),
+                request.statusId(),
+                request.statusName(),
+                request.priority(),
+                request.assigneeFrom(),
+                request.assigneeTo(),
+                Boolean.TRUE.equals(request.keepRank()))));
   }
 
   @Idempotent

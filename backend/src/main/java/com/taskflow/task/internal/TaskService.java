@@ -494,7 +494,7 @@ class TaskService {
     return new ArrayList<>(clean);
   }
 
-  private List<UUID> checkAssignees(UUID workspaceId, List<UUID> ids) {
+  List<UUID> checkAssignees(UUID workspaceId, List<UUID> ids) {
     if (ids == null || ids.isEmpty()) {
       return List.of();
     }
