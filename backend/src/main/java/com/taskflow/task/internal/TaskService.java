@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.taskflow.field.FieldCatalog;
 import com.taskflow.field.FieldInfo;
 import com.taskflow.field.StatusCatalog;
+import com.taskflow.field.StatusGroup;
 import com.taskflow.field.ValidatedValues;
 import com.taskflow.shared.CurrentActor;
 import com.taskflow.shared.EventRecorder;
@@ -79,6 +80,7 @@ class TaskService {
   private final WorkspaceQuery workspaces;
   private final RankScopeLock rankLock;
   private final RankAllocator ranks;
+  private final BlockerTransitions blockers;
 
   TaskService(
       TaskRepository repo,
@@ -91,7 +93,9 @@ class TaskService {
       FieldCatalog fields,
       WorkspaceQuery workspaces,
       RankScopeLock rankLock,
-      RankAllocator ranks) {
+      RankAllocator ranks,
+      BlockerTransitions blockers) {
+    this.blockers = blockers;
     this.repo = repo;
     this.jdbc = jdbc;
     this.named = named;
@@ -271,6 +275,7 @@ class TaskService {
       }
     }
     boolean statusOnly = true;
+    UUID statusTo = null;
     if (patch.has("statusId")) {
       UUID next = uuid(patch.get("statusId"), "task.invalid_status");
       if (!statuses.isValid(current.listId(), next)) {
@@ -280,6 +285,7 @@ class TaskService {
       if (!next.equals(current.statusId())) {
         sets.add("status_id = ?");
         args.add(next);
+        statusTo = next;
         changes.put("statusId", change(current.statusId(), next));
       }
     }
@@ -337,6 +343,10 @@ class TaskService {
     sets.add("updated_at = now()");
     args.add(id);
     args.add(expectedVersion);
+    BlockerTransitions.Snapshot blockerBefore =
+        changes.containsKey("statusId")
+            ? blockers.snapshot(current.workspaceId(), List.of(id))
+            : null;
     int updated =
         jdbc.update(
             "UPDATE task SET "
@@ -352,18 +362,22 @@ class TaskService {
     if (tagsAfter != null) {
       repo.replaceTags(current.workspaceId(), id, tagsAfter);
     }
+    Map<String, Object> payload = new LinkedHashMap<>();
+    payload.put("version", expectedVersion + 1);
+    payload.put("listId", current.listId().toString());
+    payload.put("changes", changes);
+    if (blockerBefore != null) {
+      if (current.blockerCount() > 0 && finishes(current.statusId(), statusTo)) {
+        payload.put("completedWhileBlocked", true);
+      }
+      blockers.record(blockerBefore, BlockerTransitions.Cause.STATUS);
+    }
     events.record(
         current.workspaceId(),
         "task",
         id,
         statusOnly ? "task.status_changed" : "task.updated",
-        Map.of(
-            "version",
-            expectedVersion + 1,
-            "listId",
-            current.listId().toString(),
-            "changes",
-            changes));
+        payload);
     return repo.view(id);
   }
 
@@ -445,6 +459,18 @@ class TaskService {
   }
 
   // ---- helpers shared with the other task services ----
+
+  /** True when the status change takes an unfinished task into DONE or CLOSED. */
+  boolean finishes(UUID from, UUID to) {
+    return !finished(from) && finished(to);
+  }
+
+  private boolean finished(UUID statusId) {
+    return statuses
+        .find(statusId)
+        .map(s -> s.group() == StatusGroup.DONE || s.group() == StatusGroup.CLOSED)
+        .orElse(false);
+  }
 
   LocationInfo requireList(UUID listId) {
     LocationInfo list =

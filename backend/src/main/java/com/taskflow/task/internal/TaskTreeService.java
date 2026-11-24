@@ -51,6 +51,7 @@ class TaskTreeService {
   private final StatusCatalog statuses;
   private final WorkspaceQuery workspaces;
   private final RankAllocator ranks;
+  private final BlockerTransitions blockers;
 
   TaskTreeService(
       TaskRepository repo,
@@ -61,7 +62,9 @@ class TaskTreeService {
       Permissions permissions,
       StatusCatalog statuses,
       WorkspaceQuery workspaces,
-      RankAllocator ranks) {
+      RankAllocator ranks,
+      BlockerTransitions blockers) {
+    this.blockers = blockers;
     this.repo = repo;
     this.tasks = tasks;
     this.jdbc = jdbc;
@@ -141,6 +144,13 @@ class TaskTreeService {
         assigneesAfter = null;
       }
     }
+    // A move can change a blocker's status (a Board drop, or a status mapped into another List):
+    // the
+    // whole subtree on a cross-List move, since mapStatus re-statuses every descendant.
+    BlockerTransitions.Snapshot blockerBefore =
+        blockers.snapshot(
+            task.workspaceId(),
+            sameList ? List.of(id) : repo.subtree(id, false).stream().map(r -> r.id()).toList());
     String rank =
         in.keepRank()
             ? task.rank()
@@ -184,12 +194,18 @@ class TaskTreeService {
         all.put("statusId", TaskService.change(task.statusId(), statusId));
       }
       all.putAll(changes);
-      events.record(
-          task.workspaceId(),
-          "task",
-          id,
-          "task.moved",
-          Map.of("version", newVersion, "listId", targetListId.toString(), "changes", all));
+      Map<String, Object> movedPayload = new LinkedHashMap<>();
+      movedPayload.put("version", newVersion);
+      movedPayload.put("listId", targetListId.toString());
+      movedPayload.put("changes", all);
+      if (statusId != null
+          && !statusId.equals(task.statusId())
+          && task.blockerCount() > 0
+          && tasks.finishes(task.statusId(), statusId)) {
+        movedPayload.put("completedWhileBlocked", true);
+      }
+      events.record(task.workspaceId(), "task", id, "task.moved", movedPayload);
+      blockers.record(blockerBefore, BlockerTransitions.Cause.STATUS);
       return repo.view(id);
     }
     List<TaskRepository.SubRow> subtree = repo.subtree(id, false);
@@ -262,6 +278,7 @@ class TaskTreeService {
               "changes",
               childChanges));
     }
+    blockers.record(blockerBefore, BlockerTransitions.Cause.STATUS);
     return repo.view(id);
   }
 
@@ -427,6 +444,10 @@ class TaskTreeService {
       throw tasks.conflict(task);
     }
     UUID batch = Ids.newId();
+    List<TaskRepository.SubRow> trashing = repo.subtree(id, true);
+    BlockerTransitions.Snapshot blockerBefore =
+        blockers.snapshot(
+            task.workspaceId(), trashing.stream().map(TaskRepository.SubRow::id).toList());
     int rootUpdated =
         jdbc.update(
             "UPDATE task SET deleted_at = now(), trash_batch_id = ?, version = version + 1, updated_at ="
@@ -449,7 +470,7 @@ class TaskTreeService {
             task.listId().toString(),
             "batchId",
             batch.toString()));
-    for (TaskRepository.SubRow sub : repo.subtree(id, true)) {
+    for (TaskRepository.SubRow sub : trashing) {
       if (sub.id().equals(id)) {
         continue;
       }
@@ -472,6 +493,7 @@ class TaskTreeService {
               "batchId",
               batch.toString()));
     }
+    blockers.record(blockerBefore, BlockerTransitions.Cause.TRASH);
   }
 
   @Transactional
@@ -503,6 +525,8 @@ class TaskTreeService {
             repo.rowMapper(),
             task.trashBatchId(),
             task.workspaceId());
+    BlockerTransitions.Snapshot blockerBefore =
+        blockers.snapshot(task.workspaceId(), batch.stream().map(TaskRepository.Row::id).toList());
     int rootUpdated =
         jdbc.update(
             "UPDATE task SET deleted_at = NULL, trash_batch_id = NULL, version = version + 1,"
@@ -533,6 +557,7 @@ class TaskTreeService {
           "task.restored",
           Map.of("version", row.version() + 1, "listId", row.listId().toString()));
     }
+    blockers.record(blockerBefore, BlockerTransitions.Cause.TRASH);
     return repo.view(id);
   }
 

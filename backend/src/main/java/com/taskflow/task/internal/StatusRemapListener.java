@@ -27,13 +27,19 @@ class StatusRemapListener {
   private final EventRecorder events;
   private final StatusCatalog statuses;
   private final LocationTree tree;
+  private final BlockerTransitions blockers;
 
   StatusRemapListener(
-      JdbcTemplate jdbc, EventRecorder events, StatusCatalog statuses, LocationTree tree) {
+      JdbcTemplate jdbc,
+      EventRecorder events,
+      StatusCatalog statuses,
+      LocationTree tree,
+      BlockerTransitions blockers) {
     this.jdbc = jdbc;
     this.events = events;
     this.statuses = statuses;
     this.tree = tree;
+    this.blockers = blockers;
   }
 
   /**
@@ -45,6 +51,8 @@ class StatusRemapListener {
   @EventListener
   void on(StatusSetChanged changed) {
     List<UUID> lists = tree.listIdsAtOrUnder(changed.locationId());
+    // Before the remap, so a task moved onto a regrouped status is not counted twice.
+    blockers.recordGroupChange(changed.workspaceId(), lists, changed.regrouped());
     changed
         .remap()
         .forEach((from, to) -> {
@@ -80,6 +88,16 @@ class StatusRemapListener {
   }
 
   private void remap(UUID workspaceId, UUID listId, UUID from, UUID to, String cause) {
+    // A remap can move a blocker across the finished boundary (AD-5).
+    BlockerTransitions.Snapshot before =
+        blockers.snapshot(
+            workspaceId,
+            jdbc.queryForList(
+                "SELECT id FROM task WHERE workspace_id = ? AND list_id = ? AND status_id = ?",
+                UUID.class,
+                workspaceId,
+                listId,
+                from));
     List<Map<String, Object>> changed =
         jdbc.queryForList(
             "UPDATE task SET status_id = ?, version = version + 1, updated_at = now() WHERE"
@@ -104,5 +122,6 @@ class StatusRemapListener {
               "changes",
               Map.of("statusId", Map.of("from", from.toString(), "to", to.toString()))));
     }
+    blockers.record(before, BlockerTransitions.Cause.STATUS);
   }
 }

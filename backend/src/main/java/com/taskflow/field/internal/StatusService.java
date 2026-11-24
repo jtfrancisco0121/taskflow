@@ -125,6 +125,15 @@ class StatusService {
       finalDrafts.add(new StatusDraft(id, d.name().trim(), d.group(), d.color()));
     }
     resolveRemap(removed, remaps, newIdsByName, resolvedRemap);
+    // A kept status whose group changes flips the finished-ness of its tasks (blocker events).
+    Map<UUID, StatusGroup> regrouped = new HashMap<>();
+    for (StatusInfo s : own) {
+      for (StatusDraft d : finalDrafts) {
+        if (s.id().equals(d.id()) && s.group() != d.group()) {
+          regrouped.put(s.id(), s.group());
+        }
+      }
+    }
     // Rewrite the own rows: retire what is gone, update what is kept, insert what is new.
     for (StatusInfo s : own) {
       if (!keptIds.contains(s.id())) {
@@ -155,7 +164,7 @@ class StatusService {
             ranks.get(i));
       }
     }
-    changed(location, resolvedRemap, "replaced");
+    changed(location, resolvedRemap, regrouped, "replaced");
     return get(locationId);
   }
 
@@ -182,7 +191,7 @@ class StatusService {
     own.forEach(s -> removed.add(s.id()));
     Map<UUID, UUID> resolved = new HashMap<>();
     resolveRemap(removed, remaps, byName, resolved);
-    changed(location, resolved, "reset");
+    changed(location, resolved, Map.of(), "reset");
     return get(locationId);
   }
 
@@ -226,14 +235,16 @@ class StatusService {
     return m;
   }
 
-  private void changed(LocationInfo location, Map<UUID, UUID> remap, String how) {
+  private void changed(
+      LocationInfo location, Map<UUID, UUID> remap, Map<UUID, StatusGroup> regrouped, String how) {
     events.record(
         location.workspaceId(),
         "location",
         location.id(),
         "status_set.changed",
         locationPayload(location, how, remap.size()));
-    publisher.publishEvent(new StatusSetChanged(location.workspaceId(), location.id(), remap));
+    publisher.publishEvent(
+        new StatusSetChanged(location.workspaceId(), location.id(), remap, regrouped));
   }
 
   private void insertSet(UUID workspaceId, UUID locationId, List<StatusDraft> drafts) {

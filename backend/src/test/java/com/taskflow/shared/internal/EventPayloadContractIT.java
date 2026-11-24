@@ -79,6 +79,43 @@ class EventPayloadContractIT extends IntegrationTest {
                                     List.of(Map.of("type", "text", "text", "hi")))))))
                 .status())
         .isEqualTo(201);
+    // relationship and blocker events (DEP-4)
+    UUID blocker = task(m, other, "Blocker");
+    UUID waiting = task(m, other, "Waiting");
+    Resp related =
+        ifMatch(
+            "POST",
+            "/api/v1/tasks/" + waiting + "/dependencies",
+            m,
+            1,
+            Map.of("otherTaskId", blocker, "relation", "WAITING_ON"));
+    assertThat(related.status()).isEqualTo(201);
+    String complete =
+        jdbc.queryForObject(
+            "SELECT id::text FROM status WHERE location_id = ? AND name = 'complete'",
+            String.class,
+            space);
+    String todo =
+        jdbc.queryForObject(
+            "SELECT id::text FROM status WHERE location_id = ? AND name = 'to do'",
+            String.class,
+            space);
+    assertThat(
+            ifMatch("PATCH", "/api/v1/tasks/" + blocker, m, 2, Map.of("statusId", complete))
+                .status())
+        .isEqualTo(200);
+    assertThat(
+            ifMatch("PATCH", "/api/v1/tasks/" + blocker, m, 3, Map.of("statusId", todo)).status())
+        .isEqualTo(200);
+    assertThat(
+            ifMatch(
+                    "DELETE",
+                    "/api/v1/tasks/" + waiting + "/dependencies/" + related.uuid("/dependency/id"),
+                    m,
+                    2,
+                    null)
+                .status())
+        .isEqualTo(204);
     // location events
     assertThat(patch("/api/v1/locations/" + folder, o.token(), Map.of("name", "F2")).status())
         .isEqualTo(200);
@@ -140,6 +177,10 @@ class EventPayloadContractIT extends IntegrationTest {
             "task.duplicated",
             "task.trashed",
             "task.restored",
+            "task.dependency_added",
+            "task.dependency_removed",
+            "task.blocker_resolved",
+            "task.blocker_reopened",
             "checklist.changed",
             "comment.created");
     assertThat(locationTypes)
