@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router'
 import { SignInPage, SignUpPage } from '../features/auth'
+import { TaskTabs } from '../features/comments'
 import { ListViewPage, TaskPanelRoute } from '../features/tasks'
 import { WorkspaceHomePage } from '../features/locations'
 import { SetupPage, WorkspaceRedirect } from '../features/workspace'
@@ -23,7 +24,10 @@ export const router = createBrowserRouter([
             element: <WorkspaceHomePage />,
           },
           { path: '/w/:workspaceId/l/:locationId', element: <ListViewPage /> },
-          { path: '/t/:taskId', element: <TaskPanelRoute /> },
+          {
+            path: '/t/:taskId',
+            element: <TaskPanelRoute tabs={(task) => <TaskTabs task={task} />} />,
+          },
         ],
       },
     ],
