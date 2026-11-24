@@ -396,6 +396,21 @@
         },
         "type" : "object"
       },
+      "GroupInfo" : {
+        "properties" : {
+          "count" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "InvitePreview" : {
         "properties" : {
           "email" : {
@@ -689,6 +704,61 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "QueryResponse" : {
+        "properties" : {
+          "groups" : {
+            "items" : {
+              "$ref" : "#/components/schemas/GroupInfo"
+            },
+            "type" : "array"
+          },
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ViewItem"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "QueryScope" : {
+        "properties" : {
+          "locationId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "workspaceId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "QueryViewRequest" : {
+        "properties" : {
+          "config" : {
+            "$ref" : "#/components/schemas/ViewConfig"
+          },
+          "cursor" : {
+            "type" : "string"
+          },
+          "groupValue" : {
+            "type" : "string"
+          },
+          "limit" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "scope" : {
+            "$ref" : "#/components/schemas/QueryScope"
+          }
+        },
+        "required" : [ "config", "scope" ],
         "type" : "object"
       },
       "RemapRequest" : {
@@ -1195,6 +1265,17 @@
           "workspaceId" : {
             "format" : "uuid",
             "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ViewItem" : {
+        "properties" : {
+          "group" : {
+            "type" : "string"
+          },
+          "task" : {
+            "$ref" : "#/components/schemas/TaskView"
           }
         },
         "type" : "object"
@@ -2563,6 +2644,34 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/ViewDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "view-controller" ]
+      }
+    },
+    "/api/v1/views/query" : {
+      "post" : {
+        "operationId" : "query",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/QueryViewRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/QueryResponse"
                 }
               }
             },

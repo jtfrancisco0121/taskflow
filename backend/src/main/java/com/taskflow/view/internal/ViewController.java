@@ -36,9 +36,31 @@ class ViewController {
       String name, String visibility, ViewConfig config, List<UUID> shareWith) {}
 
   private final ViewService service;
+  private final ViewQueryService queries;
 
-  ViewController(ViewService service) {
+  ViewController(ViewService service, ViewQueryService queries) {
     this.service = service;
+    this.queries = queries;
+  }
+
+  /** Body of POST /views/query: a scope, a config and the page to read (AD-5). */
+  record QueryViewRequest(
+      @NotNull ViewQueryService.QueryScope scope,
+      @NotNull ViewConfig config,
+      String groupValue,
+      String cursor,
+      Integer limit) {}
+
+  @PostMapping("/views/query")
+  public ViewQueryService.QueryResponse query(
+      @RequestBody @jakarta.validation.Valid QueryViewRequest request) {
+    return queries.query(
+        new ViewQueryService.QueryRequest(
+            request.scope(),
+            request.config(),
+            request.groupValue(),
+            request.cursor(),
+            request.limit()));
   }
 
   @GetMapping("/locations/{id}/views")

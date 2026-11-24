@@ -2,6 +2,7 @@ package com.taskflow.task.internal;
 
 import com.taskflow.shared.Idempotent;
 import com.taskflow.shared.Page;
+import com.taskflow.task.TaskView;
 import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
 import org.springframework.http.HttpHeaders;

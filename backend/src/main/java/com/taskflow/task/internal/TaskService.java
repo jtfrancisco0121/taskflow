@@ -11,6 +11,8 @@ import com.taskflow.shared.PageCursor;
 import com.taskflow.shared.RankAllocator;
 import com.taskflow.shared.RankScopeLock;
 import com.taskflow.shared.TaskflowException;
+import com.taskflow.task.Priority;
+import com.taskflow.task.TaskView;
 import com.taskflow.workspace.Action;
 import com.taskflow.workspace.LocationAccess;
 import com.taskflow.workspace.LocationInfo;

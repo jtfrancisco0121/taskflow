@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.taskflow.shared.Idempotent;
 import com.taskflow.shared.Page;
 import com.taskflow.shared.TaskflowException;
+import com.taskflow.task.Priority;
+import com.taskflow.task.TaskView;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.parameters.RequestBody;
