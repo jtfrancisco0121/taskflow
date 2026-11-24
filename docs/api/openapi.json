@@ -17,10 +17,50 @@
         },
         "type" : "object"
       },
+      "AccountActivity" : {
+        "properties" : {
+          "actorKeyId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "actorKeyName" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "entity" : {
+            "type" : "string"
+          },
+          "entityId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "payload" : {
+            "$ref" : "#/components/schemas/JsonNode"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "ActivityView" : {
         "properties" : {
           "actorId" : {
             "format" : "uuid",
+            "type" : "string"
+          },
+          "actorKeyId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "actorKeyName" : {
             "type" : "string"
           },
           "actorName" : {
@@ -94,6 +134,27 @@
           }
         },
         "required" : [ "name", "version" ],
+        "type" : "object"
+      },
+      "Audit" : {
+        "properties" : {
+          "days" : {
+            "items" : {
+              "$ref" : "#/components/schemas/DayCalls"
+            },
+            "type" : "array"
+          },
+          "keys" : {
+            "items" : {
+              "$ref" : "#/components/schemas/KeyAudit"
+            },
+            "type" : "array"
+          },
+          "totalCalls" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
         "type" : "object"
       },
       "AuthResponse" : {
@@ -407,6 +468,19 @@
         },
         "type" : "object"
       },
+      "DayCalls" : {
+        "properties" : {
+          "calls" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "day" : {
+            "format" : "date",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "DuplicateTaskRequest" : {
         "properties" : {
           "listId" : {
@@ -541,6 +615,29 @@
         "type" : "object"
       },
       "JsonNode" : { },
+      "KeyAudit" : {
+        "properties" : {
+          "calls" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "lastUsedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "LocationView" : {
         "properties" : {
           "archived" : {
@@ -670,6 +767,20 @@
           }
         },
         "required" : [ "name" ],
+        "type" : "object"
+      },
+      "PageAccountActivity" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/AccountActivity"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "PageActivityView" : {
@@ -2505,7 +2616,7 @@
     },
     "/api/v1/tasks/{id}/activity" : {
       "get" : {
-        "operationId" : "activity",
+        "operationId" : "activity_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3665,6 +3776,56 @@
         "tags" : [ "service-account-controller" ]
       }
     },
+    "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/activity" : {
+      "get" : {
+        "operationId" : "activity",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "workspaceId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageAccountActivity"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "service-account-controller" ]
+      }
+    },
     "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/api-keys" : {
       "get" : {
         "operationId" : "listKeys",
@@ -3776,6 +3937,41 @@
         } ],
         "responses" : {
           "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "service-account-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/audit" : {
+      "get" : {
+        "operationId" : "audit",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "workspaceId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Audit"
+                }
+              }
+            },
             "description" : "OK"
           }
         },

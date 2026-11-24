@@ -3,6 +3,7 @@ package com.taskflow.task.internal;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.taskflow.identity.ApiKeyDirectory;
 import com.taskflow.identity.UserDirectory;
 import com.taskflow.identity.UserInfo;
 import com.taskflow.shared.ActivityItem;
@@ -46,6 +47,8 @@ class CommentService {
       ActorType actorType,
       UUID actorId,
       String actorName,
+      UUID actorKeyId,
+      String actorKeyName,
       JsonNode payload,
       Instant createdAt) {}
 
@@ -64,6 +67,7 @@ class CommentService {
   private final WorkspaceQuery workspaces;
   private final UserDirectory users;
   private final ActivityQuery activity;
+  private final ApiKeyDirectory apiKeys;
 
   CommentService(
       JdbcTemplate jdbc,
@@ -71,13 +75,15 @@ class CommentService {
       EventRecorder events,
       WorkspaceQuery workspaces,
       UserDirectory users,
-      ActivityQuery activity) {
+      ActivityQuery activity,
+      ApiKeyDirectory apiKeys) {
     this.jdbc = jdbc;
     this.mapper = mapper;
     this.events = events;
     this.workspaces = workspaces;
     this.users = users;
     this.activity = activity;
+    this.apiKeys = apiKeys;
   }
 
   @Transactional(readOnly = true)
@@ -191,16 +197,25 @@ class CommentService {
     UUID workspaceId =
         jdbc.queryForObject("SELECT workspace_id FROM task WHERE id = ?", UUID.class, taskId);
     Page<ActivityItem> page = activity.forEntity(workspaceId, "task", taskId, cursor, limit);
+    // Users and service accounts both have an app_user row, so one lookup names them.
     Map<UUID, UserInfo> names =
         users.byIds(
             page.items().stream()
-                .filter(i -> i.actorType() == ActorType.USER)
+                .filter(i -> i.actorType() != ActorType.AUTOMATION)
                 .map(ActivityItem::actorId)
+                .distinct()
+                .toList());
+    Map<UUID, String> keyNames =
+        apiKeys.namesByIds(
+            page.items().stream()
+                .filter(i -> i.actorType() == ActorType.SERVICE_ACCOUNT)
+                .map(ActivityItem::actorKeyId)
+                .filter(java.util.Objects::nonNull)
                 .distinct()
                 .toList());
     List<ActivityView> items = new ArrayList<>();
     for (ActivityItem i : page.items()) {
-      UserInfo u = i.actorType() == ActorType.USER ? names.get(i.actorId()) : null;
+      UserInfo u = i.actorType() == ActorType.AUTOMATION ? null : names.get(i.actorId());
       items.add(
           new ActivityView(
               i.id(),
@@ -210,6 +225,8 @@ class CommentService {
               u == null
                   ? (i.actorType() == ActorType.USER ? null : i.actorType().name())
                   : u.displayName(),
+              i.actorKeyId(),
+              i.actorKeyId() == null ? null : keyNames.get(i.actorKeyId()),
               i.payload(),
               i.createdAt()));
     }

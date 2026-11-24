@@ -34,10 +34,13 @@ class ServiceAccountController {
 
   private final ServiceAccountService accounts;
   private final ApiKeyService keys;
+  private final ServiceAccountAuditService audit;
 
-  ServiceAccountController(ServiceAccountService accounts, ApiKeyService keys) {
+  ServiceAccountController(
+      ServiceAccountService accounts, ApiKeyService keys, ServiceAccountAuditService audit) {
     this.accounts = accounts;
     this.keys = keys;
+    this.audit = audit;
   }
 
   @GetMapping
@@ -110,6 +113,23 @@ class ServiceAccountController {
     return ResponseEntity.status(HttpStatus.CREATED)
         .header("Cache-Control", "no-store")
         .body(created);
+  }
+
+  @GetMapping("/{id}/audit")
+  @PreAuthorize(MANAGE)
+  public ServiceAccountAuditService.Audit audit(
+      @PathVariable UUID workspaceId, @PathVariable UUID id) {
+    return audit.audit(workspaceId, id);
+  }
+
+  @GetMapping("/{id}/activity")
+  @PreAuthorize(MANAGE)
+  public Page<ServiceAccountAuditService.AccountActivity> activity(
+      @PathVariable UUID workspaceId,
+      @PathVariable UUID id,
+      @RequestParam(required = false) String cursor,
+      @RequestParam(required = false) Integer limit) {
+    return audit.activity(workspaceId, id, cursor, limit);
   }
 
   @DeleteMapping("/{id}/api-keys/{keyId}")

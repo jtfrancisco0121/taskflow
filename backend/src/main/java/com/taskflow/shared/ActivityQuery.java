@@ -3,12 +3,13 @@ package com.taskflow.shared;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-/** Keyset read of the activity log of one entity, newest first (CMT-2). */
+/** Keyset reads of the activity log, newest first (CMT-2, KEY-6). */
 @Component
 public class ActivityQuery {
 
@@ -20,23 +21,43 @@ public class ActivityQuery {
     this.mapper = mapper;
   }
 
+  /** The log of one entity. */
   public Page<ActivityItem> forEntity(
       UUID workspaceId, String entity, UUID entityId, String cursor, Integer requestedLimit) {
+    return page(
+        "workspace_id = ? AND entity = ? AND entity_id = ?",
+        List.of(workspaceId, entity, entityId),
+        cursor,
+        requestedLimit);
+  }
+
+  /** Everything one actor changed in a Workspace, whatever the entity (the audit view). */
+  public Page<ActivityItem> forActor(
+      UUID workspaceId, ActorType actorType, UUID actorId, String cursor, Integer requestedLimit) {
+    return page(
+        "workspace_id = ? AND actor_type = ? AND actor_id = ?",
+        List.of(workspaceId, actorType.name(), actorId),
+        cursor,
+        requestedLimit);
+  }
+
+  private Page<ActivityItem> page(
+      String where, List<Object> base, String cursor, Integer requestedLimit) {
     int limit = PageCursor.limit(requestedLimit);
     List<String> after = PageCursor.decode(cursor, 2);
     StringBuilder sql =
         new StringBuilder(
-            "SELECT id, type, actor_type, actor_id, actor_key_id, payload::text AS payload,"
-                + " created_at,"
+            "SELECT id, entity, entity_id, type, actor_type, actor_id, actor_key_id,"
+                + " payload::text AS payload, created_at,"
                 + " (EXTRACT(EPOCH FROM created_at) * 1000000)::bigint AS micros"
-                + " FROM activity_event WHERE workspace_id = ? AND entity = ? AND entity_id = ?");
-    java.util.ArrayList<Object> args =
-        new java.util.ArrayList<>(List.of(workspaceId, entity, entityId));
+                + " FROM activity_event WHERE "
+                + where);
+    List<Object> args = new ArrayList<>(base);
     if (after != null) {
       sql.append(
           " AND (created_at, id) < (timestamptz 'epoch' + CAST(? AS bigint) * interval '1 microsecond', ?)");
-      args.add(com.taskflow.shared.PageCursor.number(after.get(0)));
-      args.add(com.taskflow.shared.PageCursor.uuid(after.get(1)));
+      args.add(PageCursor.number(after.get(0)));
+      args.add(PageCursor.uuid(after.get(1)));
     }
     sql.append(" ORDER BY created_at DESC, id DESC LIMIT ?");
     args.add(limit + 1);
@@ -50,6 +71,8 @@ public class ActivityQuery {
                 return new Row(
                     new ActivityItem(
                         rs.getObject("id", UUID.class),
+                        rs.getString("entity"),
+                        rs.getObject("entity_id", UUID.class),
                         rs.getString("type"),
                         ActorType.valueOf(rs.getString("actor_type")),
                         rs.getObject("actor_id", UUID.class),

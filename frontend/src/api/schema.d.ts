@@ -395,7 +395,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["activity"];
+        get: operations["activity_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -756,6 +756,22 @@ export interface paths {
         patch: operations["rename"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["activity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/api-keys": {
         parameters: {
             query?: never;
@@ -783,6 +799,22 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["revokeKey"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["audit"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -831,9 +863,26 @@ export interface components {
             /** Format: uuid */
             workspaceId?: string;
         };
+        AccountActivity: {
+            /** Format: uuid */
+            actorKeyId?: string;
+            actorKeyName?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            entity?: string;
+            /** Format: uuid */
+            entityId?: string;
+            /** Format: uuid */
+            id?: string;
+            payload?: components["schemas"]["JsonNode"];
+            type?: string;
+        };
         ActivityView: {
             /** Format: uuid */
             actorId?: string;
+            /** Format: uuid */
+            actorKeyId?: string;
+            actorKeyName?: string;
             actorName?: string;
             /** @enum {string} */
             actorType?: "USER" | "SERVICE_ACCOUNT" | "AUTOMATION";
@@ -863,6 +912,12 @@ export interface components {
         AppMeta: {
             name: string;
             version: string;
+        };
+        Audit: {
+            days?: components["schemas"]["DayCalls"][];
+            keys?: components["schemas"]["KeyAudit"][];
+            /** Format: int64 */
+            totalCalls?: number;
         };
         AuthResponse: {
             accessToken?: string;
@@ -975,6 +1030,12 @@ export interface components {
             key?: components["schemas"]["ApiKeyView"];
             secret?: string;
         };
+        DayCalls: {
+            /** Format: int64 */
+            calls?: number;
+            /** Format: date */
+            day?: string;
+        };
         DuplicateTaskRequest: {
             /** Format: uuid */
             listId?: string;
@@ -1031,6 +1092,16 @@ export interface components {
             text?: string;
         };
         JsonNode: unknown;
+        KeyAudit: {
+            /** Format: int64 */
+            calls?: number;
+            /** Format: uuid */
+            id?: string;
+            /** Format: date-time */
+            lastUsedAt?: string;
+            name?: string;
+            status?: string;
+        };
         LocationView: {
             archived?: boolean;
             children?: components["schemas"]["LocationView"][];
@@ -1085,6 +1156,10 @@ export interface components {
         };
         NameRequest: {
             name: string;
+        };
+        PageAccountActivity: {
+            items?: components["schemas"]["AccountActivity"][];
+            nextCursor?: string;
         };
         PageActivityView: {
             items?: components["schemas"]["ActivityView"][];
@@ -2172,7 +2247,7 @@ export interface operations {
             };
         };
     };
-    activity: {
+    activity_1: {
         parameters: {
             query?: {
                 cursor?: string;
@@ -2992,6 +3067,32 @@ export interface operations {
             };
         };
     };
+    activity: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspaceId: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageAccountActivity"];
+                };
+            };
+        };
+    };
     listKeys: {
         parameters: {
             query?: never;
@@ -3061,6 +3162,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    audit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["Audit"];
+                };
             };
         };
     };
