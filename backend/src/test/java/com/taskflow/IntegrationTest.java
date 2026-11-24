@@ -160,4 +160,42 @@ public abstract class IntegrationTest {
     String key = jdbc.queryForObject("SELECT key FROM workspace WHERE id = ?", String.class, id);
     return new Ws(id, key, owner, admin, member, guest);
   }
+
+  protected UUID location(TestUser user, Map<String, Object> body) {
+    Resp r = post("/api/v1/locations", user.token(), body);
+    if (r.status() != 201) {
+      throw new IllegalStateException("location failed: " + r.status() + " " + r.raw());
+    }
+    return r.uuid("/id");
+  }
+
+  protected UUID space(TestUser user, UUID workspaceId, String name) {
+    return location(user, Map.of("type", "SPACE", "workspaceId", workspaceId, "name", name));
+  }
+
+  protected UUID folder(TestUser user, UUID parentId, String name) {
+    return location(user, Map.of("type", "FOLDER", "parentId", parentId, "name", name));
+  }
+
+  protected UUID list(TestUser user, UUID parentId, String name) {
+    return location(user, Map.of("type", "LIST", "parentId", parentId, "name", name));
+  }
+
+  protected java.util.List<UUID> treeIds(
+      TestUser user, UUID workspaceId, UUID parentId, boolean archived) {
+    Resp r =
+        get(
+            "/api/v1/workspaces/"
+                + workspaceId
+                + "/tree?includeArchived="
+                + archived
+                + (parentId == null ? "" : "&parentId=" + parentId),
+            user.token());
+    if (r.status() != 200) {
+      throw new IllegalStateException("tree failed: " + r.status() + " " + r.raw());
+    }
+    java.util.List<UUID> ids = new java.util.ArrayList<>();
+    r.at("/items").forEach(n -> ids.add(UUID.fromString(n.get("id").asText())));
+    return ids;
+  }
 }

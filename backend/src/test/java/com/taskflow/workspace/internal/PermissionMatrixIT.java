@@ -84,4 +84,98 @@ class PermissionMatrixIT extends IntegrationTest {
           .isEqualTo(200);
     }
   }
+
+  @Test
+  void createEditMoveArchiveDeleteASpace_ownerAndAdminOnly() {
+    int[] allowed = {201, 201, 403, 403};
+    for (int i = 0; i < ROLES.size(); i++) {
+      Ws ws = workspaceWithAllRoles();
+      String role = ROLES.get(i);
+      Resp create =
+          post(
+              "/api/v1/locations",
+              ws.by(role).token(),
+              Map.of("type", "SPACE", "workspaceId", ws.id(), "name", "S"));
+      assertThat(create.status()).as("create Space as %s", role).isEqualTo(allowed[i]);
+      UUID space = space(ws.owner(), ws.id(), "Target");
+      boolean ok = i < 2;
+      assertThat(
+              patch("/api/v1/locations/" + space, ws.by(role).token(), Map.of("name", "n"))
+                  .status())
+          .as("edit Space as %s", role)
+          .isEqualTo(ok ? 200 : (i == 3 ? 404 : 403));
+      assertThat(
+              post("/api/v1/locations/" + space + "/archive", ws.by(role).token(), null).status())
+          .as("archive Space as %s", role)
+          .isEqualTo(ok ? 200 : (i == 3 ? 404 : 403));
+      assertThat(delete("/api/v1/locations/" + space, ws.by(role).token()).status())
+          .as("delete Space as %s", role)
+          .isEqualTo(ok ? 204 : (i == 3 ? 404 : 403));
+    }
+  }
+
+  @Test
+  void createEditMoveArchiveDeleteAFolderOrList_ownerAdminMemberNotGuest() {
+    for (int i = 0; i < ROLES.size(); i++) {
+      Ws ws = workspaceWithAllRoles();
+      String role = ROLES.get(i);
+      UUID space = space(ws.owner(), ws.id(), "S");
+      UUID other = space(ws.owner(), ws.id(), "Other");
+      UUID existing = folder(ws.owner(), space, "Existing");
+      boolean ok = i < 3;
+      int createStatus =
+          post(
+                  "/api/v1/locations",
+                  ws.by(role).token(),
+                  Map.of("type", "FOLDER", "parentId", space, "name", "F"))
+              .status();
+      assertThat(createStatus).as("create Folder as %s", role).isEqualTo(ok ? 201 : 404);
+      int listStatus =
+          post(
+                  "/api/v1/locations",
+                  ws.by(role).token(),
+                  Map.of("type", "LIST", "parentId", space, "name", "L"))
+              .status();
+      assertThat(listStatus).as("create List as %s", role).isEqualTo(ok ? 201 : 404);
+      assertThat(
+              patch("/api/v1/locations/" + existing, ws.by(role).token(), Map.of("name", "n"))
+                  .status())
+          .as("edit Folder as %s", role)
+          .isEqualTo(ok ? 200 : 404);
+      assertThat(
+              post(
+                      "/api/v1/locations/" + existing + "/move",
+                      ws.by(role).token(),
+                      Map.of("parentId", other))
+                  .status())
+          .as("move Folder as %s", role)
+          .isEqualTo(ok ? 200 : 404);
+      assertThat(
+              post("/api/v1/locations/" + existing + "/archive", ws.by(role).token(), null)
+                  .status())
+          .as("archive Folder as %s", role)
+          .isEqualTo(ok ? 200 : 404);
+      assertThat(delete("/api/v1/locations/" + existing, ws.by(role).token()).status())
+          .as("delete Folder as %s", role)
+          .isEqualTo(ok ? 204 : 404);
+    }
+  }
+
+  @Test
+  void readVisibleLocations_everyRoleExceptGuestsWithoutAGrant() {
+    for (int i = 0; i < ROLES.size(); i++) {
+      Ws ws = workspaceWithAllRoles();
+      String role = ROLES.get(i);
+      UUID space = space(ws.owner(), ws.id(), "S");
+      assertThat(get("/api/v1/locations/" + space, ws.by(role).token()).status())
+          .as("read Space as %s", role)
+          .isEqualTo(i < 3 ? 200 : 404);
+      assertThat(
+              get("/api/v1/workspaces/" + ws.id() + "/tree", ws.by(role).token())
+                  .at("/items")
+                  .size())
+          .as("tree as %s", role)
+          .isEqualTo(i < 3 ? 1 : 0);
+    }
+  }
 }
