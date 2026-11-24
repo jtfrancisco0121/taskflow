@@ -3,6 +3,7 @@ package com.taskflow.identity.internal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.taskflow.shared.Hashing;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -140,5 +141,28 @@ class ApiKeyRateLimitIT extends ServiceAccountTestBase {
                 Boolean.class,
                 agent.keyId()))
         .isTrue();
+  }
+
+  @Test
+  void restAndMcpCallsOfOneKeyShareOneBudget() {
+    Ws ws = workspaceWithAllRoles();
+    Agent agent = agent(ws.admin(), ws.id());
+    String mcp = "/api/v1/mcp";
+    Object listTools = Map.of("jsonrpc", "2.0", "id", 1, "method", "tools/list");
+    for (int i = 0; i < 3; i++) {
+      assertThat(call(agent.secret()).status()).isEqualTo(200);
+    }
+    for (int i = 0; i < 2; i++) {
+      Resp r =
+          post(mcp, agent.secret(), listTools, "Accept", "application/json, text/event-stream");
+      assertThat(r.status()).isEqualTo(200);
+      assertThat(header(r, "X-RateLimit-Remaining")).isEqualTo(1 - i);
+    }
+    Resp refused =
+        post(mcp, agent.secret(), listTools, "Accept", "application/json, text/event-stream");
+    assertThat(refused.status()).isEqualTo(429);
+    assertThat(refused.text("/code")).isEqualTo("rate_limit.exceeded");
+    assertThat(header(refused, "Retry-After")).isBetween(1L, 60L);
+    assertThat(call(agent.secret()).status()).isEqualTo(429);
   }
 }
