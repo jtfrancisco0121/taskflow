@@ -30,10 +30,18 @@ class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
   private static final String BEARER = "bearer ";
 
   private final ApiKeyAuthenticator authenticator;
+  private final ApiKeyAdmission admission;
+  private final ApiKeyUsageRecorder usage;
   private final ProblemResponseWriter problems;
 
-  ApiKeyAuthenticationFilter(ApiKeyAuthenticator authenticator, ProblemResponseWriter problems) {
+  ApiKeyAuthenticationFilter(
+      ApiKeyAuthenticator authenticator,
+      ApiKeyAdmission admission,
+      ApiKeyUsageRecorder usage,
+      ProblemResponseWriter problems) {
     this.authenticator = authenticator;
+    this.admission = admission;
+    this.usage = usage;
     this.problems = problems;
   }
 
@@ -71,6 +79,7 @@ class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
       return;
     }
     if (resolved.isEmpty()) {
+      admission.noteFailure(request.getRemoteAddr());
       problems.write(
           response,
           HttpStatus.UNAUTHORIZED,
@@ -79,6 +88,33 @@ class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
       return;
     }
     ApiKeyAuthenticator.Resolved r = resolved.get();
+    ApiKeyAdmission.Window window;
+    try {
+      window = admission.hit(r.keyId());
+    } catch (RuntimeException e) {
+      // Fail closed: without the counter there is no limit to enforce.
+      log.error("api key rate limit unavailable: {}", e.toString());
+      problems.write(
+          response,
+          HttpStatus.SERVICE_UNAVAILABLE,
+          "rate_limit.unavailable",
+          "The rate limiter is temporarily unavailable");
+      return;
+    }
+    // On the raw response, before IdempotencyFilter wraps it, so errors and replays carry them too.
+    response.setHeader("X-RateLimit-Limit", String.valueOf(window.limit()));
+    response.setHeader("X-RateLimit-Remaining", String.valueOf(window.remaining()));
+    response.setHeader("X-RateLimit-Reset", String.valueOf(window.resetEpochSecond()));
+    if (!window.allowed()) {
+      response.setHeader("Retry-After", String.valueOf(window.retryAfter()));
+      problems.write(
+          response,
+          HttpStatus.TOO_MANY_REQUESTS,
+          "rate_limit.exceeded",
+          "Rate limit exceeded: " + window.limit() + " calls per minute per key");
+      return;
+    }
+    usage.record(r.workspaceId(), r.keyId());
     SecurityContext context = SecurityContextHolder.createEmptyContext();
     context.setAuthentication(
         UsernamePasswordAuthenticationToken.authenticated(

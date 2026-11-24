@@ -30,7 +30,7 @@ import org.springframework.security.web.SecurityFilterChain;
 /** Stateless JWT resource server (AD-4, AD-5). Roles resolve per request, not from the token. */
 @Configuration
 @EnableMethodSecurity
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, ApiKeyProperties.class})
 class SecurityConfig {
 
   @Bean
@@ -38,7 +38,9 @@ class SecurityConfig {
       HttpSecurity http,
       JwtService jwt,
       ProblemResponseWriter problems,
-      ApiKeyAuthenticator apiKeys)
+      ApiKeyAuthenticator apiKeys,
+      ApiKeyAdmission admission,
+      ApiKeyUsageRecorder usage)
       throws Exception {
     http.csrf(AbstractHttpConfigurer::disable)
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -78,7 +80,7 @@ class SecurityConfig {
         // Not a bean on purpose: a Filter bean would also be registered with the servlet container
         // and run (and rate-limit) a second time.
         .addFilterBefore(
-            new ApiKeyAuthenticationFilter(apiKeys, problems),
+            new ApiKeyAuthenticationFilter(apiKeys, admission, usage, problems),
             BearerTokenAuthenticationFilter.class)
         .oauth2ResourceServer(o ->
             o.bearerTokenResolver(keyAwareBearerTokenResolver())
