@@ -47,6 +47,43 @@
         },
         "type" : "object"
       },
+      "ApiKeyView" : {
+        "properties" : {
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "last4" : {
+            "type" : "string"
+          },
+          "lastUsedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "prefix" : {
+            "type" : "string"
+          },
+          "revokedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "AppMeta" : {
         "properties" : {
           "name" : {
@@ -218,6 +255,21 @@
         "required" : [ "text" ],
         "type" : "object"
       },
+      "CreateKeyRequest" : {
+        "properties" : {
+          "expiresAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "name" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "name" ],
+        "type" : "object"
+      },
       "CreateLocationRequest" : {
         "properties" : {
           "isPrivate" : {
@@ -342,6 +394,17 @@
           }
         },
         "required" : [ "name" ],
+        "type" : "object"
+      },
+      "CreatedApiKey" : {
+        "properties" : {
+          "key" : {
+            "$ref" : "#/components/schemas/ApiKeyView"
+          },
+          "secret" : {
+            "type" : "string"
+          }
+        },
         "type" : "object"
       },
       "DuplicateTaskRequest" : {
@@ -598,6 +661,17 @@
         "required" : [ "listId" ],
         "type" : "object"
       },
+      "NameRequest" : {
+        "properties" : {
+          "name" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "name" ],
+        "type" : "object"
+      },
       "PageActivityView" : {
         "properties" : {
           "items" : {
@@ -673,6 +747,20 @@
           "items" : {
             "items" : {
               "$ref" : "#/components/schemas/SearchHit"
+            },
+            "type" : "array"
+          },
+          "nextCursor" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "PageServiceAccountView" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ServiceAccountView"
             },
             "type" : "array"
           },
@@ -869,6 +957,37 @@
             "type" : "string"
           },
           "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ServiceAccountView" : {
+        "properties" : {
+          "activeKeys" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "disabled" : {
+            "type" : "boolean"
+          },
+          "disabledAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "lastUsedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "name" : {
             "type" : "string"
           }
         },
@@ -1743,7 +1862,7 @@
     },
     "/api/v1/lists/{id}/tasks" : {
       "post" : {
-        "operationId" : "create_6",
+        "operationId" : "create_7",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1780,7 +1899,7 @@
     },
     "/api/v1/locations" : {
       "post" : {
-        "operationId" : "create_5",
+        "operationId" : "create_6",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -1826,7 +1945,7 @@
         "tags" : [ "location-controller" ]
       },
       "get" : {
-        "operationId" : "get_4",
+        "operationId" : "get_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1915,7 +2034,7 @@
     },
     "/api/v1/locations/{id}/grants" : {
       "get" : {
-        "operationId" : "list_5",
+        "operationId" : "list_6",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2234,7 +2353,7 @@
     },
     "/api/v1/tasks" : {
       "get" : {
-        "operationId" : "list_4",
+        "operationId" : "list_5",
         "parameters" : [ {
           "in" : "query",
           "name" : "locationId",
@@ -2317,7 +2436,7 @@
         "tags" : [ "task-tree-controller" ]
       },
       "get" : {
-        "operationId" : "get_3",
+        "operationId" : "get_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2428,7 +2547,7 @@
     },
     "/api/v1/tasks/{id}/checklists" : {
       "get" : {
-        "operationId" : "list_3",
+        "operationId" : "list_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2456,7 +2575,7 @@
         "tags" : [ "checklist-controller" ]
       },
       "post" : {
-        "operationId" : "create_4",
+        "operationId" : "create_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2493,7 +2612,7 @@
     },
     "/api/v1/tasks/{id}/comments" : {
       "get" : {
-        "operationId" : "list_2",
+        "operationId" : "list_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2533,7 +2652,7 @@
         "tags" : [ "comment-controller" ]
       },
       "post" : {
-        "operationId" : "create_3",
+        "operationId" : "create_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2684,7 +2803,7 @@
     },
     "/api/v1/views" : {
       "post" : {
-        "operationId" : "create_2",
+        "operationId" : "create_3",
         "requestBody" : {
           "content" : {
             "application/json" : {
@@ -2758,7 +2877,7 @@
         "tags" : [ "view-controller" ]
       },
       "get" : {
-        "operationId" : "get_2",
+        "operationId" : "get_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2898,7 +3017,7 @@
         "tags" : [ "workspace-controller" ]
       },
       "get" : {
-        "operationId" : "get_1",
+        "operationId" : "get_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2923,7 +3042,7 @@
         "tags" : [ "workspace-controller" ]
       },
       "patch" : {
-        "operationId" : "rename",
+        "operationId" : "rename_1",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2960,7 +3079,7 @@
     },
     "/api/v1/workspaces/{id}/invites" : {
       "get" : {
-        "operationId" : "list_1",
+        "operationId" : "list_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3000,7 +3119,7 @@
         "tags" : [ "invite-controller" ]
       },
       "post" : {
-        "operationId" : "create_1",
+        "operationId" : "create_2",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3389,6 +3508,348 @@
           }
         },
         "tags" : [ "view-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/service-accounts" : {
+      "get" : {
+        "operationId" : "list_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "workspaceId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PageServiceAccountView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "service-account-controller" ]
+      },
+      "post" : {
+        "operationId" : "create_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "workspaceId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/NameRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ServiceAccountView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "service-account-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/service-accounts/{id}" : {
+      "get" : {
+        "operationId" : "get_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "workspaceId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ServiceAccountView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "service-account-controller" ]
+      },
+      "patch" : {
+        "operationId" : "rename",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "workspaceId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/NameRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ServiceAccountView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "service-account-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/api-keys" : {
+      "get" : {
+        "operationId" : "listKeys",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "workspaceId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/ApiKeyView"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "service-account-controller" ]
+      },
+      "post" : {
+        "operationId" : "createKey",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "workspaceId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateKeyRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CreatedApiKey"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "service-account-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/api-keys/{keyId}" : {
+      "delete" : {
+        "operationId" : "revokeKey",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "workspaceId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "keyId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "service-account-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/disable" : {
+      "post" : {
+        "operationId" : "disable",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "workspaceId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ServiceAccountView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "service-account-controller" ]
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/enable" : {
+      "post" : {
+        "operationId" : "enable",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "workspaceId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ServiceAccountView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "service-account-controller" ]
       }
     }
   },

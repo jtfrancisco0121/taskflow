@@ -71,7 +71,13 @@ class OpenApiContractIT {
           "/api/v1/views",
           "/api/v1/views/{id}",
           "/api/v1/views/query",
-          "/api/v1/workspaces/{id}/search");
+          "/api/v1/workspaces/{id}/search",
+          "/api/v1/workspaces/{workspaceId}/service-accounts",
+          "/api/v1/workspaces/{workspaceId}/service-accounts/{id}",
+          "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/disable",
+          "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/enable",
+          "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/api-keys",
+          "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/api-keys/{keyId}");
 
   private static final Path SPEC = Path.of("..", "docs", "api", "openapi.json");
 

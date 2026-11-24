@@ -67,6 +67,8 @@ class EventRouter {
           out.add("/topic/workspace/" + workspaceId);
         }
       }
+      // Service account and key administration is not for members' eyes (AD-9): no topic.
+      case "service_account", "api_key" -> {}
       default -> out.add("/topic/workspace/" + workspaceId);
     }
     return new ArrayList<>(out);
