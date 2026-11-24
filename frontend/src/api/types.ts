@@ -22,3 +22,7 @@ export type ApiKeyView = components['schemas']['ApiKeyView']
 export type CreatedApiKey = components['schemas']['CreatedApiKey']
 export type ServiceAccountAudit = components['schemas']['Audit']
 export type AccountActivity = components['schemas']['AccountActivity']
+export type FieldView = components['schemas']['FieldView']
+export type FieldListView = components['schemas']['FieldListView']
+export type FieldOption = components['schemas']['OptionInfo']
+export type FieldType = NonNullable<FieldView['type']>

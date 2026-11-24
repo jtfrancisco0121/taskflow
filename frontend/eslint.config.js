@@ -12,6 +12,7 @@ const features = [
   'tasks',
   'comments',
   'statuses',
+  'fields',
   'views',
   'realtime',
   'search',
