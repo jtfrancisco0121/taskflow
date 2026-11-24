@@ -16,15 +16,20 @@ class McpEndpointIT extends McpTestBase {
       List.of(
           "add_comment",
           "add_dependency",
+          "create_automation",
           "create_task",
           "delete_task",
           "get_task",
+          "list_automations",
           "list_custom_fields",
           "list_locations",
+          "list_notifications",
           "list_views",
+          "mark_notification_read",
           "move_task",
           "remove_dependency",
           "search_tasks",
+          "toggle_automation",
           "update_task");
 
   private static final Map<String, Object> INIT =
@@ -50,7 +55,7 @@ class McpEndpointIT extends McpTestBase {
   }
 
   @Test
-  void initializeAndListToolsReturnExactlyTheTwelveTools() {
+  void initializeAndListToolsReturnExactlyTheSeventeenTools() {
     Ws ws = workspaceWithAllRoles();
     Agent agent = agent(ws.admin(), ws.id());
     for (String key : new String[] {agent.secret()}) {
@@ -76,7 +81,7 @@ class McpEndpointIT extends McpTestBase {
       assertThat(t.get("description").asText()).isNotBlank();
       assertThat(t.at("/inputSchema/type").asText()).isEqualTo("object");
     }
-    assertThat(names).containsExactlyInAnyOrderElementsOf(TOOLS).hasSize(12);
+    assertThat(names).containsExactlyInAnyOrderElementsOf(TOOLS).hasSize(17);
   }
 
   @Test

@@ -84,11 +84,14 @@ abstract class EngineSupport extends IntegrationTest {
     }
   }
 
+  /** The newest run of the rule on the task, or an empty map while there is none yet. */
   protected Map<String, Object> run(UUID rule, UUID task) {
-    return jdbc.queryForMap(
-        "SELECT status, reason, error, attempt, retryable, depth FROM automation_run WHERE rule_id = ?"
-            + " AND task_id = ? ORDER BY created_at DESC LIMIT 1",
-        rule,
-        task);
+    var rows =
+        jdbc.queryForList(
+            "SELECT status, reason, error, attempt, retryable, depth FROM automation_run WHERE"
+                + " rule_id = ? AND task_id = ? ORDER BY created_at DESC LIMIT 1",
+            rule,
+            task);
+    return rows.isEmpty() ? Map.of() : rows.get(0);
   }
 }

@@ -103,12 +103,16 @@ erDiagram
 | `view` | id, location_id, type, name, config (jsonb), owner_id, visibility | `config` holds scope, filters, grouping, sort, columns |
 | `comment` | id, task_id, author_id, body (json), parent_id | Mentions parsed into a join table |
 | `time_entry` | id, task_id, user_id, started_at, duration, billable | Timer and manual entries |
-| `automation` | id, location_id, trigger, conditions (jsonb), actions (jsonb), enabled | Evaluated by the automation worker |
+| `automation_rule` | id, workspace_id, location_id, name, enabled, trigger, conditions, actions (jsonb), version, created_by, deleted_at | Typed rule documents (decision 009); soft delete |
+| `automation_run` | id, rule_id, task_id, event_id, status, reason, error, retryable, attempt, depth | One row per rule and source event (unique), the run log. Status SUCCEEDED, SKIPPED (with a reason) or FAILED |
+| `task_due_signal` | task_id, due_date, kind | Emitted due-date events; the unique key makes the sweep safe across instances |
+| `notification`, `task_watcher`, `notification_preference` | recipient_id, kind, task_id, source_event_id, read_at; task_id, user_id, watching; user_id, kind, in_app, email_digest | Idempotent inbox, watch state, per-person preferences |
+| `automation_author` | workspace_id, user_id | The "Automation" app user that authors rule-made comments and subtasks |
 | `doc`, `doc_page` | id, location_id; doc_id, parent_page_id, content (json) | Page tree |
 | `service_account` | id, workspace_id, name, disabled | Non-human identity, full access |
 | `api_key` | id, service_account_id, name, prefix, hash, last4, expires_at, last_used_at, revoked_at | Only the hash is stored |
 | `activity_event` | id, workspace_id, entity, entity_id, type, payload, actor_type, actor_id, created_at | Feeds the activity log. `actor_type` is USER, SERVICE_ACCOUNT or AUTOMATION |
-| `outbox_event` | id, type, payload, created_at, published_at | Written in the same transaction as the change |
+| `outbox_event` | id, type, payload, created_at, published_at, queued_at | Written in the same transaction as the change. `published_at` marks the Redis relay, `queued_at` the RabbitMQ relay |
 
 ## 6. Key design decisions
 
@@ -143,7 +147,11 @@ A `RankService` returns a rank between two neighbours. The move endpoint takes `
 
 ### Automations
 
-A rule is a trigger (task created, status changed, field changed, due date approaching), optional conditions, and actions (set status, assign, comment, notify). The worker loads rules whose location is an ancestor of the task, evaluates them, and runs actions through the normal service layer as a system actor. Each event carries the id of the automation that caused it, so a rule cannot trigger itself in a loop. Time-based triggers run from a scheduler guarded by ShedLock.
+A rule is a trigger (task created, status changed, assignee changed, custom field changed, due date approaching or arriving), optional conditions, and actions (change status, assign, set priority, add comment, set due date, create subtask, send notification), stored as typed JSON at a location (decision 009). A RabbitMQ consumer (`taskflow.automation`, bound to `task.*`) loads the enabled rules whose location is an ancestor of the task's List, and runs each matching rule in its own transaction keyed by `(rule, event)` in `automation_run`, so a redelivery is a no-op. Actions go through `task.TaskCommands` (the same services as REST) under an `AutomationCause`: the actor is `AUTOMATION` with the rule id, the rule name rides on both payloads, comments and subtasks are authored by a per-Workspace "Automation" user, and a rule acts only on tasks its creator can view. Guards: depth 3, never on its own change, 10 runs per rule and task in 10 minutes. Refused actions are terminal failed runs; transient failures retry 3 times and then reach `taskflow.automation.dlq`. Time-based triggers come from `task.DueDateSweep` (every 60 s), which emits `task.due_soon` and `task.due_reached` once per task, due date and kind through the `task_due_signal` table; there is no ShedLock, the unique key is the lock (decision 009).
+
+### Notifications
+
+The `notification` module consumes `task.*`, `comment.*` and `automation.notify_requested` from `taskflow.notification`. One event is one transaction: watcher changes, then notifications inserted `ON CONFLICT DO NOTHING` on `(recipient, source event, kind)` (a mention is also unique per comment). Recipients are people who are Workspace members, are not the actor and can view the task; each person's preferences (in-app, email digest per kind) apply, and the digest is a hook (`DigestHook`) that sends nothing. `notification.created|read|read_all` events route only to `/topic/user/{userId}`, and STOMP refuses a subscription to another person's topic.
 
 ### Search
 
@@ -152,9 +160,9 @@ PostgreSQL full-text search with a generated `tsvector` column on title and desc
 ## 8. Events, real-time and async
 
 1. **Write.** A service updates the task and inserts an `outbox_event` (for example `task.status_changed`) in one transaction.
-2. **Relay.** A relay reads unpublished outbox rows with `FOR UPDATE SKIP LOCKED`, publishes them to RabbitMQ and to Redis pub/sub, and marks them sent. A crash between publish and mark can duplicate an event, so every consumer is idempotent.
+2. **Relays.** Two relays read the outbox, each with its own marker, so one broker's outage never stops the other path. The Redis relay reads unpublished rows with `FOR UPDATE SKIP LOCKED`, publishes to Redis pub/sub and sets `published_at`. The RabbitMQ relay claims rows with a lease (`queue_claimed_until`) in a short committed transaction, publishes to the exchange `taskflow.events` (routing key = event type, message id = outbox id) outside any transaction, waits for publisher confirms and then sets `queued_at`. A crash can duplicate an event, so every consumer is idempotent on the outbox id.
 3. **Live UI.** Each API instance subscribes to Redis and forwards events to its connected browsers over STOMP, on topics such as `/topic/location/{id}` and `/topic/task/{id}`. Redis lets several API instances share one real-time layer.
-4. **Workers.** The automation, notification and search workers consume from RabbitMQ queues. Failed messages retry with backoff, then land in a dead-letter queue.
+4. **Workers.** The automation and notification consumers (in the API process behind `taskflow.workers.enabled`) consume from the durable queues `taskflow.automation` and `taskflow.notification`. A transient failure retries 3 times (1 s, then 5 s) and then the message lands in `<queue>.dlq` through the dead-letter exchange `taskflow.events.dlx`; the RabbitMQ management UI (port 15672) shows the depth. Event types added in 3C: `automation.created|updated|enabled|disabled|deleted|notify_requested`, `notification.created|read|read_all` and `task.due_soon|due_reached`.
 5. **Activity feed.** The same events are written to `activity_event`.
 
 **Task relationship events** (3B, decision 008). All have entity `task`, the receiving task's id and its `listId` and `version`, and carry ids only: `task.dependency_added` and `task.dependency_removed` (on both ends; `dependencyId`, `relation` from that end, `otherTaskId`), `task.blocker_resolved` (`blockerId`, `reason` `completed` or `trashed`, `stillBlocked`) and `task.blocker_reopened` (`blockerId`, `reason` `reopened` or `restored`). The blocker events are recorded by `BlockerTransitions` on every live dependent, in the transaction of the change that moved the blocker across the finished boundary, and do not bump the dependent's version.
@@ -192,7 +200,7 @@ Browsers receive only events they are allowed to see, so the subscription handle
 
 ### MCP server
 
-- An MCP endpoint at `/api/v1/mcp` inside the API (the MCP Java SDK, stateless streamable HTTP, service-account keys only) exposes `search_tasks`, `get_task`, `create_task`, `update_task`, `move_task`, `delete_task`, `add_comment`, `list_locations` and `list_views`.
+- An MCP endpoint at `/api/v1/mcp` inside the API (the MCP Java SDK, stateless streamable HTTP, service-account keys only) exposes `search_tasks`, `get_task`, `create_task`, `update_task`, `move_task`, `delete_task`, `add_comment`, `list_locations`, `list_views`, the custom field and dependency tools, and (3C) `list_automations`, `create_automation`, `toggle_automation`, `list_notifications` and `mark_notification_read`.
 - Each tool is a thin wrapper over an existing service method, authenticated by the same API key, so there is no second code path to secure.
 - REST and MCP calls from a key share one per-minute limit.
 - The key goes in the agent's MCP configuration or an environment variable, not in a chat prompt.

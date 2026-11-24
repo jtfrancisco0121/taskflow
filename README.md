@@ -96,6 +96,10 @@ Every setting has a default in `backend/src/main/resources/application.yml`, exc
 | `TASKFLOW_REDIS_HOST`, `TASKFLOW_REDIS_PORT` | `localhost`, `6379` | Rate limiting (sign-in) |
 | `TASKFLOW_MAIL_HOST`, `TASKFLOW_MAIL_PORT` | `localhost`, `1025` | SMTP for invite mail (Mailpit in development) |
 | `TASKFLOW_APP_URL` | `http://localhost:5173` | Base of the invite links |
+| `TASKFLOW_RABBITMQ_HOST`, `_PORT`, `_USER`, `_PASSWORD` | `localhost`, `5672`, `taskflow`, `taskflow` | RabbitMQ for the automation and notification consumers |
+| `TASKFLOW_DB_POOL_SIZE` | `20` | Database pool shared by HTTP, both relays, the due sweep and the consumers |
+| `taskflow.workers.enabled` | `true` | Runs the RabbitMQ listeners and the due-date sweep (`TASKFLOW_WORKERS_ENABLED`) |
+| `taskflow.outbox.amqp.enabled` | `true` | Publishes outbox rows to RabbitMQ (`TASKFLOW_OUTBOX_AMQP_ENABLED`) |
 
 ### Agent access (service accounts, API keys, MCP)
 
@@ -117,6 +121,12 @@ Automation and inbox tools (Phase 3C, [decision 009](docs/decisions/009-automati
 - `list_notifications(unread?, cursor?, limit?)` and `mark_notification_read(notificationId)`: the inbox of the person who created the service account, in its Workspace. A service account with no owner, or whose owner left the Workspace, gets `notification.no_owner` and nothing changes.
 
 Rule changes an agent makes are attributed to the service account and the key like any other.
+
+### Automations and notifications (Phase 3C)
+
+Rules (`/w/<workspace>/l/<location>/automations`) run in the API process from RabbitMQ; notifications reach the bell and `/w/<workspace>/inbox` live. Open the RabbitMQ management UI at <http://localhost:15672> (user and password `taskflow`) and look at the queues `taskflow.automation.dlq` and `taskflow.notification.dlq`: a message there failed three times and the rule run shows as Failed in its run history. The migrations of this phase use the window `V202612030000`-`V202612032359` ([decision 009](docs/decisions/009-automations-notifications.md)).
+
+Rollback note: before returning to an older build, drain the outbox first (let the relays catch up). Unpublished `notification.*` and `automation.*` rows would otherwise reach the old `EventRouter` default and go to the Workspace topic (ids only, no text).
 
 ### Authentication
 
