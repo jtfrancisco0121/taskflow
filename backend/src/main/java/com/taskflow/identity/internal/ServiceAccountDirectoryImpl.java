@@ -31,6 +31,17 @@ class ServiceAccountDirectoryImpl implements ServiceAccounts, ApiKeyDirectory {
   }
 
   @Override
+  public Optional<UUID> ownerOf(UUID serviceAccountId) {
+    return jdbc
+        .queryForList(
+            "SELECT created_by FROM service_account WHERE id = ? AND created_by IS NOT NULL",
+            UUID.class,
+            serviceAccountId)
+        .stream()
+        .findFirst();
+  }
+
+  @Override
   public Map<UUID, String> namesByIds(Collection<UUID> keyIds) {
     Map<UUID, String> out = new LinkedHashMap<>();
     if (keyIds.isEmpty()) {
