@@ -62,7 +62,10 @@ class OpenApiContractIT {
           "/api/v1/tasks/{id}/checklists",
           "/api/v1/checklists/{id}",
           "/api/v1/checklists/{id}/items",
-          "/api/v1/checklist-items/{id}");
+          "/api/v1/checklist-items/{id}",
+          "/api/v1/tasks/{id}/comments",
+          "/api/v1/comments/{id}",
+          "/api/v1/tasks/{id}/activity");
 
   private static final Path SPEC = Path.of("..", "docs", "api", "openapi.json");
 

@@ -337,4 +337,39 @@ class PermissionMatrixIT extends IntegrationTest {
           .isEqualTo(ok ? 201 : 403);
     }
   }
+
+  @Test
+  void commentOnAVisibleTaskAndEditOrDeleteOnlyYourOwn_everyRole() {
+    for (int i = 0; i < ROLES.size(); i++) {
+      Ws ws = workspaceWithAllRoles();
+      String role = ROLES.get(i);
+      UUID space = space(ws.owner(), ws.id(), "S");
+      UUID list = list(ws.owner(), space, "L");
+      UUID task = task(ws.owner(), list, "t");
+      put("/api/v1/locations/" + space + "/grants/" + ws.guest().id(), ws.owner().token(), null);
+      Map<String, Object> doc =
+          Map.of(
+              "body",
+              Map.of("type", "doc", "content", java.util.List.of(Map.of("type", "paragraph"))));
+      UUID others =
+          post("/api/v1/tasks/" + task + "/comments", ws.owner().token(), doc).uuid("/id");
+      if (i == 0) {
+        others = post("/api/v1/tasks/" + task + "/comments", ws.member().token(), doc).uuid("/id");
+      }
+      Resp mine = post("/api/v1/tasks/" + task + "/comments", ws.by(role).token(), doc);
+      assertThat(mine.status()).as("comment as %s", role).isEqualTo(201);
+      assertThat(patch("/api/v1/comments/" + mine.uuid("/id"), ws.by(role).token(), doc).status())
+          .as("edit own as %s", role)
+          .isEqualTo(200);
+      assertThat(patch("/api/v1/comments/" + others, ws.by(role).token(), doc).status())
+          .as("edit another's as %s", role)
+          .isEqualTo(403);
+      assertThat(delete("/api/v1/comments/" + others, ws.by(role).token()).status())
+          .as("delete another's as %s", role)
+          .isEqualTo(403);
+      assertThat(delete("/api/v1/comments/" + mine.uuid("/id"), ws.by(role).token()).status())
+          .as("delete own as %s", role)
+          .isEqualTo(204);
+    }
+  }
 }
