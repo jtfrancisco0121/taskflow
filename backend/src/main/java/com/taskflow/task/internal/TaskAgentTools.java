@@ -121,6 +121,10 @@ class TaskAgentTools {
 
   @Bean
   AgentTool createTaskTool() {
+    return AgentTool.withIdempotencyKey(createTask());
+  }
+
+  private AgentTool createTask() {
     return AgentTool.of(
         "create_task",
         "Create a task in a List. Find the listId with list_locations.",
@@ -267,6 +271,10 @@ class TaskAgentTools {
 
   @Bean
   AgentTool addCommentTool() {
+    return AgentTool.withIdempotencyKey(addComment());
+  }
+
+  private AgentTool addComment() {
     return AgentTool.of(
         "add_comment",
         "Add a comment to a task. text is plain text, one paragraph per line.",

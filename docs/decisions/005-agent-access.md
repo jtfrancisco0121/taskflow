@@ -57,13 +57,30 @@ where it differs or adds detail.
    and the REST problem `code`, including `current` on a 409.
 10. **Plain-text tool inputs (AD-12).** `description` and `text` are plain text, one rich-text paragraph
     per line, validated by `RichText.validate`.
-11. **`Idempotency-Key` is not applied to MCP creates.** An agent that retries `create_task` can create a
-    duplicate; this is deferred.
+11. **MCP creates take an optional `idempotencyKey` argument** (updated after the Phase 3 review;
+    first shipped as deferred). `create_task` and `add_comment` accept it; the MCP endpoint adds it to
+    their schema and description and runs the call through `shared.IdempotentCalls`, which uses the
+    same `idempotency_record` table and rules as the REST `Idempotency-Key` filter: the record and the
+    effect commit together, only a success is stored, the same key and arguments return the first
+    result, the same key with other arguments fails with `idempotency.key_reused`, a concurrent second
+    call waits on the unique key and then replays, and records expire after 24 hours. Keys are scoped
+    per service account (`actor_id`). The request hash is SHA-256 of the tool name and the other
+    arguments with keys sorted, so argument order does not matter. A call without the key behaves as
+    before. Tests: `McpIdempotencyIT`.
 12. **Key administration is not broadcast.** `service_account` and `api_key` events are recorded in the
     audit trail but `EventRouter` routes them to no STOMP topic.
 13. **Attribution.** `activity_event.actor_key_id` and `outbox_event.actor_key_id` carry the key; the
     activity APIs return `actorKeyId` and `actorKeyName`, and the task Activity tab reads
     "triage-agent (key CI-1)" with an Agent badge.
+14. **Client IP behind a reverse proxy** (added after the Phase 3 review; item 6 covered keys, this
+    covers human sign-in). `server.forward-headers-strategy: native` installs Tomcat's
+    `RemoteIpValve`, and `shared/internal/TrustedProxyConfig` limits its trusted proxies to the exact
+    IP addresses in `taskflow.http.trusted-proxies` (`TASKFLOW_TRUSTED_PROXIES`), by default none;
+    Tomcat's default trust of private ranges is switched off. Only a connection from a listed proxy
+    may set the client IP through `X-Forwarded-For`, read right to left up to the first untrusted
+    address, so a value a client prepends is ignored. `request.getRemoteAddr()` then gives the real
+    client to the sign-in limit and the failed-key log. Addresses only, no CIDR ranges. Tests:
+    `SignInRateLimitBehindProxyIT`, `SignInRateLimitUntrustedForwardIT`.
 
 ## Consequences
 

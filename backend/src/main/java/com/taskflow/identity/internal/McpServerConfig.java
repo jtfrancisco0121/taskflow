@@ -3,11 +3,15 @@ package com.taskflow.identity.internal;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.taskflow.shared.Actor;
 import com.taskflow.shared.ActorType;
 import com.taskflow.shared.AgentTool;
 import com.taskflow.shared.AgentToolError;
 import com.taskflow.shared.CurrentActor;
+import com.taskflow.shared.Hashing;
+import com.taskflow.shared.IdempotentCalls;
 import com.taskflow.shared.ProblemResponseWriter;
 import com.taskflow.shared.TaskflowException;
 import io.modelcontextprotocol.json.McpJsonDefaults;
@@ -41,9 +45,21 @@ class McpServerConfig {
   static final String PATH = "/api/v1/mcp";
   private static final Logger log = LoggerFactory.getLogger(McpServerConfig.class);
 
+  static final String IDEMPOTENCY_HINT =
+      " Send idempotencyKey (a new UUID for each new create) so a retry cannot create a duplicate:"
+          + " the same key and arguments return the first result, the same key with other"
+          + " arguments fails with idempotency.key_reused.";
+
+  /** Sorted keys at every level, so the request hash does not depend on argument order. */
+  private static final ObjectMapper CANONICAL =
+      new ObjectMapper().configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
+
   @Bean
   ServletRegistrationBean<HttpServlet> mcpServlet(
-      List<AgentTool> tools, ObjectMapper mapper, ProblemResponseWriter problems) {
+      List<AgentTool> tools,
+      ObjectMapper mapper,
+      ProblemResponseWriter problems,
+      IdempotentCalls idempotentCalls) {
     HttpServletStatelessServerTransport transport =
         HttpServletStatelessServerTransport.builder()
             .jsonMapper(McpJsonDefaults.getMapper())
@@ -54,9 +70,10 @@ class McpServerConfig {
         .instructions(
             "Taskflow work management. Use list_locations to find Lists, then create, read, update,"
                 + " move, comment on and delete tasks. Pass the task version you last read when"
-                + " updating.")
+                + " updating. Send an idempotencyKey with create_task and add_comment so a retry"
+                + " does not create a duplicate.")
         .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build())
-        .tools(tools.stream().map(t -> specification(t, mapper)).toList())
+        .tools(tools.stream().map(t -> specification(t, mapper, idempotentCalls)).toList())
         .immediateExecution(true)
         .build();
     ServiceAccountsOnlyServlet servlet = new ServiceAccountsOnlyServlet(transport, problems);
@@ -68,27 +85,49 @@ class McpServerConfig {
   }
 
   static McpStatelessServerFeatures.SyncToolSpecification specification(
-      AgentTool tool, ObjectMapper mapper) {
+      AgentTool tool, ObjectMapper mapper, IdempotentCalls idempotentCalls) {
+    JsonNode schema = tool.inputSchema();
+    String description = tool.description();
+    if (tool.idempotent()) {
+      ObjectNode withKey = schema.deepCopy();
+      withKey
+          .withObject("/properties")
+          .putObject(AgentTool.IDEMPOTENCY_KEY)
+          .put("type", "string")
+          .put("minLength", 1)
+          .put("maxLength", IdempotentCalls.MAX_KEY_LENGTH)
+          .put(
+              "description",
+              "Optional but recommended: a new UUID per create, reused only to retry the same call");
+      schema = withKey;
+      description = description + IDEMPOTENCY_HINT;
+    }
     McpSchema.Tool definition =
         McpSchema.Tool.builder()
             .name(tool.name())
-            .description(tool.description())
-            .inputSchema(McpJsonDefaults.getMapper(), tool.inputSchema().toString())
+            .description(description)
+            .inputSchema(McpJsonDefaults.getMapper(), schema.toString())
             .build();
     return McpStatelessServerFeatures.SyncToolSpecification.builder()
         .tool(definition)
-        .callHandler((context, request) -> call(tool, request, mapper))
+        .callHandler((context, request) -> call(tool, request, mapper, idempotentCalls))
         .build();
   }
 
   /** A failure the REST endpoint would answer with problem+json is a tool error with its code. */
   static McpSchema.CallToolResult call(
-      AgentTool tool, McpSchema.CallToolRequest request, ObjectMapper mapper) {
+      AgentTool tool,
+      McpSchema.CallToolRequest request,
+      ObjectMapper mapper,
+      IdempotentCalls idempotentCalls) {
     try {
       JsonNode arguments =
           request.arguments() == null
               ? mapper.createObjectNode()
               : mapper.valueToTree(request.arguments());
+      if (tool.idempotent() && arguments.has(AgentTool.IDEMPOTENCY_KEY)) {
+        return result(mapper, idempotentCall(tool, arguments, mapper, idempotentCalls), false);
+      }
       return result(mapper, tool.call(arguments), false);
     } catch (TaskflowException e) {
       return result(mapper, AgentToolError.of(e), true);
@@ -101,6 +140,34 @@ class McpServerConfig {
                   HttpStatus.INTERNAL_SERVER_ERROR, "internal", "The tool call failed")),
           true);
     }
+  }
+
+  /**
+   * Runs a create tool once per service account and key (decision 005.11). The request hash covers
+   * the tool name and every other argument, so the same key with other arguments is refused.
+   */
+  private static JsonNode idempotentCall(
+      AgentTool tool, JsonNode arguments, ObjectMapper mapper, IdempotentCalls idempotentCalls) {
+    JsonNode key = arguments.get(AgentTool.IDEMPOTENCY_KEY);
+    if (!key.isTextual()) {
+      throw TaskflowException.badRequest(
+          "idempotency.invalid_key", "idempotencyKey must be a string");
+    }
+    ObjectNode rest = arguments.deepCopy();
+    rest.remove(AgentTool.IDEMPOTENCY_KEY);
+    String hash;
+    try {
+      hash =
+          Hashing.sha256Hex(
+              "mcp "
+                  + tool.name()
+                  + "\n"
+                  + CANONICAL.writeValueAsString(CANONICAL.convertValue(rest, Object.class)));
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException(e);
+    }
+    return idempotentCalls.run(
+        CurrentActor.userId(), key.asText(), hash, () -> mapper.valueToTree(tool.call(rest)));
   }
 
   private static McpSchema.CallToolResult result(ObjectMapper mapper, Object value, boolean error) {
