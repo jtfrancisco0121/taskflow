@@ -215,13 +215,24 @@ class StatusService {
     }
   }
 
+  /** parentId and path let subscribers route the event (AD-12). */
+  private static Map<String, Object> locationPayload(
+      LocationInfo location, String how, int remapped) {
+    Map<String, Object> m = new java.util.LinkedHashMap<>();
+    m.put("parentId", location.parentId() == null ? null : location.parentId().toString());
+    m.put("path", location.path());
+    m.put("change", how);
+    m.put("remapped", remapped);
+    return m;
+  }
+
   private void changed(LocationInfo location, Map<UUID, UUID> remap, String how) {
     events.record(
         location.workspaceId(),
         "location",
         location.id(),
         "status_set.changed",
-        Map.of("change", how, "remapped", remap.size()));
+        locationPayload(location, how, remap.size()));
     publisher.publishEvent(new StatusSetChanged(location.workspaceId(), location.id(), remap));
   }
 

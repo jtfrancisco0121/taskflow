@@ -11,6 +11,8 @@ import com.taskflow.shared.PageCursor;
 import com.taskflow.shared.RankAllocator;
 import com.taskflow.shared.RankScopeLock;
 import com.taskflow.shared.TaskflowException;
+import com.taskflow.task.Priority;
+import com.taskflow.task.TaskView;
 import com.taskflow.workspace.Action;
 import com.taskflow.workspace.LocationAccess;
 import com.taskflow.workspace.LocationInfo;
@@ -161,7 +163,7 @@ class TaskService {
         "task",
         id,
         "task.created",
-        Map.of("version", 1, "number", number, "changes", changes));
+        Map.of("version", 1, "listId", listId.toString(), "number", number, "changes", changes));
     return repo.view(id);
   }
 
@@ -311,7 +313,13 @@ class TaskService {
         "task",
         id,
         statusOnly ? "task.status_changed" : "task.updated",
-        Map.of("version", expectedVersion + 1, "changes", changes));
+        Map.of(
+            "version",
+            expectedVersion + 1,
+            "listId",
+            current.listId().toString(),
+            "changes",
+            changes));
     return repo.view(id);
   }
 
@@ -492,7 +500,7 @@ class TaskService {
     return new ArrayList<>(clean);
   }
 
-  private List<UUID> checkAssignees(UUID workspaceId, List<UUID> ids) {
+  List<UUID> checkAssignees(UUID workspaceId, List<UUID> ids) {
     if (ids == null || ids.isEmpty()) {
       return List.of();
     }

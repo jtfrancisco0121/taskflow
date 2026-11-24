@@ -2,6 +2,8 @@ import { Outlet, useParams } from 'react-router'
 import { useTaskWorkspaceId } from '../features/tasks'
 import { SidebarTree } from '../features/locations'
 import { useSession, useSignOut } from '../features/auth'
+import { LiveUpdates } from '../features/realtime'
+import { SearchBox } from '../features/search'
 import { useRememberWorkspace, WorkspaceSwitcher } from '../features/workspace'
 import { Button } from '../shared/ui/Button'
 import { useUiStore } from '../shared/ui-store'
@@ -11,46 +13,49 @@ export function AppShell() {
   const toggleSidebar = useUiStore((state) => state.toggleSidebar)
   const session = useSession()
   const signOut = useSignOut()
-  const { workspaceId: urlWorkspaceId, taskId } = useParams()
+  const { workspaceId: urlWorkspaceId, taskId, locationId } = useParams()
   // AD-3: the current Workspace is in the URL, or on /t/:taskId the loaded task's Workspace.
   const taskWorkspaceId = useTaskWorkspaceId(taskId)
   const workspaceId = urlWorkspaceId ?? taskWorkspaceId
   useRememberWorkspace(workspaceId)
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
-      <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
-        <button
-          type="button"
-          aria-label="Toggle sidebar"
-          aria-expanded={sidebarOpen}
-          onClick={toggleSidebar}
-          className="rounded border border-slate-300 px-2 py-1 text-sm hover:bg-slate-100"
-        >
-          Menu
-        </button>
-        <span className="text-lg font-bold">Taskflow</span>
-        <WorkspaceSwitcher currentId={workspaceId} />
-        <div className="ml-auto flex items-center gap-3 text-sm">
-          {session.user?.displayName && <span>{session.user.displayName}</span>}
-          <Button onClick={() => void signOut()}>Sign out</Button>
-        </div>
-      </header>
-      <div className="flex flex-1">
-        {sidebarOpen && (
-          <aside
-            aria-label="Sidebar"
-            className="w-56 border-r border-slate-200 bg-white p-4 text-sm"
+    <LiveUpdates workspaceId={workspaceId} locationId={locationId} taskId={taskId}>
+      <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
+        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
+          <button
+            type="button"
+            aria-label="Toggle sidebar"
+            aria-expanded={sidebarOpen}
+            onClick={toggleSidebar}
+            className="rounded border border-slate-300 px-2 py-1 text-sm hover:bg-slate-100"
           >
-            <nav aria-label="Locations">
-              {workspaceId && <SidebarTree workspaceId={workspaceId} />}
-            </nav>
-          </aside>
-        )}
-        <main className="flex-1 p-6">
-          <Outlet />
-        </main>
+            Menu
+          </button>
+          <span className="text-lg font-bold">Taskflow</span>
+          <WorkspaceSwitcher currentId={workspaceId} />
+          {workspaceId && <SearchBox workspaceId={workspaceId} />}
+          <div className="ml-auto flex items-center gap-3 text-sm">
+            {session.user?.displayName && <span>{session.user.displayName}</span>}
+            <Button onClick={() => void signOut()}>Sign out</Button>
+          </div>
+        </header>
+        <div className="flex flex-1">
+          {sidebarOpen && (
+            <aside
+              aria-label="Sidebar"
+              className="w-56 border-r border-slate-200 bg-white p-4 text-sm"
+            >
+              <nav aria-label="Locations">
+                {workspaceId && <SidebarTree workspaceId={workspaceId} />}
+              </nav>
+            </aside>
+          )}
+          <main className="flex-1 p-6">
+            <Outlet />
+          </main>
+        </div>
       </div>
-    </div>
+    </LiveUpdates>
   )
 }

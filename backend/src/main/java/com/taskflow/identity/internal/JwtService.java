@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.UUID;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -26,12 +27,25 @@ class JwtService {
   private final JwtDecoder decoder;
   private final Clock clock = Clock.systemUTC();
 
+  /** Test seam: builds its own decoder like {@link #decoder(JwtProperties)}. */
   JwtService(JwtProperties properties) {
+    this(properties, decoder(properties));
+  }
+
+  @Autowired
+  JwtService(JwtProperties properties, JwtDecoder decoder) {
     this.properties = properties;
-    SecretKey key =
-        new SecretKeySpec(properties.secret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-    this.encoder = new NimbusJwtEncoder(new ImmutableSecret<>(key));
-    this.decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+    this.encoder = new NimbusJwtEncoder(new ImmutableSecret<>(key(properties)));
+    this.decoder = decoder;
+  }
+
+  private static SecretKey key(JwtProperties properties) {
+    return new SecretKeySpec(properties.secret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+  }
+
+  /** The one HS256 decoder; {@link JwtConfig} publishes it as a bean for the STOMP gateway. */
+  static JwtDecoder decoder(JwtProperties properties) {
+    return NimbusJwtDecoder.withSecretKey(key(properties)).macAlgorithm(MacAlgorithm.HS256).build();
   }
 
   String issue(UUID userId, String email) {

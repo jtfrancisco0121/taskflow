@@ -1,8 +1,10 @@
 import { createBrowserRouter } from 'react-router'
 import { SignInPage, SignUpPage } from '../features/auth'
 import { TaskTabs } from '../features/comments'
-import { ListViewPage, TaskPanelRoute } from '../features/tasks'
+import { TaskPanelRoute } from '../features/tasks'
 import { WorkspaceHomePage } from '../features/locations'
+import { Presence } from '../features/realtime'
+import { LocationViewRoute, ViewBackground, WorkspaceViewRoute } from '../features/views'
 import { SetupPage, WorkspaceRedirect } from '../features/workspace'
 import { AppShell } from './AppShell'
 import { RequireSession } from './RequireSession'
@@ -21,12 +23,25 @@ export const router = createBrowserRouter([
           { path: '/setup', element: <SetupPage /> },
           {
             path: '/w/:workspaceId',
-            element: <WorkspaceHomePage />,
+            element: <WorkspaceHomePage populated={<WorkspaceViewRoute />} />,
           },
-          { path: '/w/:workspaceId/l/:locationId', element: <ListViewPage /> },
+          { path: '/w/:workspaceId/v/:viewId', element: <WorkspaceViewRoute /> },
+          // the existing List URL renders the Default List view (phase 1 links keep working)
+          { path: '/w/:workspaceId/l/:locationId', element: <LocationViewRoute /> },
+          { path: '/w/:workspaceId/l/:locationId/v/:viewId', element: <LocationViewRoute /> },
           {
             path: '/t/:taskId',
-            element: <TaskPanelRoute tabs={(task) => <TaskTabs task={task} />} />,
+            element: (
+              <TaskPanelRoute
+                background={(location) => <ViewBackground location={location} />}
+                tabs={(task) => (
+                  <>
+                    <Presence taskId={task.id!} workspaceId={task.workspaceId!} />
+                    <TaskTabs task={task} />
+                  </>
+                )}
+              />
+            ),
           },
         ],
       },

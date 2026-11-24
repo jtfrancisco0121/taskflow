@@ -103,7 +103,7 @@ class GrantService {
           "location",
           locationId,
           "location.access_granted",
-          Map.of("userId", userId.toString()));
+          locationPayload(locationId, userId));
     }
   }
 
@@ -123,8 +123,23 @@ class GrantService {
           "location",
           locationId,
           "location.access_revoked",
-          Map.of("userId", userId.toString()));
+          locationPayload(locationId, userId));
     }
+  }
+
+  /** parentId and path of the Location, so subscribers can route the event (AD-12). */
+  private Map<String, Object> locationPayload(UUID locationId, UUID userId) {
+    Map<String, Object> m = new java.util.LinkedHashMap<>();
+    jdbc.query(
+        "SELECT parent_id, path::text AS path FROM location WHERE id = ?",
+        rs -> {
+          UUID parent = rs.getObject("parent_id", UUID.class);
+          m.put("parentId", parent == null ? null : parent.toString());
+          m.put("path", rs.getString("path"));
+        },
+        locationId);
+    m.put("userId", userId.toString());
+    return m;
   }
 
   private UUID workspaceOf(UUID locationId) {

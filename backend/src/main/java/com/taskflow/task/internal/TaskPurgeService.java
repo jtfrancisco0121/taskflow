@@ -31,13 +31,17 @@ class TaskPurgeService {
   @Transactional
   public int purge(Instant now) {
     Timestamp cutoff = Timestamp.from(now.minus(TaskTreeService.RETENTION));
-    record Doomed(UUID id, UUID workspaceId) {}
+    record Doomed(UUID id, UUID workspaceId, UUID listId, long version) {}
     List<Doomed> doomed =
         jdbc.query(
-            "SELECT id, workspace_id FROM task WHERE deleted_at IS NOT NULL AND deleted_at < ?",
+            "SELECT id, workspace_id, list_id, version FROM task WHERE deleted_at IS NOT NULL AND"
+                + " deleted_at < ?",
             (rs, i) ->
                 new Doomed(
-                    rs.getObject("id", UUID.class), rs.getObject("workspace_id", UUID.class)),
+                    rs.getObject("id", UUID.class),
+                    rs.getObject("workspace_id", UUID.class),
+                    rs.getObject("list_id", UUID.class),
+                    rs.getLong("version")),
             cutoff);
     for (Doomed d : doomed) {
       events.record(
@@ -45,7 +49,7 @@ class TaskPurgeService {
           "task",
           d.id(),
           "task.purged",
-          Map.of("retentionDays", 30),
+          Map.of("retentionDays", 30, "version", d.version(), "listId", d.listId().toString()),
           Actor.SYSTEM);
     }
     int deleted =

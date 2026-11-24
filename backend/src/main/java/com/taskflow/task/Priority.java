@@ -1,4 +1,4 @@
-package com.taskflow.task.internal;
+package com.taskflow.task;
 
 public enum Priority {
   URGENT,

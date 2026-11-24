@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { Route, Routes, useLocation } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
-import { ListViewPage } from './ListViewPage'
+import { LocationViewRoute, ViewBackground } from '../views'
 import { TaskPanelRoute } from './TaskPanelRoute'
 
 const base = {
@@ -39,6 +39,13 @@ function serve(initial: Record<string, unknown> = {}, extra: Record<string, neve
   const stub = installFetch({
     'GET /api/v1/tasks/:id': () => json(task),
     'GET /api/v1/tasks': () => json({ items: [task] }),
+    'GET /api/v1/locations/:id/views': {
+      items: [
+        { defaultKind: 'LIST', name: 'List', type: 'LIST', config: { v: 1 } },
+        { defaultKind: 'BOARD', name: 'Board', type: 'BOARD', config: { v: 1, group: 'status' } },
+      ],
+    },
+    'POST /api/v1/views/query': () => json({ items: [{ group: 'x', task }] }),
     'GET /api/v1/locations/:id': json({
       id: 'l1',
       name: 'Launch',
@@ -65,8 +72,13 @@ function renderPanel(route = '/t/t1', state?: object) {
   return renderWithProviders(
     <>
       <Routes>
-        <Route path="/w/:workspaceId/l/:locationId" element={<ListViewPage />} />
-        <Route path="/t/:taskId" element={<TaskPanelRoute />} />
+        <Route
+          path="/t/:taskId"
+          element={
+            <TaskPanelRoute background={(location) => <ViewBackground location={location} />} />
+          }
+        />
+        <Route path="/w/:workspaceId/l/:locationId" element={<LocationViewRoute />} />
       </Routes>
       <Where />
     </>,

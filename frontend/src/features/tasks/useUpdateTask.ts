@@ -10,6 +10,7 @@ import { networkError, toApiError } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
 import type { components } from '../../api/schema'
 import type { TaskView } from '../../api/types'
+import { writeTaskToCaches } from './taskCaches'
 
 export type TaskPatch = components['schemas']['UpdateTaskRequest']
 
@@ -62,14 +63,14 @@ export function useUpdateTask(taskId: string) {
     if (response.status === 409) {
       const current = (result.error as { current?: TaskView } | undefined)?.current
       if (current) {
-        queryClient.setQueryData(queryKeys.task(taskId), current)
+        writeTaskToCaches(queryClient, current)
         replaceInLists(queryClient, current)
         void queryClient.invalidateQueries({ queryKey: queryKeys.activity(taskId) })
         return { kind: 'conflict', current, attempted: patch }
       }
     }
     if (!response.ok || !result.data) throw toApiError(response, result.error)
-    queryClient.setQueryData(queryKeys.task(taskId), result.data)
+    writeTaskToCaches(queryClient, result.data)
     replaceInLists(queryClient, result.data)
     void queryClient.invalidateQueries({ queryKey: queryKeys.activity(taskId) })
     return { kind: 'saved', task: result.data }

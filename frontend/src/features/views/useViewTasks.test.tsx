@@ -1,0 +1,66 @@
+import { QueryClientProvider } from '@tanstack/react-query'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { describe, expect, it } from 'vitest'
+import { installFetch, json, newQueryClient } from '../../test/api'
+import { scope, task } from './testSupport'
+import { useViewTasks } from './useViewTasks'
+
+describe('useViewTasks (AD-5, AD-6)', () => {
+  it('reads the next page with the server cursor and never sends an offset', async () => {
+    const stub = installFetch({
+      'POST /api/v1/views/query': (_r: Request, body: unknown) => {
+        const cursor = (body as { cursor?: string }).cursor
+        return cursor
+          ? json({ items: [{ group: 'a', task: task(3) }] })
+          : json({
+              items: [
+                { group: 'a', task: task(1) },
+                { group: 'a', task: task(2) },
+              ],
+              nextCursor: 'cursor-1',
+              groups: [{ key: 'a', label: 'A', count: 3 }],
+            })
+      },
+    })
+    const queryClient = newQueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    const { result } = renderHook(() => useViewTasks(scope, { v: 1, group: 'status' }), { wrapper })
+
+    await waitFor(() => expect(result.current.items).toHaveLength(2))
+    expect(result.current.hasNextPage).toBe(true)
+    expect(result.current.groups).toEqual([{ key: 'a', label: 'A', count: 3 }])
+    await act(() => result.current.fetchNextPage())
+    await waitFor(() => expect(result.current.items).toHaveLength(3))
+    expect(result.current.hasNextPage).toBe(false)
+
+    const bodies = stub.calls.map((c) => c.body as Record<string, unknown>)
+    expect(bodies[0]).toMatchObject({
+      scope: { locationId: 'l1' },
+      config: { v: 1, group: 'status' },
+    })
+    expect(bodies[0].cursor).toBeUndefined()
+    expect(bodies[1].cursor).toBe('cursor-1')
+    for (const b of bodies) {
+      expect(Object.keys(b)).not.toContain('offset')
+      expect(Object.keys(b)).not.toContain('page')
+    }
+  })
+
+  it('a Board column passes its group value and a Workspace scope sends the workspace id', async () => {
+    const stub = installFetch({ 'POST /api/v1/views/query': { items: [] } })
+    const queryClient = newQueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    const { result } = renderHook(
+      () =>
+        useViewTasks({ workspaceId: 'w1' }, { v: 1, group: 'priority' }, { groupValue: 'URGENT' }),
+      { wrapper },
+    )
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(stub.calls[0].body).toMatchObject({ scope: { workspaceId: 'w1' }, groupValue: 'URGENT' })
+  })
+})

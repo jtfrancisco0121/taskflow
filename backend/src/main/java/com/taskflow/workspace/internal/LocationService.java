@@ -182,7 +182,7 @@ class LocationService {
           "location",
           id,
           "location.renamed",
-          Map.of("name", Map.of("from", row.name(), "to", name.trim())));
+          payload(row, "name", Map.of("from", row.name(), "to", name.trim())));
     }
     if (isPrivate != null && isPrivate != row.isPrivate()) {
       jdbc.update("UPDATE location SET is_private = ? WHERE id = ?", isPrivate, id);
@@ -192,7 +192,7 @@ class LocationService {
           "location",
           id,
           "location.privacy_changed",
-          Map.of("isPrivate", Map.of("from", row.isPrivate(), "to", isPrivate)));
+          payload(row, "isPrivate", Map.of("from", row.isPrivate(), "to", isPrivate)));
     }
     return view(requireLive(id, row.workspaceId()));
   }
@@ -242,7 +242,7 @@ class LocationService {
     String rank = ranks.place(scope(moving.workspaceId(), targetParentId), id, beforeId, afterId);
     if (!reparent) {
       jdbc.update("UPDATE location SET rank = ? WHERE id = ?", rank, id);
-      events.record(moving.workspaceId(), "location", id, "location.reordered", Map.of());
+      events.record(moving.workspaceId(), "location", id, "location.reordered", payload(moving));
       return view(requireLive(id, moving.workspaceId()));
     }
     String newPath = target.path() + "." + Ids.label(id);
@@ -264,10 +264,10 @@ class LocationService {
             UUID.class,
             moving.workspaceId(),
             newPath);
-    Map<String, Object> payload = new LinkedHashMap<>();
-    payload.put(
-        "parentId",
-        Map.of("from", String.valueOf(moving.parentId()), "to", String.valueOf(targetParentId)));
+    // parentId and path are the new place (AD-12); the old one rides along for subscribers of it
+    Map<String, Object> payload = payload(moving.workspaceId(), id, targetParentId, newPath);
+    payload.put("fromParentId", moving.parentId() == null ? null : moving.parentId().toString());
+    payload.put("fromPath", moving.path());
     events.record(moving.workspaceId(), "location", id, "location.moved", payload);
     publisher.publishEvent(
         new LocationMoved(id, moving.workspaceId(), moving.parentId(), targetParentId, lists));
@@ -284,7 +284,7 @@ class LocationService {
             + " AND archived_at IS NULL AND deleted_at IS NULL",
         row.workspaceId(),
         row.path());
-    events.record(row.workspaceId(), "location", id, "location.archived", Map.of());
+    events.record(row.workspaceId(), "location", id, "location.archived", payload(row));
     return view(requireLive(id, row.workspaceId()));
   }
 
@@ -298,7 +298,7 @@ class LocationService {
             + " AND archived_at IS NOT NULL AND deleted_at IS NULL",
         row.workspaceId(),
         row.path());
-    events.record(row.workspaceId(), "location", id, "location.unarchived", Map.of());
+    events.record(row.workspaceId(), "location", id, "location.unarchived", payload(row));
     return view(requireLive(id, row.workspaceId()));
   }
 
@@ -312,7 +312,7 @@ class LocationService {
             + " AND deleted_at IS NULL",
         row.workspaceId(),
         row.path());
-    events.record(row.workspaceId(), "location", id, "location.deleted", Map.of());
+    events.record(row.workspaceId(), "location", id, "location.deleted", payload(row));
   }
 
   /** Direct visible children of a parent (or the Spaces), each with hasChildren (LOC-4). */
@@ -386,11 +386,31 @@ class LocationService {
         "location",
         id,
         "location.created",
-        Map.of("type", type.name(), "name", name, "parentId", String.valueOf(parentId)));
+        withExtra(payload(workspaceId, id, parentId, path), "type", type.name(), "name", name));
     if (announce) {
       publisher.publishEvent(new LocationCreated(id, workspaceId, type, parentId));
     }
     return view(requireLive(id, workspaceId));
+  }
+
+  /** Every location event carries parentId and path so routing never reads rows (AD-12). */
+  private static Map<String, Object> payload(Row row, Object... extra) {
+    return withExtra(payload(row.workspaceId(), row.id(), row.parentId(), row.path()), extra);
+  }
+
+  private static Map<String, Object> payload(
+      UUID workspaceId, UUID id, UUID parentId, String path) {
+    Map<String, Object> m = new LinkedHashMap<>();
+    m.put("parentId", parentId == null ? null : parentId.toString());
+    m.put("path", path);
+    return m;
+  }
+
+  private static Map<String, Object> withExtra(Map<String, Object> m, Object... extra) {
+    for (int i = 0; i + 1 < extra.length; i += 2) {
+      m.put((String) extra[i], extra[i + 1]);
+    }
+    return m;
   }
 
   /** The creator keeps access to a private location they make. */

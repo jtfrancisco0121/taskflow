@@ -14,6 +14,8 @@ A ClickUp-style work management app. One set of tasks, many views (List, Board, 
 backend/    Spring Boot modular monolith (API and workers)
 frontend/   React single-page app
 deploy/     Docker Compose for local infrastructure
+scripts/    Demo data seed (scripts/seed)
+load/       k6 load scripts (load/k6)
 docs/       PRD, architecture, decisions (docs/decisions) and the API contract (docs/api/openapi.json)
 ```
 
@@ -65,7 +67,24 @@ npm run lint && npm run typecheck
 npm run test:e2e        # Playwright (Chromium): needs the infrastructure and the backend running, see below
 ```
 
-The Playwright flows sign up a unique account per run and drive the real backend through the Vite `/api` proxy. Start the infrastructure and the backend as in steps 1 and 2 above (the backend with `SPRING_PROFILES_ACTIVE=dev`), install the browser once with `npx playwright install chromium`, then run `npm run test:e2e` (it starts Vite itself, or reuses one on :5173). CI runs the same flows in the `e2e` job. The refresh cookie is `Secure`; Chromium and Firefox accept it on `http://localhost`, Safari may not, so session restore after a reload can fail there in development.
+The e2e suite (`e2e/phase1.spec.ts`, `board-dnd.spec.ts` for the Board drag and drop, `realtime.spec.ts` for two browsers and two users) sets itself up: it needs the Mailpit HTTP API for the invite mail (`E2E_MAILPIT_URL`, default `http://localhost:8025`). To run it next to other local services on the usual ports, start Postgres, Redis and Mailpit on other ports, start the backend with `TASKFLOW_DB_URL`, `TASKFLOW_REDIS_PORT`, `TASKFLOW_MAIL_PORT` and `TASKFLOW_PORT` pointing at them, and run `VITE_API_PROXY_TARGET=http://localhost:<port> E2E_MAILPIT_URL=http://localhost:<port> npm run test:e2e`.
+
+The Playwright flows sign up a unique account per run and drive the real backend through the Vite `/api` and `/ws` proxy. Start the infrastructure and the backend as in steps 1 and 2 above (the backend with `SPRING_PROFILES_ACTIVE=dev`), install the browser once with `npx playwright install chromium`, then run `npm run test:e2e` (it starts Vite itself, or reuses one on :5173). CI runs the same flows in the `e2e` job. The refresh cookie is `Secure`; Chromium and Firefox accept it on `http://localhost`, Safari may not, so session restore after a reload can fail there in development.
+
+### Demo data
+
+`node scripts/seed/demo.mjs` (Node 26, no packages) fills a "Demo" Workspace through the public REST API: three Spaces with Folders and Lists, three invited members (their invite mail is read from Mailpit), a few hundred tasks with statuses, priorities, due dates, assignees, tags, subtasks and comments, and a separate "Load Test / Load 5000" List of exactly 5,000 tasks for the load test. It prints the sign-in details (`demo-owner@example.com`, password `demo-password-2026`). It is safe to run again: each entity is looked up by its stable name first, so a second run, or a run after an interrupted one, creates only what is missing and prints how many entities it created and how many already existed. `SEED_API_URL` (default `http://localhost:5173`, the Vite proxy; use `http://localhost:8080` to skip it) and `SEED_MAILPIT_URL` (default `http://localhost:8025`) are the only settings. `node --test scripts/seed/demo.test.mjs` tests the data generator.
+
+### Load test
+
+`load/k6/list-5000.js` pages `POST /api/v1/views/query` through the seeded 5,000-task List under a manual and a due-date sort (200 per page), fails when a task repeats or is missing, and runs concurrent `PATCH /tasks/{id}` edits with `If-Match` beside it. The run fails when the view page p95 is 300 ms or more.
+
+```bash
+node scripts/seed/demo.mjs
+k6 run -e API_URL=http://localhost:8080 load/k6/list-5000.js
+```
+
+Latest run (k6 v2.4.0, M-series laptop, backend and Postgres 18 on the same machine, 5 paging VUs with 4 iterations each plus 5 editing VUs for 40 s): 4,000 pages read with no repeated or skipped task; view page p95 21 ms (avg 14 ms, max 52 ms); task edit p95 9 ms; 207 edits answered 409 (a lost race, as designed). Scrolling smoothness of the List in a browser (no long task over 100 ms) is not measured by this script: check it in a Chrome performance trace.
 
 ### Backend settings
 

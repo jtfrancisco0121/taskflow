@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { clientId } from './clientId'
 import { createApiClient } from './client'
 import { clearSession, getAccessToken, onSessionEnd, setSession } from './session'
 
@@ -28,6 +29,20 @@ describe('createApiClient', () => {
     const request = fetchStub.mock.calls[0][0]
     expect(request.url).toBe('http://localhost/api/v1/meta')
     expect(request.method).toBe('GET')
+  })
+
+  it('RT-3 sends the per-tab X-Client-Id on every request', async () => {
+    const fetchStub = vi.fn(async (request: Request) => {
+      void request
+      return metaResponse()
+    })
+    const client = createApiClient({ baseUrl: 'http://localhost', fetch: fetchStub })
+    await client.GET('/api/v1/meta')
+    await client.GET('/api/v1/meta')
+    for (const [request] of fetchStub.mock.calls) {
+      expect(request.headers.get('X-Client-Id')).toBe(clientId)
+    }
+    expect(clientId).toMatch(/^[0-9a-f-]{36}$/)
   })
 
   it('looks up the global fetch lazily', async () => {

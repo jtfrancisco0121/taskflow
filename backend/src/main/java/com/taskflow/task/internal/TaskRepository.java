@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.taskflow.shared.TaskflowException;
+import com.taskflow.task.Priority;
+import com.taskflow.task.TaskView;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;

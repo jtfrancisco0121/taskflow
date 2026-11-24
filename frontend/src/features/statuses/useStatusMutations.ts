@@ -14,6 +14,7 @@ function useRefreshAfterWrite(workspaceId: string) {
     Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.statusesAll(workspaceId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.tasksAll(workspaceId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(workspaceId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.taskAll() }),
     ])
 }

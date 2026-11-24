@@ -4,7 +4,7 @@ import { useUiStore } from '../../shared/ui-store'
 import { useTreeChildren } from './useTreeChildren'
 
 /** Main area of `/w/:workspaceId`: the empty-tree prompt, or "Pick a List". */
-export function WorkspaceHomePage() {
+export function WorkspaceHomePage({ populated }: { populated?: React.ReactNode }) {
   const { workspaceId } = useParams()
   const root = useTreeChildren(workspaceId ?? '', 'root', !!workspaceId)
   const setCreatingSpace = useUiStore((state) => state.setCreatingSpace)
@@ -20,5 +20,6 @@ export function WorkspaceHomePage() {
       </div>
     )
   }
+  if (populated) return <>{populated}</>
   return <p className="text-slate-600">Pick a List in the sidebar.</p>
 }

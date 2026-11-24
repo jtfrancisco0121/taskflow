@@ -94,10 +94,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_4"];
+        delete: operations["delete_5"];
         options?: never;
         head?: never;
-        patch: operations["update_2"];
+        patch: operations["update_3"];
         trace?: never;
     };
     "/api/v1/checklists/{id}/items": {
@@ -126,7 +126,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        delete: operations["delete_3"];
+        delete: operations["delete_4"];
         options?: never;
         head?: never;
         patch: operations["edit"];
@@ -173,7 +173,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_5"];
+        post: operations["create_6"];
         delete?: never;
         options?: never;
         head?: never;
@@ -189,7 +189,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_4"];
+        post: operations["create_5"];
         delete?: never;
         options?: never;
         head?: never;
@@ -203,13 +203,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_3"];
+        get: operations["get_4"];
         put?: never;
         post?: never;
-        delete: operations["delete_2"];
+        delete: operations["delete_3"];
         options?: never;
         head?: never;
-        patch: operations["update_1"];
+        patch: operations["update_2"];
         trace?: never;
     };
     "/api/v1/locations/{id}/archive": {
@@ -308,6 +308,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/locations/{id}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["forLocation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -363,13 +379,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_2"];
+        get: operations["get_3"];
         put?: never;
         post?: never;
-        delete: operations["delete_1"];
+        delete: operations["delete_2"];
         options?: never;
         head?: never;
-        patch: operations["update"];
+        patch: operations["update_1"];
         trace?: never;
     };
     "/api/v1/tasks/{id}/activity": {
@@ -397,7 +413,7 @@ export interface paths {
         };
         get: operations["list_3"];
         put?: never;
-        post: operations["create_3"];
+        post: operations["create_4"];
         delete?: never;
         options?: never;
         head?: never;
@@ -413,7 +429,7 @@ export interface paths {
         };
         get: operations["list_2"];
         put?: never;
-        post: operations["create_2"];
+        post: operations["create_3"];
         delete?: never;
         options?: never;
         head?: never;
@@ -466,6 +482,54 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["create_2"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/views/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["query"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/views/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_2"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_1"];
+        options?: never;
+        head?: never;
+        patch: operations["update"];
         trace?: never;
     };
     "/api/v1/workspaces": {
@@ -580,6 +644,22 @@ export interface paths {
         patch: operations["changeRole"];
         trace?: never;
     };
+    "/api/v1/workspaces/{id}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{id}/tasks/by-ref/{ref}": {
         parameters: {
             query?: never;
@@ -620,6 +700,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["tree"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{id}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["forWorkspace"];
         put?: never;
         post?: never;
         delete?: never;
@@ -674,6 +770,11 @@ export interface components {
             name?: string;
             /** Format: uuid */
             taskId?: string;
+        };
+        Column: {
+            field?: string;
+            /** Format: int32 */
+            width?: number;
         };
         CommentRequest: {
             body: components["schemas"]["JsonNode"];
@@ -737,6 +838,18 @@ export interface components {
             tags?: string[];
             title: string;
         };
+        CreateViewRequest: {
+            config: components["schemas"]["ViewConfig"];
+            defaultKind?: string;
+            /** Format: uuid */
+            locationId?: string;
+            name?: string;
+            shareWith?: string[];
+            type: string;
+            visibility?: string;
+            /** Format: uuid */
+            workspaceId?: string;
+        };
         CreateWorkspaceRequest: {
             key?: string;
             name: string;
@@ -744,6 +857,12 @@ export interface components {
         DuplicateTaskRequest: {
             /** Format: uuid */
             listId?: string;
+        };
+        Filter: {
+            field?: string;
+            items?: components["schemas"]["Filter"][];
+            op?: string;
+            value?: components["schemas"]["JsonNode"];
         };
         GrantView: {
             /** Format: date-time */
@@ -754,6 +873,12 @@ export interface components {
             grantedBy?: string;
             /** Format: uuid */
             userId?: string;
+        };
+        GroupInfo: {
+            /** Format: int64 */
+            count?: number;
+            key?: string;
+            label?: string;
         };
         InvitePreview: {
             email?: string;
@@ -823,11 +948,19 @@ export interface components {
             /** Format: uuid */
             afterId?: string;
             /** Format: uuid */
+            assigneeFrom?: string;
+            /** Format: uuid */
+            assigneeTo?: string;
+            /** Format: uuid */
             beforeId?: string;
+            keepRank?: boolean;
             /** Format: uuid */
             listId: string;
+            /** @enum {string} */
+            priority?: "URGENT" | "HIGH" | "NORMAL" | "LOW" | "NONE";
             /** Format: uuid */
             statusId?: string;
+            statusName?: string;
         };
         PageActivityView: {
             items?: components["schemas"]["ActivityView"][];
@@ -849,6 +982,10 @@ export interface components {
             items?: components["schemas"]["MemberView"][];
             nextCursor?: string;
         };
+        PageSearchHit: {
+            items?: components["schemas"]["SearchHit"][];
+            nextCursor?: string;
+        };
         PageTaskView: {
             items?: components["schemas"]["TaskView"][];
             nextCursor?: string;
@@ -865,6 +1002,25 @@ export interface components {
             items?: components["schemas"]["WorkspaceView"][];
             nextCursor?: string;
         };
+        QueryResponse: {
+            groups?: components["schemas"]["GroupInfo"][];
+            items?: components["schemas"]["ViewItem"][];
+            nextCursor?: string;
+        };
+        QueryScope: {
+            /** Format: uuid */
+            locationId?: string;
+            /** Format: uuid */
+            workspaceId?: string;
+        };
+        QueryViewRequest: {
+            config: components["schemas"]["ViewConfig"];
+            cursor?: string;
+            groupValue?: string;
+            /** Format: int32 */
+            limit?: number;
+            scope: components["schemas"]["QueryScope"];
+        };
         RemapRequest: {
             /** Format: uuid */
             from: string;
@@ -880,6 +1036,16 @@ export interface components {
         ResetStatusesRequest: {
             remap?: components["schemas"]["RemapRequest"][];
         };
+        SearchHit: {
+            /** Format: uuid */
+            listId?: string;
+            listName?: string;
+            readableId?: string;
+            snippet?: string;
+            /** Format: uuid */
+            taskId?: string;
+            title?: string;
+        };
         SignInRequest: {
             email: string;
             password: string;
@@ -889,6 +1055,10 @@ export interface components {
             /** Format: email */
             email: string;
             password: string;
+        };
+        Sort: {
+            dir?: string;
+            key?: string;
         };
         StatusInfo: {
             color?: string;
@@ -1010,11 +1180,49 @@ export interface components {
             tags?: string[];
             title?: string;
         };
+        UpdateViewRequest: {
+            config?: components["schemas"]["ViewConfig"];
+            name?: string;
+            shareWith?: string[];
+            visibility?: string;
+        };
         UserResponse: {
             displayName?: string;
             email?: string;
             /** Format: uuid */
             id?: string;
+        };
+        ViewConfig: {
+            columns?: components["schemas"]["Column"][];
+            filter?: components["schemas"]["Filter"];
+            group?: string;
+            mode?: string;
+            sort?: components["schemas"]["Sort"][];
+            /** Format: int32 */
+            v?: number;
+        };
+        ViewDto: {
+            config?: components["schemas"]["ViewConfig"];
+            defaultKind?: string;
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            locationId?: string;
+            name?: string;
+            /** Format: uuid */
+            ownerId?: string;
+            shareWith?: string[];
+            type?: string;
+            visibility?: string;
+            /** Format: uuid */
+            workspaceId?: string;
+        };
+        ViewItem: {
+            group?: string;
+            task?: components["schemas"]["TaskView"];
+        };
+        ViewList: {
+            items?: components["schemas"]["ViewDto"][];
         };
         WorkspaceView: {
             /** Format: date-time */
@@ -1171,7 +1379,7 @@ export interface operations {
             };
         };
     };
-    delete_4: {
+    delete_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -1191,7 +1399,7 @@ export interface operations {
             };
         };
     };
-    update_2: {
+    update_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -1243,7 +1451,7 @@ export interface operations {
             };
         };
     };
-    delete_3: {
+    delete_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -1333,7 +1541,7 @@ export interface operations {
             };
         };
     };
-    create_5: {
+    create_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -1359,7 +1567,7 @@ export interface operations {
             };
         };
     };
-    create_4: {
+    create_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -1383,7 +1591,7 @@ export interface operations {
             };
         };
     };
-    get_3: {
+    get_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -1405,7 +1613,7 @@ export interface operations {
             };
         };
     };
-    delete_2: {
+    delete_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -1425,7 +1633,7 @@ export interface operations {
             };
         };
     };
-    update_1: {
+    update_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -1662,6 +1870,28 @@ export interface operations {
             };
         };
     };
+    forLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ViewList"];
+                };
+            };
+        };
+    };
     me: {
         parameters: {
             query?: never;
@@ -1728,7 +1958,7 @@ export interface operations {
             };
         };
     };
-    get_2: {
+    get_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -1750,7 +1980,7 @@ export interface operations {
             };
         };
     };
-    delete_1: {
+    delete_2: {
         parameters: {
             query?: never;
             header?: {
@@ -1772,7 +2002,7 @@ export interface operations {
             };
         };
     };
-    update: {
+    update_1: {
         parameters: {
             query?: never;
             header?: {
@@ -1847,7 +2077,7 @@ export interface operations {
             };
         };
     };
-    create_3: {
+    create_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -1898,7 +2128,7 @@ export interface operations {
             };
         };
     };
-    create_2: {
+    create_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -1998,6 +2228,122 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["TaskView"];
+                };
+            };
+        };
+    };
+    create_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateViewRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ViewDto"];
+                };
+            };
+        };
+    };
+    query: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueryViewRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["QueryResponse"];
+                };
+            };
+        };
+    };
+    get_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ViewDto"];
+                };
+            };
+        };
+    };
+    delete_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateViewRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ViewDto"];
                 };
             };
         };
@@ -2282,6 +2628,32 @@ export interface operations {
             };
         };
     };
+    search: {
+        parameters: {
+            query: {
+                q: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageSearchHit"];
+                };
+            };
+        };
+    };
     byRef: {
         parameters: {
             query?: never;
@@ -2351,6 +2723,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["PageTreeNode"];
+                };
+            };
+        };
+    };
+    forWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ViewList"];
                 };
             };
         };

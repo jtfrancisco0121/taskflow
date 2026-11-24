@@ -5,7 +5,17 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 // AD-11: a feature is imported only through its index.ts, and shared/api never import features.
-const features = ['auth', 'workspace', 'locations', 'tasks', 'comments', 'statuses']
+const features = [
+  'auth',
+  'workspace',
+  'locations',
+  'tasks',
+  'comments',
+  'statuses',
+  'views',
+  'realtime',
+  'search',
+]
 const deepOf = (name, relative) => [
   { group: [`**/features/${name}/**`, `!**/features/${name}/index*`] },
   ...(relative ? [{ group: [`../${name}/**`, `!../${name}/index*`] }] : []),

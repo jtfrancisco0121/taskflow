@@ -55,3 +55,20 @@ afterEach(() => {
   useToastStore.setState({ toasts: [] })
   useUiStore.setState({ sidebarOpen: true, creatingSpace: false, expanded: {} })
 })
+
+// Component tests never open a socket: the STOMP client of the app shell gets a socket that stays closed.
+class ClosedWebSocket extends EventTarget {
+  static readonly CONNECTING = 0
+  static readonly OPEN = 1
+  static readonly CLOSING = 2
+  static readonly CLOSED = 3
+  readyState = 3
+  binaryType = 'blob'
+  onopen: ((event: Event) => void) | null = null
+  onclose: ((event: Event) => void) | null = null
+  onerror: ((event: Event) => void) | null = null
+  onmessage: ((event: Event) => void) | null = null
+  send() {}
+  close() {}
+}
+vi.stubGlobal('WebSocket', ClosedWebSocket)

@@ -1,4 +1,4 @@
-package com.taskflow.task.internal;
+package com.taskflow.task;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Instant;
