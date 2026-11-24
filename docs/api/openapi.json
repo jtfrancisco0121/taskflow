@@ -390,6 +390,12 @@
             },
             "type" : "array"
           },
+          "customFields" : {
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/JsonNode"
+            },
+            "type" : "object"
+          },
           "description" : {
             "$ref" : "#/components/schemas/JsonNode"
           },
@@ -1354,6 +1360,12 @@
             "format" : "uuid",
             "type" : "string"
           },
+          "customFields" : {
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/JsonNode"
+            },
+            "type" : "object"
+          },
           "description" : {
             "$ref" : "#/components/schemas/JsonNode"
           },
@@ -1560,6 +1572,12 @@
               "type" : "string"
             },
             "type" : "array"
+          },
+          "customFields" : {
+            "additionalProperties" : {
+              "$ref" : "#/components/schemas/JsonNode"
+            },
+            "type" : "object"
           },
           "description" : {
             "$ref" : "#/components/schemas/JsonNode"

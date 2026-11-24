@@ -1052,6 +1052,9 @@ export interface components {
         };
         CreateTaskRequest: {
             assigneeIds?: string[];
+            customFields?: {
+                [key: string]: components["schemas"]["JsonNode"];
+            };
             description?: components["schemas"]["JsonNode"];
             /** Format: date-time */
             dueDate?: string;
@@ -1402,6 +1405,9 @@ export interface components {
             createdAt?: string;
             /** Format: uuid */
             createdBy?: string;
+            customFields?: {
+                [key: string]: components["schemas"]["JsonNode"];
+            };
             description?: components["schemas"]["JsonNode"];
             /** Format: date-time */
             dueDate?: string;
@@ -1487,6 +1493,9 @@ export interface components {
         };
         UpdateTaskRequest: {
             assigneeIds?: string[];
+            customFields?: {
+                [key: string]: components["schemas"]["JsonNode"];
+            };
             description?: components["schemas"]["JsonNode"];
             /** Format: date-time */
             dueDate?: string;

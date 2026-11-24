@@ -151,7 +151,8 @@ class TaskAgentTools {
                   instant(args, "dueDate"),
                   uuids(args, "assigneeIds"),
                   strings(args, "tags"),
-                  AgentToolArgs.optUuid(args, "parentTaskId")));
+                  AgentToolArgs.optUuid(args, "parentTaskId"),
+                  null));
         });
   }
 

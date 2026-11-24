@@ -1,18 +1,25 @@
 package com.taskflow.field.internal;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.taskflow.field.FieldCatalog;
 import com.taskflow.field.FieldInfo;
 import com.taskflow.field.FieldType;
 import com.taskflow.field.OptionInfo;
+import com.taskflow.field.ValidatedValues;
+import com.taskflow.shared.TaskflowException;
 import com.taskflow.workspace.LocationInfo;
 import com.taskflow.workspace.LocationTree;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -59,6 +66,71 @@ class FieldCatalogImpl implements FieldCatalog {
             (rs, i) -> row(rs),
             fieldId);
     return attachOptions(rows).stream().findFirst();
+  }
+
+  @Override
+  public ValidatedValues validate(UUID listId, Map<String, JsonNode> values) {
+    if (values == null || values.isEmpty()) {
+      return ValidatedValues.none();
+    }
+    List<FieldInfo> effective = effective(listId);
+    Map<UUID, JsonNode> set = new LinkedHashMap<>();
+    Set<UUID> cleared = new HashSet<>();
+    Map<UUID, FieldInfo> used = new LinkedHashMap<>();
+    for (Map.Entry<String, JsonNode> entry : values.entrySet()) {
+      FieldInfo field = resolveKey(effective, entry.getKey());
+      if (used.put(field.id(), field) != null) {
+        throw TaskflowException.badRequest("field.invalid_value", field.name() + " is given twice")
+            .with("fieldId", field.id().toString());
+      }
+      JsonNode value = FieldTypes.normalize(field, entry.getValue());
+      if (value == null) {
+        cleared.add(field.id());
+      } else {
+        set.put(field.id(), value);
+      }
+    }
+    return new ValidatedValues(set, cleared, used);
+  }
+
+  @Override
+  public Map<String, JsonNode> project(List<FieldInfo> effective, Map<String, JsonNode> stored) {
+    Map<String, JsonNode> out = new LinkedHashMap<>();
+    if (stored == null || stored.isEmpty()) {
+      return out;
+    }
+    for (FieldInfo field : effective) {
+      JsonNode value = FieldTypes.project(field, stored.get(field.id().toString()));
+      if (value != null) {
+        out.put(field.id().toString(), value);
+      }
+    }
+    return out;
+  }
+
+  @Override
+  public String display(FieldInfo field, JsonNode stored) {
+    return FieldTypes.display(field, stored);
+  }
+
+  /** A key is a field id or, failing that, the name of an effective field (ignoring case). */
+  private static FieldInfo resolveKey(List<FieldInfo> effective, String key) {
+    String trimmed = key.trim();
+    for (FieldInfo f : effective) {
+      if (f.id().toString().equalsIgnoreCase(trimmed)) {
+        return f;
+      }
+    }
+    String lower = trimmed.toLowerCase(Locale.ROOT);
+    for (FieldInfo f : effective) {
+      if (f.name().toLowerCase(Locale.ROOT).equals(lower)) {
+        return f;
+      }
+    }
+    throw TaskflowException.badRequest(
+            "field.not_available",
+            "'" + key + "' is not a field of this List (or it is hidden here)")
+        .with("field", key);
   }
 
   /** Every live field at the location or an ancestor, with the nearest hide, Space first. */

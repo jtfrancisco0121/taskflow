@@ -1,6 +1,8 @@
 package com.taskflow.field;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,4 +18,22 @@ public interface FieldCatalog {
 
   /** A field by id, retired ones included. */
   Optional<FieldInfo> lookup(UUID fieldId);
+
+  /**
+   * Validates custom field values for a task of this List (AD-1, field-types.md). Keys are field
+   * ids or names of the List's effective fields; a value is the type's JSON shape, an Option or its
+   * name for Dropdown and Labels; {@code null} (and {@code false} for a Checkbox, 0 for a Rating)
+   * clears. Throws 400 {@code field.invalid_value} naming the field, or {@code field.not_available}
+   * for a field that is not effective on the List.
+   */
+  ValidatedValues validate(UUID listId, Map<String, JsonNode> values);
+
+  /**
+   * The stored values of the effective fields as the API shows them (AD-13): values of fields
+   * outside {@code effective} are dropped, retired Options are filtered out. Keys are field ids.
+   */
+  Map<String, JsonNode> project(List<FieldInfo> effective, Map<String, JsonNode> stored);
+
+  /** A short display text of a stored value, for activity snapshots. */
+  String display(FieldInfo field, JsonNode stored);
 }
