@@ -57,6 +57,8 @@ test('/design: a Select inside the open Dialog is themed, above it, and Escape c
   await page.keyboard.press('Escape')
   await expect(listbox).toBeHidden()
   await expect(dialog).toBeVisible()
+  // Radix hands focus back to the trigger a moment after the listbox closes: wait for it, as a user would.
+  await expect(dialog.getByLabel('Status in dialog')).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
 })
