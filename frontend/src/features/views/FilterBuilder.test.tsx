@@ -73,6 +73,8 @@ describe('FilterBuilder custom fields (FIELD-3, 3A S5)', () => {
   it('lists the custom fields in their own group of the field picker', async () => {
     render(<Harness onFilter={() => {}} />)
     const picker = screen.getByLabelText('Filter field')
+    // TODO(slice 4): FilterBuilder is rebuilt on Radix in slice 4 (List view chip bar). Until then it keeps its
+    // native selects, and this optgroup read is the only named native-select dependency in the tests.
     expect(picker.querySelector('optgroup')?.getAttribute('label')).toBe('Custom fields')
     await findOption(userEvent.setup(), picker, 'Customer tier')
   })

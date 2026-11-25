@@ -12,8 +12,9 @@ Behavior stays the same; look, structure and UX change. Phases 4-5 are built on 
 
 ## 2. Look and themes
 - Dark theme: "Aurora glass, Midnight palette": navy-black ground, frosted panels, indigo and electric-blue glow.
+  Aurora is the only dark theme (there is no separate "Dark base" palette).
 - Light theme: REQUIRED. Ships together with dark.
-- Theme switcher: three options (Light, Dark, System). Default is System. The choice persists per browser
+- Theme switcher: three options (Light, Aurora, System). Default is System. The choice persists per browser
   (localStorage, wrapped in try/catch) and is applied before first paint to avoid a flash. The switcher lives in the sidebar
   footer and as a command in the Cmd+K palette.
 - The prototype defines the glass look for dark only. The planner proposes a light counterpart (frosted white panels,
@@ -31,16 +32,7 @@ Light (default `:root`):
 - priority: urgent #d63b3b, high #e0861c, normal #3a78dd, low #9ba5a2
 - danger #c93434 (soft #fbe5e3), warn-soft #fdf0d9, ok-soft #dcf2e4, blue-soft #e2ebfb
 
-Dark base:
-- bg #0f0d19, surface #171428, surface-2 #1e1a33, surface-3 #28233f
-- line #2c2745, line-strong #3e3762
-- fg #ebe8f8, muted #a6a0c4, faint #736d93
-- accent #9583ff, accent-fg #140d36, accent-soft #2a2352, accent-line #4d41a0
-- status: todo #8d9a97, in progress #5c93f0, review #e2a23c, done #3cc47a
-- priority: urgent #f06363, high #f0a246, normal #6a9cf0, low #7e8a87
-- danger #f06363 (soft #3a1c1c), warn-soft #3a2c12, ok-soft #133523, blue-soft #1a2944
-
-Aurora overlay on top of dark:
+Aurora (the only dark theme):
 - bg #060914, surface #0e1428, surface-2 rgba(255,255,255,.045), surface-3 rgba(255,255,255,.09)
 - line rgba(255,255,255,.08), line-strong rgba(255,255,255,.18)
 - fg #e9edff, muted #9ba5ca, faint #6a7399
@@ -69,14 +61,13 @@ Keep TanStack Query/Table/Virtual, dnd-kit, Tiptap, React Hook Form + Zod. No he
   ? opens the shortcut sheet.
 - Every screen has loading, empty and error states.
 
-## 6. Needs confirmation before building
-List an effort estimate for each and wait for the owner's answer. Build only if the API supports it or a backend change is approved:
-- PR and link previews in comments (implies a GitHub integration that is not in the PRD)
-- Threaded replies in comments
-- Subtasks and checklists in the task detail
-- Trash view and undo
-- Status manager (edit workflow statuses per list)
-- Presence indicators ("simulate a teammate's edit" in the prototype)
+## 6. Owner decisions on the former "needs confirmation" list
+- Skipped: threaded replies in comments, PR and link previews (plain links in comments are fine), presence indicators.
+- In scope, because today's API supports them (no backend change):
+  - Trash and undo, for tasks only: `DELETE` + `POST /tasks/{id}/restore` + `GET /workspaces/{id}/trash`; undo calls restore.
+  - Subtasks and checklists.
+  - Status manager: one `PUT` of the whole set at `/locations/{id}/statuses`.
+- Phase 4 backlog: comment and location restore, and anything else that needs a backend change.
 
 ## 7. Out of scope
 Layouts below tablet width, Phase 4-5 features, any API or schema change without a decision record.
@@ -94,5 +85,14 @@ Layouts below tablet width, Phase 4-5 features, any API or schema change without
 - Text contrast at least 4.5:1 in both themes (3:1 for text 24px and larger). Visible focus. Everything keyboard reachable. aria-labels on icon-only buttons.
 - backdrop-filter only on the shell, modals and popovers, not on list rows or cards.
 - Respects prefers-reduced-motion.
-- Before and after screenshots in both themes, and the bundle-size change, in the slice report.
+- Before and after screenshots, light and dark side by side, and the bundle-size change, in the slice report
+  (committed under `docs/ui/slices/`).
+- Bundle size: slice 1 is report-only and sets the baseline. From slice 2 on, a hard cap of +15% over that baseline
+  per slice fails CI; self-hosted fonts are measured separately.
+- Nothing stays on a native `<select>` unless the slice report names it.
 - One PR per slice, app working after each. gitleaks clean.
+
+## 10. Decisions
+- Light theme is approved on condition that it meets the 4.5:1 contrast rule; contrast failures are fixed in the tokens, not per component.
+- Every slice report has light and dark screenshots side by side.
+- Themes: Light, Aurora (the only dark theme) and System.
