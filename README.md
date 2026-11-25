@@ -56,7 +56,7 @@ cd backend && SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 cd frontend && npm ci && npm run dev
 ```
 
-Open http://localhost:5173, create an account (Sign up), then a Workspace, a Space and a List, and add tasks from the List view. The Task panel is at `/t/<task id>`, and a Space or List menu in the sidebar opens statuses, rename, privacy and move.
+Open http://localhost:5173, create an account (Sign up), then a Workspace, a Space and a List, and add tasks from the List view. The Task panel is at `/t/<task id>`, and a Space or List menu in the sidebar opens statuses, rename, privacy and move. Press Cmd+K (Ctrl+K elsewhere) for the command palette: tasks, places, Workspaces, Theme and actions. The sidebar footer switches Light, Aurora and System; the choice is kept in this browser.
 
 ### Frontend tests
 
@@ -75,7 +75,7 @@ The Playwright flows sign up a unique account per run and drive the real backend
 
 Every Phase 3.5 slice report carries screenshots in both themes and a bundle-size delta:
 
-- `bash scripts/e2e-local.sh e2e/theme-screens.spec.ts` signs up, seeds a small List and writes `<screen>-light.png` and `<screen>-dark.png` (List, task panel, Board, Table, Calendar, automations, inbox, service accounts) to `artifacts/screenshots/`. The theme is set with an init script and an emulated color scheme; once the app has a theme store, the spec must seed its storage key instead. Since slice 2 the spec also scans every screen with axe's `color-contrast` rule (`frontend/e2e/a11y.ts`) and fails on any request to Google Fonts.
+- `bash scripts/e2e-local.sh e2e/theme-screens.spec.ts` signs up, seeds a small List and writes `<screen>-light.png` and `<screen>-dark.png` (List, task panel, Board, Table, Calendar, automations, inbox, service accounts) to `artifacts/screenshots/`. Since slice 3 the theme is the stored choice (`taskflow:theme`): the spec seeds it once with an init script before the first navigation, runs both themes under both emulated OS color schemes (the dark-OS shots carry an `-osdark` suffix), and also writes `shell-*` (the app shell) and `palette-*` (the open command palette). No spec but `design.spec.ts` may write `data-theme`. Since slice 2 the spec also scans every screen with axe's `color-contrast` rule (`frontend/e2e/a11y.ts`) and fails on any request to Google Fonts.
 - `bash scripts/bundle-size.sh` builds the frontend and prints the size of `dist/assets` for the branch and for its merge-base with `main`, with the delta as one Markdown line for the PR body: JS/CSS (gzip -9) and self-hosted fonts (raw `.woff2`/`.woff`) are reported separately. It builds the base in a temporary git worktree (`npm ci` needs the network, a few minutes) and removes it again.
 - `bash scripts/bundle-size.sh --check` (after `npm run build`, from the repo root) measures the current `frontend/dist/assets` and exits 1 when the JS/CSS size is above the cap in `frontend/bundle-budget.json` (slice-1 baseline 388.1 KiB + 15% = 446.3 KiB). `--self-test` proves the check fails with a lowered baseline. CI runs both after the build.
 - `npm run check:dist` (in `frontend/`, after `npm run build`) fails when `dist/` is missing, holds the DEV-only `/design` page or points at Google Fonts; `npm run check:dist -- --self-test` proves it fails on a `dist/` with the marker. `npm run dev` serves the design system at `/design` (development only) with a Light / Aurora / System toggle.
