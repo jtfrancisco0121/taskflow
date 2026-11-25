@@ -1,5 +1,5 @@
 import { DropdownMenu } from '../../shared/ui/DropdownMenu'
-import { keepFocusIfMoved } from '../../shared/ui/floating'
+import { keepFocusOrEnterDialog } from '../../shared/ui/floating'
 import { menuItems, type MenuAction } from './menuItems'
 import type { TreeNode } from './useTreeChildren'
 
@@ -25,7 +25,7 @@ export function TreeItemMenu({
       onOpenChange={onOpenChange}
       label={`${node.name} actions`}
       onCloseAutoFocus={(event) => {
-        keepFocusIfMoved(event)
+        keepFocusOrEnterDialog(event)
         if (event.defaultPrevented) return
         event.preventDefault()
         returnFocusTo()?.focus()

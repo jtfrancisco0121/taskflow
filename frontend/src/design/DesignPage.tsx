@@ -254,6 +254,7 @@ export function DesignPage() {
       {dialog && (
         <Dialog title="Example dialog" onClose={() => setDialog(false)}>
           <p className="mb-3 text-muted">A dialog with a select inside it.</p>
+          <TextField label="Name in dialog" />
           <label htmlFor="design-dialog-select" className="text-xs font-medium text-muted">
             Status in dialog
           </label>

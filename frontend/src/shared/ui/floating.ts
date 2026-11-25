@@ -41,8 +41,19 @@ export const FOCUSABLE = [
  */
 export function keepFocusIfMoved(event: Event) {
   const active = document.activeElement
-  // A modal Radix menu traps focus while it is still mounted, so a Dialog opened by a pick may have been
-  // pulled back to the body: give the focus to that Dialog instead of the trigger.
+  if (active && active !== document.body && !active.closest('[data-tf-floating]')) {
+    event.preventDefault()
+  }
+}
+
+/**
+ * `onCloseAutoFocus` for a menu whose pick can open a Dialog. A modal Radix menu traps focus while it is still
+ * mounted, so a Dialog opened by a pick may have been pulled back to the body: give the focus to that Dialog
+ * instead of the trigger. Only for such menus: a Select or popover inside a Dialog closes with focus on the
+ * body too, and must give focus back to its own trigger, never to the Dialog's first field.
+ */
+export function keepFocusOrEnterDialog(event: Event) {
+  const active = document.activeElement
   if (!active || active === document.body) {
     const dialog = document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]')
     if (dialog) {
@@ -51,9 +62,7 @@ export function keepFocusIfMoved(event: Event) {
       return
     }
   }
-  if (active && active !== document.body && !active.closest('[data-tf-floating]')) {
-    event.preventDefault()
-  }
+  keepFocusIfMoved(event)
 }
 
 /**

@@ -59,7 +59,7 @@ shell fills the window, so nothing extends past the sidebar and the top bar.
 
 | Screen | Light | Dark (Aurora) | Before (slice 2) |
 |---|---|---|---|
-| Shell (sidebar open) | ![Shell (sidebar open) light](slice-3/shell-light.png) | ![Shell (sidebar open) dark](slice-3/shell-dark.png) | new in slice 3 |
+| Shell (sidebar open) | ![Shell (sidebar open) light](slice-3/shell-light.png) | ![Shell (sidebar open) dark](slice-3/shell-dark.png) | [before](slice-2/list-light.png) / [before dark](slice-2/list-dark.png) (the slice-2 shell around the List) |
 | List view | ![List view light](slice-3/list-light.png) | ![List view dark](slice-3/list-dark.png) | [before](slice-2/list-light.png) / [before dark](slice-2/list-dark.png) |
 | Open command palette | ![Open command palette light](slice-3/palette-light.png) | ![Open command palette dark](slice-3/palette-dark.png) | new in slice 3 |
 | Task panel | ![Task panel light](slice-3/task-panel-light.png) | ![Task panel dark](slice-3/task-panel-dark.png) | [before](slice-2/task-panel-light.png) / [before dark](slice-2/task-panel-dark.png) |

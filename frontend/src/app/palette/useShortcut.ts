@@ -9,7 +9,7 @@ import { hasOpenFloatingLayer } from '../../shared/ui/floating'
 export function useShortcut(toggle: () => void) {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (event.key.toLowerCase() !== 'k' || !(event.metaKey || event.ctrlKey)) return
+      if (event.key?.toLowerCase() !== 'k' || !(event.metaKey || event.ctrlKey)) return
       if (event.altKey || event.shiftKey) return
       if (document.querySelector('[role="dialog"][aria-modal="true"]:not([data-tf-palette])'))
         return
