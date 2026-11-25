@@ -110,7 +110,7 @@ export function SearchBox({ workspaceId }: { workspaceId: string }) {
         aria-controls={listId}
         placeholder="Search tasks (press /)"
         value={text}
-        className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+        className="h-8 w-full rounded-md border border-line-strong bg-surface px-2 text-[13px] text-fg placeholder:text-faint"
         onChange={(e) => {
           setText(e.target.value)
           setOpen(true)
@@ -124,15 +124,15 @@ export function SearchBox({ workspaceId }: { workspaceId: string }) {
           id={listId}
           role="listbox"
           aria-label="Search results"
-          className="absolute z-30 mt-1 max-h-96 w-[28rem] overflow-auto rounded border border-slate-200 bg-white shadow"
+          className="glass absolute z-(--tf-z-floating) mt-1 max-h-96 w-[28rem] overflow-auto rounded-lg"
         >
           {query.isError && (
-            <p role="alert" className="p-2 text-sm text-red-700">
+            <p role="alert" className="p-2 text-sm text-danger">
               {messageOf(query.error)}
             </p>
           )}
           {query.isSuccess && hits.length === 0 && (
-            <p className="p-2 text-sm text-slate-600">No tasks match “{q}”.</p>
+            <p className="p-2 text-sm text-muted">No tasks match “{q}”.</p>
           )}
           {hits.map((hit, i) => (
             <div
@@ -142,15 +142,15 @@ export function SearchBox({ workspaceId }: { workspaceId: string }) {
               onMouseEnter={() => setActive(i)}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => openHit(hit)}
-              className={`cursor-pointer px-3 py-2 text-sm ${i === active ? 'bg-blue-50' : ''}`}
+              className={`cursor-pointer px-3 py-2 text-sm ${i === active ? 'bg-accent-soft' : ''}`}
             >
               <div className="flex gap-2">
-                <span className="font-mono text-xs text-slate-500">{hit.readableId}</span>
+                <span className="font-mono text-xs text-muted">{hit.readableId}</span>
                 <span className="font-medium">{hit.title}</span>
-                <span className="ml-auto text-xs text-slate-500">{hit.listName}</span>
+                <span className="ml-auto text-xs text-muted">{hit.listName}</span>
               </div>
               {hit.snippet && (
-                <div className="mt-0.5 text-xs text-slate-600">
+                <div className="mt-0.5 text-xs text-muted">
                   <Snippet text={hit.snippet} />
                 </div>
               )}
@@ -159,7 +159,7 @@ export function SearchBox({ workspaceId }: { workspaceId: string }) {
           {query.hasNextPage && (
             <button
               type="button"
-              className="w-full border-t border-slate-200 py-1.5 text-sm text-blue-700"
+              className="w-full border-t border-line py-1.5 text-sm text-accent"
               disabled={query.isFetchingNextPage}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => void query.fetchNextPage()}

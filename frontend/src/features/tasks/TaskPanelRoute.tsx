@@ -37,8 +37,8 @@ export function TaskPanelRoute({
   }
 
   return (
-    <div className="-m-6 flex min-h-[calc(100vh-3.5rem)]">
-      <div className="min-w-0 flex-1 p-6">{drawn && background?.(drawn)}</div>
+    <div className="flex h-full min-h-0">
+      <div className="min-h-0 min-w-0 flex-1 overflow-auto p-6">{drawn && background?.(drawn)}</div>
       {taskId && (
         <TaskPanel key={taskId} taskId={taskId} onClose={close}>
           {tabs}

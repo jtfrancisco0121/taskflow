@@ -11,7 +11,7 @@ export function RequireSession() {
 
   if (session.status === 'loading') {
     return (
-      <div role="status" className="flex min-h-screen items-center justify-center text-slate-600">
+      <div role="status" className="flex min-h-screen items-center justify-center text-muted">
         Loading Taskflow…
       </div>
     )

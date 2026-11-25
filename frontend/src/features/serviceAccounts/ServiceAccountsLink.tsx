@@ -11,7 +11,7 @@ export function ServiceAccountsLink({ workspaceId }: { workspaceId: string }) {
   return (
     <Link
       to={`/w/${workspaceId}/settings/service-accounts`}
-      className="rounded border border-slate-300 px-3 py-1 hover:bg-slate-100"
+      className="rounded-md border border-line-strong bg-surface px-3 py-1.5 text-[13px] font-medium text-fg hover:bg-surface-2"
     >
       Settings
     </Link>

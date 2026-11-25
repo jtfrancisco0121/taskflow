@@ -45,14 +45,14 @@ export function SidebarTree({ workspaceId }: { workspaceId: string }) {
 
   if (root.isPending) {
     return (
-      <p role="status" className="text-xs text-slate-500">
+      <p role="status" className="text-xs text-muted">
         Loading…
       </p>
     )
   }
   if (root.isError) {
     return (
-      <p className="text-xs text-red-700">
+      <p className="text-xs text-danger">
         Couldn&apos;t load.{' '}
         <button type="button" className="underline" onClick={() => void root.refetch()}>
           Retry
