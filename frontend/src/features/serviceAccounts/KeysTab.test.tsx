@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
+import { expectValue } from '../../test/ui'
 import { KeysTab } from './KeysTab'
 
 const BASE = '/api/v1/workspaces/:id/service-accounts/:id'
@@ -47,7 +48,7 @@ describe('KeysTab', () => {
     await user.click(screen.getByRole('button', { name: 'Create key' }))
     const create = screen.getByRole('dialog', { name: 'Create key' })
     await user.type(within(create).getByLabelText('Name'), 'CI-1')
-    expect(within(create).getByLabelText('Expires')).toHaveValue('90')
+    expectValue(within(create).getByLabelText('Expires'), '90 days')
     await user.click(within(create).getByRole('button', { name: 'Create key' }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Key CI-1 created' })

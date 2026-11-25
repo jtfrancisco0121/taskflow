@@ -6,6 +6,7 @@ import { installFetch, json, problem, renderWithProviders } from '../../test/api
 import { baseRoutes, customFieldIds, fieldRoutes, scope, task } from './testSupport'
 import { clampWidth, dropColumn, moveColumn, toggleColumn, withWidth } from './tableColumns'
 import { TableRenderer } from './TableRenderer'
+import { expectValue, pick } from '../../test/ui'
 
 describe('TABLE-1 column model', () => {
   const columns = [
@@ -124,8 +125,8 @@ describe('TABLE-1 Table view', () => {
     renderWithProviders(<TableRenderer scope={scope} config={config} update={vi.fn()} />)
     await screen.findByRole('link', { name: 'Task 1' })
 
-    await user.selectOptions(screen.getByLabelText('Priority of ACME-1'), 'URGENT')
-    await user.selectOptions(await screen.findByLabelText('Status of ACME-1'), 'st-doing')
+    await pick(user, screen.getByLabelText('Priority of ACME-1'), 'Urgent')
+    await pick(user, await screen.findByLabelText('Status of ACME-1'), 'In progress')
     await user.click(screen.getByRole('button', { name: 'Edit Tags of ACME-1' }))
     await user.type(screen.getByRole('textbox', { name: 'Tags of ACME-1' }), 'a, b{Enter}')
     await user.type(screen.getByLabelText('Due date of ACME-1'), '2026-12-24')
@@ -168,15 +169,13 @@ describe('TABLE-1 Table view', () => {
     const user = userEvent.setup()
     renderWithProviders(<TableRenderer scope={scope} config={config} update={vi.fn()} />)
     await screen.findByRole('link', { name: 'Task 1' })
-    await user.selectOptions(screen.getByLabelText('Priority of ACME-1'), 'URGENT')
+    await pick(user, screen.getByLabelText('Priority of ACME-1'), 'Urgent')
     await waitFor(() =>
       expect(useToastStore.getState().toasts.map((t) => t.message)).toContain(
         'This task changed. Review and try again.',
       ),
     )
-    await waitFor(() =>
-      expect(screen.getByLabelText('Priority of ACME-1')).toHaveDisplayValue('Low'),
-    )
+    await waitFor(() => expectValue(screen.getByLabelText('Priority of ACME-1'), 'Low'))
   })
 })
 
@@ -214,7 +213,7 @@ describe('FIELD-3 custom field columns (3A S4)', () => {
 
     const cell = await screen.findByRole('button', { name: 'Customer tier: empty' })
     await user.click(cell)
-    await user.selectOptions(screen.getByLabelText('Customer tier for ACME-1'), 'Enterprise')
+    await pick(user, screen.getByLabelText('Customer tier for ACME-1'), 'Enterprise')
 
     expect(await screen.findByRole('button', { name: 'Customer tier: Enterprise' })).toBeVisible()
     const patch = stub.calls.find((c) => c.method === 'PATCH')!
@@ -232,7 +231,7 @@ describe('FIELD-3 custom field columns (3A S4)', () => {
     renderWithProviders(<TableRenderer scope={scope} config={withTier} update={vi.fn()} />)
 
     await user.click(await screen.findByRole('button', { name: 'Customer tier: Free' }))
-    await user.selectOptions(screen.getByLabelText('Customer tier for ACME-1'), '—')
+    await pick(user, screen.getByLabelText('Customer tier for ACME-1'), '—')
 
     await waitFor(() =>
       expect(useToastStore.getState().toasts.map((t) => t.message)).toContain(

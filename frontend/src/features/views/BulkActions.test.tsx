@@ -7,6 +7,7 @@ import { runLimited } from './bulk'
 import { ListRenderer } from './ListRenderer'
 import { baseRoutes, scope, task } from './testSupport'
 import { useViewStore } from './viewStore'
+import { pick } from '../../test/ui'
 
 const rows = () => Array.from({ length: 50 }, (_, i) => task(i + 1))
 
@@ -68,7 +69,7 @@ describe('LIST-1 Bulk actions', () => {
     await screen.findByRole('link', { name: 'Task 1' })
     useViewStore.setState({ selected: Array.from({ length: 50 }, (_, i) => `t${i + 1}`) })
 
-    await user.selectOptions(await screen.findByLabelText('Set priority'), 'HIGH')
+    await pick(user, await screen.findByLabelText('Set priority'), 'High')
 
     await waitFor(() => expect(stub.calls.filter((c) => c.method === 'PATCH')).toHaveLength(50))
     expect(peak).toBeLessThanOrEqual(6)

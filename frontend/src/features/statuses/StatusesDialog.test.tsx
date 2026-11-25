@@ -5,6 +5,7 @@ import { installFetch, json, problem, renderWithProviders } from '../../test/api
 import { createStatusSim, type SimStatus } from '../../test/statusSim'
 import { StatusesDialog, type StatusesLocation } from './StatusesDialog'
 import { useLocationStatuses } from './useLocationStatuses'
+import { pick } from '../../test/ui'
 
 const st = (id: string, name: string, group: string, color = '#9ca3af'): SimStatus => ({
   id,
@@ -109,7 +110,7 @@ describe('StatusesDialog', () => {
     open(space)
 
     await user.click(await screen.findByRole('button', { name: 'Edit statuses' }))
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Status 2 group' }), 'ACTIVE')
+    await pick(user, screen.getByRole('combobox', { name: 'Status 2 group' }), 'Active')
 
     expect(await screen.findByText('A set needs at least one Done or Closed status.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
@@ -144,7 +145,7 @@ describe('StatusesDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Remove status 2' })) // in progress
     const target = await screen.findByRole('combobox', { name: 'Move tasks from in progress to' })
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
-    await user.selectOptions(target, 'to do')
+    await pick(user, target, 'to do')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(sim.log).toHaveLength(1))
@@ -163,7 +164,8 @@ describe('StatusesDialog', () => {
     await user.clear(nameField(1))
     await user.type(nameField(1), 'Backlog')
     await user.click(screen.getByRole('button', { name: 'Remove status 2' }))
-    await user.selectOptions(
+    await pick(
+      user,
       await screen.findByRole('combobox', { name: 'Move tasks from in progress to' }),
       'Backlog',
     )
@@ -187,7 +189,7 @@ describe('StatusesDialog', () => {
     expect(asked).toHaveLength(1)
     expect(asked[0]).toHaveAccessibleName('Move tasks from closed to')
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
-    await user.selectOptions(asked[0], 'complete')
+    await pick(user, asked[0], 'complete')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(sim.log).toHaveLength(1))
@@ -250,7 +252,7 @@ describe('StatusesDialog', () => {
     expect(asked[0]).toHaveAccessibleName('Move tasks from wip to')
     const confirm = screen.getByRole('button', { name: 'Reset to inherited' })
     expect(confirm).toBeDisabled()
-    await user.selectOptions(asked[0], 'in progress')
+    await pick(user, asked[0], 'in progress')
     await user.click(confirm)
 
     await waitFor(() => expect(sim.log).toHaveLength(1))

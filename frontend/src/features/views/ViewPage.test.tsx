@@ -7,6 +7,7 @@ import { installFetch, json, renderWithProviders } from '../../test/api'
 import { baseRoutes, task } from './testSupport'
 import { parseUrlState } from './urlState'
 import { LocationViewRoute } from './ViewPage'
+import { pick } from '../../test/ui'
 
 function Where() {
   const location = useLocation()
@@ -103,8 +104,8 @@ describe('VIEW-3 view page and URL state', () => {
     const user = userEvent.setup()
     renderPage()
     await screen.findByRole('link', { name: 'Task 1' })
-    await user.selectOptions(screen.getByLabelText('Group by'), 'priority')
-    await user.selectOptions(screen.getByLabelText('Sort by'), 'dueDate')
+    await pick(user, screen.getByLabelText('Group by'), 'Priority')
+    await pick(user, screen.getByLabelText('Sort by'), 'Due date')
     await waitFor(() => expect(screen.getByTestId('where').textContent).toContain('g=priority'))
     expect(screen.getByTestId('where').textContent).toContain('s=dueDate.asc')
   })

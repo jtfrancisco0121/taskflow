@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { FieldView, ViewFilter } from '../../api/types'
 import { FilterGroup } from './FilterBuilder'
 import { customFields, customFieldIds } from './testSupport'
+import { findOption, optionsOf, pick } from '../../test/ui'
 
 const fields: FieldView[] = [
   ...customFields,
@@ -65,15 +66,15 @@ function Harness({ onFilter }: { onFilter: (f: ViewFilter) => void }) {
 }
 
 async function pickField(user: ReturnType<typeof userEvent.setup>, label: string) {
-  await user.selectOptions(screen.getByLabelText('Filter field'), label)
+  await pick(user, screen.getByLabelText('Filter field'), label)
 }
 
 describe('FilterBuilder custom fields (FIELD-3, 3A S5)', () => {
-  it('lists the custom fields in their own group of the field picker', () => {
+  it('lists the custom fields in their own group of the field picker', async () => {
     render(<Harness onFilter={() => {}} />)
     const picker = screen.getByLabelText('Filter field')
     expect(picker.querySelector('optgroup')?.getAttribute('label')).toBe('Custom fields')
-    expect(screen.getByRole('option', { name: 'Customer tier' })).toBeInTheDocument()
+    await findOption(userEvent.setup(), picker, 'Customer tier')
   })
 
   it('Dropdown: operators of the type and a checkbox per Option, sent as ids', async () => {
@@ -82,17 +83,15 @@ describe('FilterBuilder custom fields (FIELD-3, 3A S5)', () => {
     render(<Harness onFilter={(f) => (last = f)} />)
     await pickField(user, 'Customer tier')
 
-    const ops = Array.from(
-      (screen.getByLabelText('Filter operator') as HTMLSelectElement).options,
-    ).map((o) => o.value)
-    expect(ops).toEqual(['any_of', 'none_of', 'is_set', 'is_empty'])
+    const ops = await optionsOf(user, screen.getByLabelText('Filter operator'))
+    expect(ops).toEqual(['is any of', 'is none of', 'is set', 'is empty'])
     await user.click(screen.getByRole('checkbox', { name: 'Enterprise' }))
     expect(last.items![0]).toEqual({
       field: `cf:${customFieldIds.tier}`,
       op: 'any_of',
       value: ['o-free', 'o-ent'],
     })
-    await user.selectOptions(screen.getByLabelText('Filter operator'), 'is_empty')
+    await pick(user, screen.getByLabelText('Filter operator'), 'is empty')
     expect(last.items![0]).toEqual({ field: `cf:${customFieldIds.tier}`, op: 'is_empty' })
     expect(screen.queryByRole('group', { name: 'Filter value' })).not.toBeInTheDocument()
   })
@@ -107,7 +106,7 @@ describe('FilterBuilder custom fields (FIELD-3, 3A S5)', () => {
     await user.clear(box)
     await user.type(box, '8')
     expect(last.items![0]).toMatchObject({ op: 'eq', value: 8 })
-    await user.selectOptions(screen.getByLabelText('Filter operator'), 'between')
+    await pick(user, screen.getByLabelText('Filter operator'), 'is between')
     await user.clear(screen.getByLabelText('Filter value from'))
     await user.type(screen.getByLabelText('Filter value from'), '2')
     await user.clear(screen.getByLabelText('Filter value to'))
@@ -127,7 +126,7 @@ describe('FilterBuilder custom fields (FIELD-3, 3A S5)', () => {
     })
 
     await pickField(user, 'Due')
-    await user.selectOptions(screen.getByLabelText('Filter value (relative)'), 'this_week')
+    await pick(user, screen.getByLabelText('Filter value (relative)'), 'this week')
     expect(last.items![0]).toMatchObject({ op: 'before', value: 'this_week' })
 
     await pickField(user, 'Notes')
@@ -145,15 +144,10 @@ describe('FilterBuilder blocked (FR-7)', () => {
     render(<Harness onFilter={(f) => (last = f)} />)
     await pickField(user, 'Blocked')
     expect(last.items![0]).toEqual({ field: 'blocked', op: 'is_true' })
-    const ops = Array.from(
-      (screen.getByLabelText('Filter operator') as HTMLSelectElement).options,
-    ).map((o) => [o.value, o.textContent])
-    expect(ops).toEqual([
-      ['is_true', 'is blocked'],
-      ['is_false', 'is not blocked'],
-    ])
+    const ops = await optionsOf(user, screen.getByLabelText('Filter operator'))
+    expect(ops).toEqual(['is blocked', 'is not blocked'])
     expect(screen.queryByLabelText('Filter value')).not.toBeInTheDocument()
-    await user.selectOptions(screen.getByLabelText('Filter operator'), 'is_false')
+    await pick(user, screen.getByLabelText('Filter operator'), 'is not blocked')
     expect(last.items![0]).toEqual({ field: 'blocked', op: 'is_false' })
   })
 })

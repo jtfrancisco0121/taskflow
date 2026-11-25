@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { LocationViewRoute, ViewBackground } from '../views'
 import { TaskPanelRoute } from './TaskPanelRoute'
+import { expectValue, findOption, optionsOf, pick } from '../../test/ui'
 
 const base = {
   id: 't1',
@@ -105,8 +106,8 @@ describe('TaskPanel', () => {
 
     const panel = await screen.findByRole('complementary', { name: 'Task ACME-1' })
     expect(within(panel).getByLabelText('Title')).toHaveValue('Draft launch post')
-    await waitFor(() => expect(within(panel).getByLabelText('Status')).toHaveDisplayValue('To do'))
-    expect(within(panel).getByLabelText('Priority')).toHaveDisplayValue('Normal')
+    await waitFor(() => expectValue(within(panel).getByLabelText('Status'), 'To do'))
+    expectValue(within(panel).getByLabelText('Priority'), 'Normal')
     expect(within(panel).getByLabelText('Start date')).toBeVisible()
     expect(within(panel).getByLabelText('Due date')).toBeVisible()
     expect(within(panel).getByText('launch')).toBeVisible()
@@ -191,17 +192,13 @@ describe('TaskPanel', () => {
     renderPanel()
 
     const select = await screen.findByLabelText('Status')
-    await within(select).findByRole('option', { name: 'In progress' })
-    expect(
-      within(select)
-        .getAllByRole('option')
-        .map((o) => o.textContent),
-    ).toEqual(['To do', 'In progress', 'Done'])
-    await user.selectOptions(select, 'In progress')
+    await findOption(user, select, 'In progress')
+    expect(await optionsOf(user, select)).toEqual(['To do', 'In progress', 'Done'])
+    await pick(user, select, 'In progress')
 
     await screen.findByText('Saved')
     expect(patches(stub)[0].body).toEqual({ statusId: 'st2' })
-    expect(select).toHaveDisplayValue('In progress')
+    expectValue(select, 'In progress')
   })
 
   it('FR-17: a refused edit restores the saved value and shows the server message', async () => {
@@ -305,14 +302,14 @@ describe('TaskPanel', () => {
     renderPanel()
 
     const status = await screen.findByLabelText('Status')
-    await within(status).findByRole('option', { name: 'Done' })
-    await user.selectOptions(status, 'Done')
+    await findOption(user, status, 'Done')
+    await pick(user, status, 'Done')
     const banner = await screen.findByRole('alert')
     expect(banner).toHaveTextContent('Your change: Done')
     await user.click(within(banner).getByRole('button', { name: 'Discard' }))
 
     expect(screen.queryByText(/Someone else changed/)).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Status')).toHaveDisplayValue('To do')
+    expectValue(screen.getByLabelText('Status'), 'To do')
     expect(patches(stub)).toHaveLength(1)
   })
 
@@ -468,18 +465,18 @@ describe('TaskPanel', () => {
       const user = userEvent.setup()
       renderPanel()
       const status = await screen.findByLabelText('Status')
-      await within(status).findByRole('option', { name: 'Done' })
+      await findOption(user, status, 'Done')
 
-      await user.selectOptions(status, 'Done')
+      await pick(user, status, 'Done')
       const dialog = await screen.findByRole('dialog', {
         name: 'Draft launch post is waiting on 1 unfinished task',
       })
       await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
       expect(patches(stub)).toHaveLength(0)
-      expect(screen.getByLabelText('Status')).toHaveDisplayValue('To do')
+      expectValue(screen.getByLabelText('Status'), 'To do')
 
       // a change that does not complete asks nothing
-      await user.selectOptions(screen.getByLabelText('Status'), 'In progress')
+      await pick(user, screen.getByLabelText('Status'), 'In progress')
       await waitFor(() => expect(patches(stub)).toHaveLength(1))
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
@@ -491,8 +488,8 @@ describe('TaskPanel', () => {
       const user = userEvent.setup()
       renderPanel()
       const status = await screen.findByLabelText('Status')
-      await within(status).findByRole('option', { name: 'Done' })
-      await user.selectOptions(status, 'Done')
+      await findOption(user, status, 'Done')
+      await pick(user, status, 'Done')
       await user.click(await screen.findByRole('button', { name: 'Complete anyway' }))
       await waitFor(() => expect(patches(stub)).toHaveLength(1))
       expect(patches(stub)[0].body).toEqual({ statusId: 'st3' })
