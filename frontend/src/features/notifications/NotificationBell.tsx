@@ -4,6 +4,7 @@ import { formatDateTime, relativeTime } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
 import { Popover } from '../../shared/ui/Popover'
 import { useUserTopic } from '../realtime'
+import { inboxPath, notificationSettingsPath } from './routes'
 import { notificationText } from './notificationText'
 import {
   useInbox,
@@ -129,11 +130,11 @@ function NotificationList({ workspaceId, onClose }: { workspaceId: string; onClo
         ))}
       </ul>
       <div className="mt-1 flex items-center gap-3 border-t border-line px-1 pt-2 text-sm">
-        <Link to={`/w/${workspaceId}/inbox`} onClick={onClose} className="text-accent underline">
+        <Link to={inboxPath(workspaceId)} onClick={onClose} className="text-accent underline">
           Open inbox
         </Link>
         <Link
-          to={`/w/${workspaceId}/settings/notifications`}
+          to={notificationSettingsPath(workspaceId)}
           onClick={onClose}
           className="ml-auto text-accent underline"
         >

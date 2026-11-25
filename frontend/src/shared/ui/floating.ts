@@ -55,3 +55,15 @@ export function keepFocusIfMoved(event: Event) {
     event.preventDefault()
   }
 }
+
+/**
+ * True while a floating layer that traps focus or takes the pointer is open: any `[data-tf-floating]` element
+ * except a tooltip and the command palette's own panel, or focus inside one. The palette shortcut stays quiet
+ * then, so it never opens under a modal menu, a Select or a popover (AD-5).
+ */
+export function hasOpenFloatingLayer(): boolean {
+  const layer = '[data-tf-floating]:not([data-tf-tooltip]):not([data-tf-palette])'
+  if (document.querySelector(layer)) return true
+  const active = document.activeElement
+  return !!active && active.closest(layer) !== null
+}

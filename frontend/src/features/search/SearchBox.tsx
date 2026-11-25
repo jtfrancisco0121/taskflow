@@ -1,13 +1,8 @@
-import { useInfiniteQuery } from '@tanstack/react-query'
 import { Fragment, useEffect, useId, useRef, useState } from 'react'
-import { useLocation, useMatch, useNavigate, type Location } from 'react-router'
-import { api } from '../../api/client'
-import { messageOf, unwrap } from '../../api/errors'
-import { queryKeys } from '../../api/queryKeys'
+import { messageOf } from '../../api/errors'
 import type { SearchHit } from '../../api/types'
 import { isTypingTarget } from '../../shared/ui/typing'
-
-const DEBOUNCE_MS = 250
+import { useOpenTaskHit, useTaskSearch } from './useTaskSearch'
 
 /** The server marks matches with <mark>; everything else is plain text, never HTML. */
 export function Snippet({ text }: { text: string }) {
@@ -32,19 +27,12 @@ export function Snippet({ text }: { text: string }) {
  */
 export function SearchBox({ workspaceId }: { workspaceId: string }) {
   const [text, setText] = useState('')
-  const [q, setQ] = useState('')
   const [active, setActive] = useState(0)
   const [open, setOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const listId = useId()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const onTaskRoute = useMatch('/t/:taskId') !== null
-
-  useEffect(() => {
-    const timer = setTimeout(() => setQ(text.trim()), DEBOUNCE_MS)
-    return () => clearTimeout(timer)
-  }, [text])
+  const { q, query, hits } = useTaskSearch(workspaceId, text)
+  const openTask = useOpenTaskHit()
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -57,29 +45,9 @@ export function SearchBox({ workspaceId }: { workspaceId: string }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const query = useInfiniteQuery({
-    queryKey: queryKeys.search(workspaceId, q),
-    enabled: q.length >= 2,
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) =>
-      unwrap(
-        api.GET('/api/v1/workspaces/{id}/search', {
-          params: { path: { id: workspaceId }, query: { q, cursor: pageParam, limit: 20 } },
-        }),
-      ),
-    getNextPageParam: (last) => last.nextCursor ?? undefined,
-  })
-  const hits: SearchHit[] = query.data?.pages.flatMap((p) => p.items ?? []) ?? []
-
   function openHit(hit: SearchHit) {
-    // Behind a panel the current location is /t/<prev>: keep that panel's own background.
-    const background = onTaskRoute
-      ? ((location.state as { backgroundLocation?: Location } | null)?.backgroundLocation ?? null)
-      : location
     setOpen(false)
-    void navigate(`/t/${hit.taskId}`, {
-      state: background ? { backgroundLocation: background } : undefined,
-    })
+    openTask(hit)
   }
 
   function onKeyDown(event: React.KeyboardEvent) {

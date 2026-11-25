@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router'
+import { inboxPath } from './routes'
 import { useUnreadCount } from './useNotifications'
 
 /** The sidebar's Inbox entry: a badge with the unread count (hidden at 0, "99+" above 99). */
@@ -7,7 +8,7 @@ export function InboxLink({ workspaceId }: { workspaceId: string }) {
   const label = unread > 99 ? '99+' : String(unread)
   return (
     <NavLink
-      to={`/w/${workspaceId}/inbox`}
+      to={inboxPath(workspaceId)}
       aria-label={unread > 0 ? `Inbox, ${unread} unread` : 'Inbox'}
       className={({ isActive }) =>
         `flex h-8 items-center gap-2 rounded-md px-2 text-[13px] transition-colors duration-(--tf-dur-fast) hover:bg-surface-2 ${

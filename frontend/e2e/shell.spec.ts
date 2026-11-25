@@ -153,3 +153,130 @@ test('FR-12: over a Board wider than the window the close button stays in view w
   expect(background.mainScrollLeft).toBe(0)
   await expect(panel.getByRole('button', { name: 'Close task panel' })).toBeInViewport()
 })
+
+// ---- the command palette (AD-3, AD-5) ----
+
+const palette = (page: Page) => page.getByRole('dialog', { name: 'Command palette' })
+const paletteField = (page: Page) =>
+  page.getByRole('combobox', { name: 'Search commands and tasks' })
+
+test('SM-2: a task, a List, a Theme and the Inbox are reachable from the palette', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'light' })
+  await setUp(page)
+  await addTask(page, 'Fix the sign-in redirect')
+
+  await page.keyboard.press('ControlOrMeta+k')
+  await expect(palette(page)).toBeVisible()
+  await expect(paletteField(page)).toBeFocused()
+  await paletteField(page).fill('sign-in')
+  await expect(
+    palette(page).getByRole('option', { name: /Fix the sign-in redirect/ }),
+  ).toBeVisible()
+  await page.keyboard.press('Enter')
+  await expect(palette(page)).toHaveCount(0)
+  await expect(page.getByRole('complementary', { name: /^Task / })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  await page.goto('/')
+  await expect(page.getByRole('treeitem', { name: 'Platform' })).toBeVisible()
+  await page.keyboard.press('ControlOrMeta+k')
+  await paletteField(page).fill('Platf')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { name: 'Platform', level: 1 })).toBeVisible()
+
+  await page.keyboard.press('ControlOrMeta+k')
+  await paletteField(page).fill('Aurora')
+  await page.keyboard.press('Enter')
+  await expect(palette(page)).toHaveCount(0)
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await page.reload()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+
+  await page.keyboard.press('ControlOrMeta+k')
+  await paletteField(page).fill('Go to Inbox')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { name: 'Inbox' })).toBeVisible()
+  await page.keyboard.press('ControlOrMeta+k')
+  await paletteField(page).fill('notification settings')
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/\/settings\/notifications$/)
+  await page.keyboard.press('ControlOrMeta+k')
+  await paletteField(page).fill('service accounts')
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/\/settings\/service-accounts$/)
+})
+
+test('FR-7: a Workspace jump lands on the other Workspace', async ({ page }) => {
+  await setUp(page, 'First Co')
+  await page.goto('/setup')
+  await page.getByLabel('Name', { exact: true }).fill('Second Co')
+  await page.getByRole('button', { name: 'Create Workspace' }).click()
+  await expect(page.getByRole('button', { name: 'Workspace switcher' })).toContainText('Second Co')
+  await page.keyboard.press('ControlOrMeta+k')
+  await paletteField(page).fill('Switch to First')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('button', { name: 'Workspace switcher' })).toContainText('First Co')
+})
+
+test('AD-5: the shortcut stays quiet under a menu or a Select and works after Escape', async ({
+  page,
+}) => {
+  await setUp(page)
+  const trigger = page.getByRole('button', { name: 'Workspace switcher' })
+  await trigger.click()
+  await expect(page.getByRole('menu')).toBeVisible()
+  await page.keyboard.press('ControlOrMeta+k')
+  await expect(palette(page)).toHaveCount(0)
+  await expect(page.getByRole('menu')).toBeVisible()
+  await expect(page.locator('[role="menu"]:focus-within')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+  await page.keyboard.press('ControlOrMeta+k')
+  await expect(paletteField(page)).toBeFocused()
+  await paletteField(page).click()
+  await paletteField(page).fill('Theme')
+  await expect(palette(page).getByRole('option', { name: /Theme: Aurora/ })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(palette(page)).toHaveCount(0)
+
+  // the same with a library Select in the List toolbar
+  const sort = page.getByRole('combobox', { name: 'Sort by' })
+  await sort.click()
+  await expect(page.getByRole('listbox')).toBeVisible()
+  await page.keyboard.press('ControlOrMeta+k')
+  await expect(palette(page)).toHaveCount(0)
+  await expect(page.getByRole('listbox')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  await page.keyboard.press('ControlOrMeta+k')
+  await expect(paletteField(page)).toBeFocused()
+  await paletteField(page).click()
+})
+
+// ---- the pre-paint bootstrap (AD-1) ----
+
+for (const [stored, os, expected] of [
+  ['dark', 'light', 'dark'],
+  ['light', 'dark', 'light'],
+] as const) {
+  test(`AD-1: ${stored} stored with an OS ${os} scheme is applied before the app bundle runs`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: os })
+    await page.addInitScript(
+      ([key, value]) => {
+        if (!sessionStorage.getItem('seeded')) {
+          sessionStorage.setItem('seeded', '1')
+          localStorage.setItem(key, value)
+        }
+      },
+      ['taskflow:theme', stored],
+    )
+    await page.route('**/src/app/main.tsx*', (route) => route.abort())
+    await page.goto('/signin')
+    await expect(page.locator('html')).toHaveAttribute('data-theme', expected)
+  })
+}

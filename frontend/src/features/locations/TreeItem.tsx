@@ -8,6 +8,7 @@ import { useUiStore } from '../../shared/ui-store'
 import { InlineNameField } from './InlineNameField'
 import { LocationIcon, LockMarker } from './LocationIcon'
 import { MoveDialog } from './MoveDialog'
+import { locationPath } from './routes'
 import { type MenuAction } from './menuItems'
 import { TreeItemMenu } from './TreeItemMenu'
 import { useCreateLocation, useUpdateLocation } from './useLocationMutations'
@@ -105,7 +106,7 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
         else focusItem(item.parentElement?.closest('[role="treeitem"]'))
         break
       case 'Enter':
-        void navigate(`/w/${workspaceId}/l/${id}`)
+        void navigate(locationPath(workspaceId, id))
         break
       default:
         return
@@ -174,7 +175,7 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
           </div>
         ) : (
           <NavLink
-            to={`/w/${workspaceId}/l/${id}`}
+            to={locationPath(workspaceId, id)}
             tabIndex={-1}
             className="min-w-0 flex-1 truncate"
           >

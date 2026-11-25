@@ -72,7 +72,7 @@ afterEach(() => {
   useToastStore.setState({ toasts: [] })
   if (typeof document !== 'undefined') document.documentElement.removeAttribute('data-theme')
   useThemeStore.setState({ choice: 'system' })
-  useUiStore.setState({ sidebarOpen: true, creatingSpace: false, expanded: {} })
+  useUiStore.setState({ sidebarOpen: true, creatingSpace: false, paletteOpen: false, expanded: {} })
 })
 
 // Component tests never open a socket: the STOMP client of the app shell gets a socket that stays closed.

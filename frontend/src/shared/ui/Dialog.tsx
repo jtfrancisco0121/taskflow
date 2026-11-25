@@ -9,10 +9,20 @@ type DialogProps = {
   /** Called on close when the element that opened the dialog is gone (for example a closed menu). */
   restoreFocus?: () => HTMLElement | null
   wide?: boolean
+  /** `top`: the command-palette sheet (560px, 12vh from the top, hidden title, closes on a backdrop click). */
+  placement?: 'center' | 'top'
 }
 
 /** A modal dialog: focus moves in, Tab is trapped, Escape closes, focus returns to the opener. */
-export function Dialog({ title, onClose, children, restoreFocus, wide }: DialogProps) {
+export function Dialog({
+  title,
+  onClose,
+  children,
+  restoreFocus,
+  wide,
+  placement = 'center',
+}: DialogProps) {
+  const top = placement === 'top'
   const titleId = useId()
   const ref = useRef<HTMLDivElement>(null)
   const restoreRef = useRef(restoreFocus)
@@ -55,7 +65,10 @@ export function Dialog({ title, onClose, children, restoreFocus, wide }: DialogP
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-(--tf-z-dialog) flex items-center justify-center bg-overlay p-4">
+    <div
+      className={`fixed inset-0 z-(--tf-z-dialog) flex justify-center bg-overlay p-4 ${top ? 'items-start pt-[12vh]' : 'items-center'}`}
+      onMouseDown={top ? (event) => event.target === event.currentTarget && onClose() : undefined}
+    >
       <div
         ref={ref}
         role="dialog"
@@ -63,9 +76,14 @@ export function Dialog({ title, onClose, children, restoreFocus, wide }: DialogP
         aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        className={`max-h-[90vh] w-full overflow-auto rounded-xl p-5 glass ${wide ? 'max-w-2xl' : 'max-w-md'}`}
+        {...(top ? { 'data-tf-floating': '', 'data-tf-palette': '' } : {})}
+        className={`w-full overflow-auto rounded-xl glass ${
+          top
+            ? 'max-h-[80vh] max-w-[560px] p-2'
+            : `max-h-[90vh] p-5 ${wide ? 'max-w-2xl' : 'max-w-md'}`
+        }`}
       >
-        <h2 id={titleId} className="mb-3 font-display text-base font-semibold">
+        <h2 id={titleId} className={top ? 'sr-only' : 'mb-3 font-display text-base font-semibold'}>
           {title}
         </h2>
         {children}

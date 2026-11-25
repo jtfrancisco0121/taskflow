@@ -187,6 +187,31 @@ export function DesignPage() {
             ]}
           />
         </div>
+        <div className="glass rounded-lg p-2">
+          <Command
+            label="Search server results"
+            groups={[
+              {
+                heading: 'Go to',
+                items: [{ value: 'inbox', label: 'Inbox', onSelect: () => {} }],
+              },
+              {
+                heading: 'Tasks',
+                filter: false,
+                status: { kind: 'loading', text: 'Searching…' },
+                items: [
+                  {
+                    value: 'task:1',
+                    label: 'Matched by description only',
+                    lead: 'TF-12',
+                    detail: 'Launch',
+                    onSelect: () => {},
+                  },
+                ],
+              },
+            ]}
+          />
+        </div>
       </Section>
 
       <Section title="Badges">

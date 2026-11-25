@@ -8,9 +8,11 @@ import { SearchBox } from '../features/search'
 import { ServiceAccountsLink } from '../features/serviceAccounts'
 import { useRememberWorkspace, WorkspaceSwitcher } from '../features/workspace'
 import { Button } from '../shared/ui/Button'
+import { Kbd } from '../shared/ui/Kbd'
 import { IconButton } from '../shared/ui/IconButton'
 import { ThemeSwitcher } from '../shared/ui/ThemeSwitcher'
 import { useUiStore } from '../shared/ui-store'
+import { CommandPalette, shortcutHint } from './palette/CommandPalette'
 
 function MenuIcon() {
   return (
@@ -29,6 +31,24 @@ function MenuIcon() {
   )
 }
 
+function SearchIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    >
+      <circle cx="7" cy="7" r="4.5" />
+      <path d="m10.5 10.5 3 3" />
+    </svg>
+  )
+}
+
 /**
  * The signed-in frame (AD-6): a frosted sidebar, a top bar and a main region that is the only scroll
  * container, so the window never scrolls.
@@ -36,6 +56,7 @@ function MenuIcon() {
 export function AppShell() {
   const sidebarOpen = useUiStore((state) => state.sidebarOpen)
   const toggleSidebar = useUiStore((state) => state.toggleSidebar)
+  const togglePalette = useUiStore((state) => state.togglePalette)
   const session = useSession()
   const signOut = useSignOut()
   const { workspaceId: urlWorkspaceId, taskId, locationId } = useParams()
@@ -80,6 +101,16 @@ export function AppShell() {
             <IconButton label="Toggle sidebar" aria-expanded={sidebarOpen} onClick={toggleSidebar}>
               <MenuIcon />
             </IconButton>
+            <button
+              type="button"
+              aria-label="Command palette"
+              onClick={togglePalette}
+              className="flex h-8 w-[220px] items-center gap-2 rounded-md border border-line-strong bg-surface px-2 text-[13px] text-muted hover:bg-surface-2"
+            >
+              <SearchIcon />
+              <span className="flex-1 text-left">Search or jump</span>
+              <Kbd>{shortcutHint()}</Kbd>
+            </button>
             {workspaceId && <SearchBox workspaceId={workspaceId} />}
             <div className="ml-auto flex items-center gap-3 text-[13px]">
               {workspaceId && <NotificationBell workspaceId={workspaceId} />}
@@ -93,6 +124,7 @@ export function AppShell() {
           </main>
         </div>
       </div>
+      <CommandPalette workspaceId={workspaceId} locationId={locationId} />
     </LiveUpdates>
   )
 }
