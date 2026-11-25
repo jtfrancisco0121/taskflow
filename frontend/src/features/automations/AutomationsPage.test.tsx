@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { AutomationsPage } from './AutomationsPage'
+import { findOption, pick } from '../../test/ui'
 
 const baseRoutes = {
   'GET /api/v1/workspaces/:id/members': {
@@ -100,10 +101,11 @@ describe('CAP-8 Automations page', () => {
     await user.click(await screen.findByRole('button', { name: 'New rule' }))
     const dialog = await screen.findByRole('dialog')
     await user.type(within(dialog).getByLabelText('Rule name'), 'Done notes')
-    await waitFor(() =>
-      expect(within(dialog).getAllByRole('option', { name: 'Done' })).toHaveLength(2),
-    )
-    await user.selectOptions(within(dialog).getByLabelText('To status (optional)'), 'Done')
+    const from = within(dialog).getByLabelText('From status (optional)')
+    const to = within(dialog).getByLabelText('To status (optional)')
+    await findOption(user, from, 'Done')
+    await findOption(user, to, 'Done')
+    await pick(user, to, 'Done')
     await user.type(within(dialog).getByLabelText('Comment text'), 'Shipped')
     await user.click(within(dialog).getByRole('button', { name: 'Create rule' }))
     await waitFor(() => expect(stub.count('POST', /automations$/)).toBe(1))

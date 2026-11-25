@@ -7,6 +7,7 @@ import {
   signUpAndCreateWorkspace,
   statusOf,
 } from './helpers'
+import { pick } from './ui'
 
 test('FR-26: sign up, create a Workspace, Space, List and task, then open the task', async ({
   page,
@@ -25,7 +26,7 @@ test('FR-26: sign up, create a Workspace, Space, List and task, then open the ta
   await expect(panel.getByLabel('Title')).toHaveValue('Draft launch post')
 
   // a field edit carries If-Match, a comment shows with its author, the activity names the change
-  await panel.getByLabel('Status').selectOption({ label: 'in progress' })
+  await pick(panel.getByLabel('Status'), 'in progress')
   await expect(panel.getByText('Saved').first()).toBeVisible()
   await panel.getByRole('textbox', { name: 'Write a comment' }).click()
   await page.keyboard.type('Hello')
@@ -66,7 +67,7 @@ test('statuses: a first own set remaps its List only, and a reset leaves the sib
   await dialog.getByRole('button', { name: 'Customize for this List' }).click()
   await dialog.getByRole('textbox', { name: 'Status 1 name' }).fill('Backlog')
   // "to do" has no same-name status any more: the user says where its tasks go
-  await dialog.getByRole('combobox', { name: 'Move tasks from to do to' }).selectOption('Backlog')
+  await pick(dialog.getByRole('combobox', { name: 'Move tasks from to do to' }), 'Backlog')
   await dialog.getByRole('button', { name: 'Save' }).click()
   await expect(dialog.getByText('Defined here')).toBeVisible()
   await dialog.getByRole('button', { name: 'Close' }).click()
@@ -81,7 +82,7 @@ test('statuses: a first own set remaps its List only, and a reset leaves the sib
   await page.getByRole('link', { name: 'List A' }).click()
   await page.getByRole('button', { name: 'Statuses' }).click()
   await dialog.getByRole('button', { name: 'Reset to inherited' }).click()
-  await dialog.getByRole('combobox', { name: 'Move tasks from Backlog to' }).selectOption('to do')
+  await pick(dialog.getByRole('combobox', { name: 'Move tasks from Backlog to' }), 'to do')
   await dialog.getByRole('button', { name: 'Reset to inherited' }).click()
   await expect(dialog.getByText('Inherited from Ops')).toBeVisible()
   await dialog.getByRole('button', { name: 'Close' }).click()

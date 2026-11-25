@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { FieldManagerDialog, type FieldsLocation } from './FieldManagerDialog'
+import { pick } from '../../test/ui'
 
 type Field = Record<string, unknown>
 
@@ -145,7 +146,7 @@ describe('FieldManagerDialog', () => {
 
     await user.click(await screen.findByRole('button', { name: 'New field' }))
     await user.type(screen.getByLabelText('Name'), 'Customer tier')
-    await user.selectOptions(screen.getByLabelText('Field type'), 'DROPDOWN')
+    await pick(user, screen.getByLabelText('Field type'), 'Dropdown')
     await user.click(screen.getByRole('button', { name: 'Add option' }))
     await user.type(screen.getByLabelText('Option 1 name'), 'Enterprise')
     await user.click(screen.getByRole('button', { name: 'Create field' }))

@@ -9,6 +9,7 @@ import {
   row,
   signUpAndCreateWorkspace,
 } from './helpers'
+import { pick } from './ui'
 import { snap } from './screenshots'
 
 // FIELD-3 (3A S5, UJ-2): filter, sort and group by custom fields, with the state in the URL.
@@ -20,8 +21,8 @@ test('UJ-2: filter, sort and group by Customer tier and Story points; the URL re
   await createSpace(page, 'Engineering')
   await createList(page, 'Engineering', 'Backlog')
   const dialog = await openFields(page, 'Engineering')
-  await createField(dialog, 'Customer tier', 'DROPDOWN', ['Free', 'Pro', 'Enterprise'])
-  await createField(dialog, 'Story points', 'NUMBER')
+  await createField(dialog, 'Customer tier', 'Dropdown', ['Free', 'Pro', 'Enterprise'])
+  await createField(dialog, 'Story points', 'Number')
   await dialog.getByRole('button', { name: 'Close' }).click()
   for (const title of ['Alpha', 'Beta', 'Gamma']) await addTask(page, title)
 
@@ -39,7 +40,7 @@ test('UJ-2: filter, sort and group by Customer tier and Story points; the URL re
   ]
   for (const [title, tier, points] of values) {
     await row(page, title).getByRole('button', { name: 'Customer tier: empty' }).click()
-    await page.getByLabel(/^Customer tier for /).selectOption(tier)
+    await pick(page.getByLabel(/^Customer tier for /), tier)
     await expect(
       row(page, title).getByRole('button', { name: `Customer tier: ${tier}` }),
     ).toBeVisible()
@@ -54,7 +55,7 @@ test('UJ-2: filter, sort and group by Customer tier and Story points; the URL re
   // Filter: Customer tier is any of Enterprise.
   await page.getByRole('button', { name: 'Filter' }).click()
   await page.getByRole('button', { name: '+ Add filter' }).click()
-  await page.getByLabel('Filter field').selectOption({ label: 'Customer tier' })
+  await pick(page.getByLabel('Filter field'), 'Customer tier')
   const choices = page.getByRole('group', { name: 'Filter value' })
   await choices.getByRole('checkbox', { name: 'Free' }).click()
   await expect(choices.getByRole('checkbox', { name: 'Free' })).not.toBeChecked()
@@ -65,7 +66,7 @@ test('UJ-2: filter, sort and group by Customer tier and Story points; the URL re
   await snap(page, testInfo, 'fields-filters-builder')
 
   // Sort by Story points ascending: Gamma (5) before Alpha (8).
-  await page.getByLabel('Sort by').selectOption({ label: 'Story points' })
+  await pick(page.getByLabel('Sort by'), 'Story points')
   await expect(
     page
       .getByRole('row')
@@ -101,7 +102,7 @@ test('UJ-2: filter, sort and group by Customer tier and Story points; the URL re
 
   // Group by Customer tier in the List: Enterprise holds its two tasks.
   await page.getByRole('tab', { name: 'List' }).click()
-  await page.getByLabel('Group by').selectOption({ label: 'Customer tier' })
+  await pick(page.getByLabel('Group by'), 'Customer tier')
   const enterprise = page.getByRole('button', { name: /^Enterprise/ })
   await expect(enterprise).toHaveText(/2/)
   await expect(page.getByRole('button', { name: /^Pro/ })).toHaveText(/1/)

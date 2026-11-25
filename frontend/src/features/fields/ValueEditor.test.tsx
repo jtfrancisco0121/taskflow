@@ -5,6 +5,7 @@ import type { FieldView } from '../../api/types'
 import { formatValue, safeHref } from './format'
 import { ValueCell } from './ValueCell'
 import { ValueEditor } from './ValueEditor'
+import { pick } from '../../test/ui'
 
 const field = (type: FieldView['type'], extra: Partial<FieldView> = {}): FieldView => ({
   id: 'f1',
@@ -114,9 +115,9 @@ describe('value editors (AD-12)', () => {
     render(<ValueEditor field={tier} value="o1" label="Tier" onCommit={onCommit} />)
     const select = screen.getByRole('combobox', { name: 'Tier' })
 
-    await user.selectOptions(select, 'Enterprise')
+    await pick(user, select, 'Enterprise')
     expect(onCommit).toHaveBeenLastCalledWith('o2')
-    await user.selectOptions(select, '—')
+    await pick(user, select, '—')
     expect(onCommit).toHaveBeenLastCalledWith(null)
   })
 

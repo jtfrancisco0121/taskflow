@@ -71,6 +71,14 @@ The e2e suite (`e2e/phase1.spec.ts`, `board-dnd.spec.ts` for the Board drag and 
 
 The Playwright flows sign up a unique account per run and drive the real backend through the Vite `/api` and `/ws` proxy. Start the infrastructure and the backend as in steps 1 and 2 above (the backend with `SPRING_PROFILES_ACTIVE=dev`), install the browser once with `npx playwright install chromium`, then run `npm run test:e2e` (it starts Vite itself, or reuses one on :5173). CI runs the same flows in the `e2e` job. The refresh cookie is `Secure`; Chromium and Firefox accept it on `http://localhost`, Safari may not, so session restore after a reload can fail there in development.
 
+### Slice reports (UI overhaul evidence)
+
+Every Phase 3.5 slice report carries screenshots in both themes and a bundle-size delta:
+
+- `bash scripts/e2e-local.sh e2e/theme-screens.spec.ts` signs up, seeds a small List and writes `<screen>-light.png` and `<screen>-dark.png` (List, task panel, Board, Table, Calendar, automations, inbox, service accounts) to `artifacts/screenshots/`. The theme is set with an init script and an emulated color scheme; once the app has a theme store, the spec must seed its storage key instead.
+- `bash scripts/bundle-size.sh` builds the frontend and prints the gzip size of `dist/assets` for the branch and for its merge-base with `main`, with the delta as one Markdown line for the PR body. It builds the base in a temporary git worktree (`npm ci` needs the network, a few minutes) and removes it again.
+- Tests choose, read and list select-like controls only through `frontend/e2e/ui.ts` (Playwright) and `frontend/src/test/ui.ts` (Vitest), always by visible label, so a native select can later become a Radix control without touching the tests. ESLint rejects `selectOption`, `option:checked`, `selectOptions`, `toHaveDisplayValue` and `as HTMLSelectElement` in specs and tests.
+
 ### Demo data
 
 `node scripts/seed/demo.mjs` (Node 26, no packages) fills a "Demo" Workspace through the public REST API: three Spaces with Folders and Lists, three invited members (their invite mail is read from Mailpit), a few hundred tasks with statuses, priorities, due dates, assignees, tags, subtasks and comments, and a separate "Load Test / Load 5000" List of exactly 5,000 tasks for the load test. It prints the sign-in details (`demo-owner@example.com`, password `demo-password-2026`). It is safe to run again: each entity is looked up by its stable name first, so a second run, or a run after an interrupted one, creates only what is missing and prints how many entities it created and how many already existed. `SEED_API_URL` (default `http://localhost:5173`, the Vite proxy; use `http://localhost:8080` to skip it) and `SEED_MAILPIT_URL` (default `http://localhost:8025`) are the only settings. `node --test scripts/seed/demo.test.mjs` tests the data generator.

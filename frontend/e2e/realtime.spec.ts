@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { api, apiSignUp, inviteTokenFor, signInThroughTheUi } from './helpers'
+import { expectValue } from './ui'
 import { snap } from './screenshots'
 
 type Id = { id: string }
@@ -128,10 +129,7 @@ test('FIELD live (3A S6): a value change and a new field show in a second browse
     { customFields: { [tier.id]: 'Enterprise' } },
     { 'If-Match': `"${current.version}"` },
   )
-  await expect(panel.getByLabel(/^Customer tier for /).locator('option:checked')).toHaveText(
-    'Enterprise',
-    { timeout: 2000 },
-  )
+  await expectValue(panel.getByLabel(/^Customer tier for /), 'Enterprise', { timeout: 2000 })
 
   // A defines a new field; it appears in B's panel within 2 seconds.
   await api(request, a, 'POST', `/locations/${list.id}/fields`, {

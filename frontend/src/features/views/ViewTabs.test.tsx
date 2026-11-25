@@ -5,6 +5,7 @@ import type { ViewDto } from '../../api/types'
 import { installFetch, json, renderWithProviders } from '../../test/api'
 import { members } from './testSupport'
 import { ViewTabs } from './ViewTabs'
+import { pick } from '../../test/ui'
 
 const scope = { workspaceId: 'w1', locationId: 'l1' }
 const defaults: ViewDto[] = [
@@ -97,7 +98,7 @@ describe('VIEW-2 view tabs', () => {
 
     await user.click(screen.getByRole('button', { name: 'Save as new' }))
     await user.type(screen.getByLabelText('View name'), 'Mine')
-    await user.selectOptions(screen.getByLabelText('Who can see it'), 'PERSONAL')
+    await pick(user, screen.getByLabelText('Who can see it'), 'Only me')
     await user.click(screen.getByRole('button', { name: 'Create view' }))
     await waitFor(() => expect(stub.calls.some((c) => c.method === 'POST')).toBe(true))
     expect(stub.calls.find((c) => c.method === 'POST')!.body).toMatchObject({

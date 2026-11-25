@@ -7,6 +7,7 @@ import {
   openFields,
   signUpAndCreateWorkspace,
 } from './helpers'
+import { expectValue, pick } from './ui'
 import { snap } from './screenshots'
 
 // FIELD-1 (3A S3, UJ-2): set and clear values of several types in the task panel.
@@ -32,10 +33,10 @@ test('UJ-2: values are set and cleared in the task panel, a refusal shows the se
   await createSpace(page, 'Engineering')
   await createList(page, 'Engineering', 'Backlog')
   const dialog = await openFields(page, 'Engineering')
-  await createField(dialog, 'Story points', 'NUMBER')
-  await createField(dialog, 'Customer tier', 'DROPDOWN', ['Free', 'Pro', 'Enterprise'])
-  await createField(dialog, 'Done', 'CHECKBOX')
-  await createField(dialog, 'Notes', 'TEXT')
+  await createField(dialog, 'Story points', 'Number')
+  await createField(dialog, 'Customer tier', 'Dropdown', ['Free', 'Pro', 'Enterprise'])
+  await createField(dialog, 'Done', 'Checkbox')
+  await createField(dialog, 'Notes', 'Text')
   await dialog.getByRole('button', { name: 'Close' }).click()
 
   await addTask(page, 'Ship it')
@@ -48,7 +49,7 @@ test('UJ-2: values are set and cleared in the task panel, a refusal shows the se
   await points.fill('5')
   await points.press('Enter')
   await expect(panel.getByText('Saved').first()).toBeVisible()
-  await panel.getByLabel(/^Customer tier for /).selectOption('Enterprise')
+  await pick(panel.getByLabel(/^Customer tier for /), 'Enterprise')
   await panel.getByRole('checkbox', { name: /^Done for / }).check()
   await panel.getByRole('textbox', { name: /^Notes for / }).fill('call back')
   await panel.getByRole('textbox', { name: /^Notes for / }).press('Enter')
@@ -59,9 +60,7 @@ test('UJ-2: values are set and cleared in the task panel, a refusal shows the se
   await page.reload()
   const reloaded = page.getByRole('complementary', { name: /^Task / })
   await expect(reloaded.getByRole('textbox', { name: /^Story points for / })).toHaveValue('5')
-  await expect(reloaded.getByLabel(/^Customer tier for /).locator('option:checked')).toHaveText(
-    'Enterprise',
-  )
+  await expectValue(reloaded.getByLabel(/^Customer tier for /), 'Enterprise')
   await expect(reloaded.getByRole('checkbox', { name: /^Done for / })).toBeChecked()
   await expect(reloaded.getByRole('textbox', { name: /^Notes for / })).toHaveValue('call back')
 
@@ -77,9 +76,9 @@ test('UJ-2: values are set and cleared in the task panel, a refusal shows the se
   await again.fill('')
   await again.press('Enter')
   await expect(reloaded.getByText('Saved').first()).toBeVisible()
-  await reloaded.getByLabel(/^Customer tier for /).selectOption('—')
+  await pick(reloaded.getByLabel(/^Customer tier for /), '—')
   await page.reload()
   const cleared = page.getByRole('complementary', { name: /^Task / })
   await expect(cleared.getByRole('textbox', { name: /^Story points for / })).toHaveValue('')
-  await expect(cleared.getByLabel(/^Customer tier for /).locator('option:checked')).toHaveText('—')
+  await expectValue(cleared.getByLabel(/^Customer tier for /), '—')
 })

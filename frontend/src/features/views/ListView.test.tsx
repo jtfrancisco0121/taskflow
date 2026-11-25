@@ -6,6 +6,7 @@ import { installFetch, json, problem, renderWithProviders } from '../../test/api
 import { ListRenderer } from './ListRenderer'
 import { baseRoutes, customFieldIds, fieldRoutes, scope, task } from './testSupport'
 import { useViewStore } from './viewStore'
+import { expectValue, pick, valueOf } from '../../test/ui'
 
 const grouped = { v: 1, group: 'status' }
 
@@ -98,7 +99,7 @@ describe('LIST-1 List view', () => {
     renderWithProviders(<ListRenderer scope={scope} config={grouped} />)
 
     await screen.findByRole('link', { name: 'Task 1' })
-    await user.selectOptions(screen.getByLabelText('Priority of ACME-1'), 'URGENT')
+    await pick(user, screen.getByLabelText('Priority of ACME-1'), 'Urgent')
 
     await waitFor(() =>
       expect(useToastStore.getState().toasts.map((t) => t.message)).toContain(
@@ -106,9 +107,7 @@ describe('LIST-1 List view', () => {
       ),
     )
     expect(await screen.findByRole('link', { name: 'Changed elsewhere' })).toBeVisible()
-    expect(
-      within(screen.getByRole('table')).getByLabelText('Priority of ACME-1'),
-    ).toHaveDisplayValue('Normal')
+    expectValue(within(screen.getByRole('table')).getByLabelText('Priority of ACME-1'), 'Normal')
   })
 
   it('LIST-1: a Bulk action bar appears with a selection and sets the priority of every row', async () => {
@@ -126,13 +125,15 @@ describe('LIST-1 List view', () => {
     await screen.findByRole('link', { name: 'Task 1' })
     for (const n of [1, 2, 3])
       await user.click(screen.getByRole('checkbox', { name: `Select Task ${n}` }))
-    await user.selectOptions(screen.getByLabelText('Set priority'), 'HIGH')
+    await pick(user, screen.getByLabelText('Set priority'), 'High')
 
     await waitFor(() => expect(stub.calls.filter((c) => c.method === 'PATCH')).toHaveLength(3))
     await waitFor(() =>
-      expect(
-        screen.getAllByLabelText(/^Priority of ACME-/).map((el) => (el as HTMLSelectElement).value),
-      ).toEqual(['HIGH', 'HIGH', 'HIGH']),
+      expect(screen.getAllByLabelText(/^Priority of ACME-/).map((el) => valueOf(el))).toEqual([
+        'High',
+        'High',
+        'High',
+      ]),
     )
   })
 
@@ -158,7 +159,7 @@ describe('LIST-1 List view', () => {
 
     expect(await screen.findByRole('columnheader', { name: /Customer tier/ })).toBeVisible()
     await user.click(await screen.findByRole('button', { name: 'Customer tier: Free' }))
-    await user.selectOptions(screen.getByLabelText('Customer tier for ACME-1'), 'Enterprise')
+    await pick(user, screen.getByLabelText('Customer tier for ACME-1'), 'Enterprise')
 
     await waitFor(() => expect(stub.calls.some((c) => c.method === 'PATCH')).toBe(true))
     const patch = stub.calls.find((c) => c.method === 'PATCH')!

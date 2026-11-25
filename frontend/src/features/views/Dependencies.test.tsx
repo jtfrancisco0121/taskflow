@@ -9,6 +9,7 @@ import { ListRenderer } from './ListRenderer'
 import { TableRenderer } from './TableRenderer'
 import { baseRoutes, scope, task } from './testSupport'
 import { useViewStore } from './viewStore'
+import { expectValue, findOption, pick } from '../../test/ui'
 
 const blocked = (n: number, extra: Record<string, unknown> = {}) =>
   task(n, { blocked: true, blockerCount: 2, ...extra })
@@ -121,17 +122,17 @@ describe('FR-6 the inline status cell warns before completing a blocked task', (
     const user = userEvent.setup()
     renderWithProviders(<ListRenderer scope={scope} config={{ v: 1, group: 'status' }} />)
     const select = await screen.findByLabelText('Status of ACME-1')
-    await screen.findByRole('option', { name: 'Done' })
+    await findOption(user, select, 'Done')
 
-    await user.selectOptions(select, 'st-done')
+    await pick(user, select, 'Done')
     const dialog = await screen.findByRole('dialog', {
       name: 'Task 1 is waiting on 2 unfinished tasks',
     })
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(patches(stub)).toHaveLength(0)
-    expect(screen.getByLabelText('Status of ACME-1')).toHaveDisplayValue('To do')
+    expectValue(screen.getByLabelText('Status of ACME-1'), 'To do')
 
-    await user.selectOptions(screen.getByLabelText('Status of ACME-1'), 'st-done')
+    await pick(user, screen.getByLabelText('Status of ACME-1'), 'Done')
     await user.click(await screen.findByRole('button', { name: 'Complete anyway' }))
     await waitFor(() => expect(patches(stub)).toHaveLength(1))
     expect(patches(stub)[0].body).toEqual({ statusId: 'st-done' })
@@ -141,9 +142,9 @@ describe('FR-6 the inline status cell warns before completing a blocked task', (
     const stub = serve([task(1), blocked(2)])
     const user = userEvent.setup()
     renderWithProviders(<ListRenderer scope={scope} config={{ v: 1, group: 'status' }} />)
-    await screen.findByRole('option', { name: 'Done', hidden: true }).catch(() => null)
-    await user.selectOptions(await screen.findByLabelText('Status of ACME-1'), 'st-done')
-    await user.selectOptions(screen.getByLabelText('Status of ACME-2'), 'st-doing')
+    await findOption(user, await screen.findByLabelText('Status of ACME-1'), 'Done')
+    await pick(user, await screen.findByLabelText('Status of ACME-1'), 'Done')
+    await pick(user, screen.getByLabelText('Status of ACME-2'), 'In progress')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     await waitFor(() => expect(patches(stub)).toHaveLength(2))
   })
@@ -165,8 +166,8 @@ describe('FR-6 the inline status cell warns before completing a blocked task', (
       />,
     )
     const select = await screen.findByLabelText('Status of ACME-1')
-    await screen.findByRole('option', { name: 'Done' })
-    await user.selectOptions(select, 'st-done')
+    await findOption(user, select, 'Done')
+    await pick(user, select, 'Done')
     await user.keyboard('{Escape}') // Escape cancels like the Cancel button
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(patches(stub)).toHaveLength(0)

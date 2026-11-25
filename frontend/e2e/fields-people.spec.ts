@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { api, apiSignUp, createView, inviteTokenFor, row, signInThroughTheUi } from './helpers'
+import { pick } from './ui'
 import { snap } from './screenshots'
 
 // FIELD-1..3 (3A S8): the People field type, picked inline, filtered by "Me" and grouped per person.
@@ -66,7 +67,7 @@ test('People: pick two members in a Table cell, filter by Me, group by the field
   // Filter "Reviewer is any of Me": only the task where Alice is a reviewer.
   await page.getByRole('button', { name: 'Filter' }).click()
   await page.getByRole('button', { name: '+ Add filter' }).click()
-  await page.getByLabel('Filter field').selectOption({ label: 'Reviewer' })
+  await pick(page.getByLabel('Filter field'), 'Reviewer')
   await expect(
     page
       .getByRole('group', { name: 'Filter value' })
@@ -77,7 +78,7 @@ test('People: pick two members in a Table cell, filter by Me, group by the field
 
   // Grouped per person in the List: a task sits under each reviewer.
   await page.getByRole('tab', { name: 'List' }).click()
-  await page.getByLabel('Group by').selectOption({ label: 'Reviewer' })
+  await pick(page.getByLabel('Group by'), 'Reviewer')
   const bobGroup = page.getByRole('button', { name: /^Bob Member/ })
   await expect(bobGroup).toHaveText(/2/)
   await expect(page.getByRole('button', { name: /^Alice Owner/ })).toHaveText(/1/)

@@ -1,4 +1,5 @@
 import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test'
+import { pick, valueOf } from './ui'
 
 /** A unique account per run, so a flow never depends on leftover data. */
 export function uniqueEmail(prefix = 'e2e') {
@@ -51,11 +52,9 @@ export async function addTask(page: Page, title: string) {
 
 export const row = (page: Page, title: string) => page.getByRole('row').filter({ hasText: title })
 
-/** The status name a List row shows (the selected option of its status cell). */
+/** The status name a List row shows (the value of its status cell). */
 export const statusOf = (page: Page, title: string) =>
-  row(page, title)
-    .getByLabel(/^Status of/)
-    .locator('option:checked')
+  valueOf(row(page, title).getByLabel(/^Status of/))
 
 // ---- API helpers (the two-browser specs set the scene through the public API) ----
 
@@ -132,12 +131,13 @@ export async function openFields(page: Page, location: string) {
 export async function createField(
   dialog: Locator,
   name: string,
-  type: string,
+  /** The Field type as the picker shows it, e.g. 'Dropdown'. */
+  typeLabel: string,
   options: string[] = [],
 ) {
   await dialog.getByRole('button', { name: 'New field' }).click()
   await dialog.getByLabel('Name', { exact: true }).fill(name)
-  await dialog.getByLabel('Field type').selectOption(type)
+  await pick(dialog.getByLabel('Field type'), typeLabel)
   for (const [i, option] of options.entries()) {
     await dialog.getByRole('button', { name: 'Add option' }).click()
     await dialog.getByLabel(`Option ${i + 1} name`).fill(option)
@@ -151,7 +151,7 @@ export async function createView(page: Page, name: string, type: string) {
   await page.getByRole('button', { name: '+ View' }).click()
   const form = page.getByRole('form', { name: 'New view' })
   await form.getByLabel('View name').fill(name)
-  await form.getByLabel('Type').selectOption({ label: type })
+  await pick(form.getByLabel('Type'), type)
   await form.getByRole('button', { name: 'Create view' }).click()
   await expect(page.getByRole('tab', { name })).toBeVisible()
 }

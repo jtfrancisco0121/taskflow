@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { addTask, createList, createSpace, signUpAndCreateWorkspace } from './helpers'
+import { pick } from './ui'
 import { snap } from './screenshots'
 
 // CAP-1, CAP-8 (3C S2): a rule is created, edited, switched off and deleted from the Automations page.
@@ -17,7 +18,7 @@ test('UJ-1: create, edit, disable and delete a rule on a List', async ({ page },
   await page.getByRole('button', { name: 'New rule' }).click()
   const dialog = page.getByRole('dialog', { name: 'New rule' })
   await dialog.getByLabel('Rule name').fill('Done notes')
-  await dialog.getByLabel('To status (optional)').selectOption({ label: 'complete' })
+  await pick(dialog.getByLabel('To status (optional)'), 'complete')
   await dialog.getByLabel('Comment text').fill('Shipped, thanks')
   await snap(page, testInfo, 'automations-builder')
   await dialog.getByRole('button', { name: 'Create rule' }).click()
@@ -27,7 +28,11 @@ test('UJ-1: create, edit, disable and delete a rule on a List', async ({ page },
   await expect(card.getByRole('switch')).toBeChecked()
   await snap(page, testInfo, 'automations-list')
 
-  await card.getByRole('switch').click()
+  // The toggle is optimistic and leaves `version` stale until the PATCH returns: wait for it before Edit.
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === 'PATCH' && /automations\//.test(r.url())),
+    card.getByRole('switch').click(),
+  ])
   await expect(card.getByRole('switch')).not.toBeChecked()
   await expect(card.getByText('Off')).toBeVisible()
 
@@ -60,9 +65,9 @@ test('UJ-1: a rule built in the UI fires on a status change and is attributed to
   await page.getByRole('button', { name: 'New rule' }).click()
   const dialog = page.getByRole('dialog', { name: 'New rule' })
   await dialog.getByLabel('Rule name').fill('Done to QA')
-  await dialog.getByLabel('To status (optional)').selectOption({ label: 'complete' })
-  await dialog.getByLabel('Action type').first().selectOption('ASSIGN')
-  await dialog.getByLabel('Person to assign').selectOption({ index: 1 })
+  await pick(dialog.getByLabel('To status (optional)'), 'complete')
+  await pick(dialog.getByLabel('Action type').first(), 'Assign')
+  await pick(dialog.getByLabel('Person to assign'), 'Maya E2E')
   await dialog.getByRole('button', { name: 'Add action' }).click()
   await dialog.getByLabel('Comment text').fill('Ready for QA')
   await dialog.getByRole('button', { name: 'Create rule' }).click()
@@ -71,7 +76,7 @@ test('UJ-1: a rule built in the UI fires on a status change and is attributed to
   await page.getByRole('link', { name: /^Back to Platform/ }).click()
   await page.getByRole('link', { name: 'Ship it' }).click()
   const panel = page.getByRole('complementary', { name: /^Task / })
-  await panel.getByLabel('Status').selectOption({ label: 'complete' })
+  await pick(panel.getByLabel('Status'), 'complete')
 
   // the open panel shows the rule's comment within a few seconds, without a reload
   await expect(panel.getByText('Ready for QA')).toBeVisible({ timeout: 15_000 })

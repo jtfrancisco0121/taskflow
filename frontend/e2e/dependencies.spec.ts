@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 import { api, apiSignUp, inviteTokenFor, signInThroughTheUi, type ApiUser } from './helpers'
+import { expectValue, pick } from './ui'
 import { snap } from './screenshots'
 
 // DEP-1..DEP-6: relationships between tasks (UJ-1), the complete-anyway warning (UJ-2), the
@@ -135,8 +136,8 @@ test('UJ-1 / UJ-2: relate tasks from the panel, see Blocked everywhere, refuse a
   await expect(page.getByRole('link', { name: 'Unrelated chore' })).toBeVisible()
   await page.getByRole('button', { name: 'Filter' }).click()
   await page.getByRole('button', { name: '+ Add filter' }).click()
-  await page.getByLabel('Filter field').selectOption({ label: 'Blocked' })
-  await expect(page.getByLabel('Filter operator')).toHaveValue('is_true')
+  await pick(page.getByLabel('Filter field'), 'Blocked')
+  await expectValue(page.getByLabel('Filter operator'), 'is blocked')
   await expect(page.getByRole('link', { name: 'Ship release 2.4' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Unrelated chore' })).toHaveCount(0)
   await expect(page).toHaveURL(/[?&]f=/)
