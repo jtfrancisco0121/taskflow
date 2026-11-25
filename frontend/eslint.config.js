@@ -28,10 +28,19 @@ const deepOf = (name, relative) => [
 const boundary = (files, patterns, message) => ({
   files,
   rules: {
-    'no-restricted-imports': ['error', { patterns: patterns.map((p) => ({ ...p, message })) }],
+    'no-restricted-imports': ['error', { patterns: patterns.map((p) => ({ message, ...p })) }],
   },
 })
 const deepMessage = 'Import another feature only through its index.ts (AD-11).'
+// Slice 2 (AD-4): only src/shared/ui wraps Radix and cmdk; everything else uses the owned components.
+// It is merged into the lists below: a second no-restricted-imports block for the same files would replace them.
+const libraryOnly = [
+  {
+    group: ['@radix-ui/*', 'cmdk'],
+    message:
+      'Use the components in src/shared/ui; only src/shared/ui imports Radix and cmdk (AD-4).',
+  },
+]
 
 export default tseslint.config(
   { ignores: ['dist', 'coverage', 'src/api/schema.d.ts'] },
@@ -99,6 +108,29 @@ export default tseslint.config(
     },
   },
   {
+    // Slice 2 (AD-5): product code uses the library Select, never a native <select>. The two exceptions keep
+    // their native selects until slice 4 (List view chip bar) and are named in the slice report. Test files
+    // and src/test hold <select> fixtures for the helpers. This block sets the rule for files no other
+    // no-restricted-syntax block matches, so it does not replace the test guards above or below it.
+    files: ['src/**/*.tsx'],
+    ignores: [
+      'src/features/views/FilterBuilder.tsx',
+      'src/features/fields/FilterInput.tsx',
+      'src/test/**',
+      'src/**/*.test.tsx',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "JSXOpeningElement[name.name='select']",
+          message:
+            'Use Select from src/shared/ui. Only FilterBuilder and FilterInput keep a native select until slice 4.',
+        },
+      ],
+    },
+  },
+  {
     // Slice 1: component tests pick, read and list select-like controls only through src/test/ui.ts.
     // toHaveValue and findByRole('option') stay legal (inputs, typed comboboxes); select uses are reviewed.
     files: ['src/**/*.test.{ts,tsx}'],
@@ -123,15 +155,19 @@ export default tseslint.config(
   ...features.map((feature) =>
     boundary(
       [`src/features/${feature}/**/*.{ts,tsx}`],
-      features.filter((other) => other !== feature).flatMap((other) => deepOf(other, true)),
+      [
+        ...features.filter((other) => other !== feature).flatMap((other) => deepOf(other, true)),
+        ...libraryOnly,
+      ],
       deepMessage,
     ),
   ),
   boundary(
     ['src/app/**/*.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],
-    features.flatMap((feature) => deepOf(feature, false)),
+    [...features.flatMap((feature) => deepOf(feature, false)), ...libraryOnly],
     deepMessage,
   ),
+  boundary(['src/design/**/*.{ts,tsx}'], libraryOnly, deepMessage),
   boundary(
     ['src/shared/**/*.{ts,tsx}', 'src/api/**/*.{ts,tsx}'],
     [{ group: ['**/features', '**/features/**'] }],

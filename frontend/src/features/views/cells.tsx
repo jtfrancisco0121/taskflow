@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { toApiDate, toInputDay } from '../../shared/dates'
+import { Select } from '../../shared/ui/Select'
 
 /** Click to edit; Enter saves, Escape cancels and sends nothing, blur saves. */
 export function EditableText({
@@ -75,20 +76,14 @@ export function SelectCell({
   onChange: (next: string) => void
 }) {
   return (
-    <select
+    <Select
       aria-label={label}
       value={value}
-      className="max-w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-slate-300"
-      onClick={(e) => e.stopPropagation()}
-      onChange={(e) => e.target.value !== value && onChange(e.target.value)}
-    >
-      {!options.some((o) => o.value === value) && <option value={value}>—</option>}
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+      className="max-w-full border-transparent bg-transparent px-1 hover:border-line-strong"
+      onValueChange={(next) => next !== value && onChange(next)}
+      options={options}
+      placeholder="—"
+    />
   )
 }
 

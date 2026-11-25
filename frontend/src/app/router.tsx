@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router'
+import { createBrowserRouter, type RouteObject } from 'react-router'
 import { SignInPage, SignUpPage } from '../features/auth'
 import { AutomationsPage } from '../features/automations'
 import { TaskTabs } from '../features/comments'
@@ -12,8 +12,20 @@ import { SetupPage, WorkspaceRedirect } from '../features/workspace'
 import { AppShell } from './AppShell'
 import { RequireSession } from './RequireSession'
 
+// AD-6: /design exists only in development builds (import.meta.env.DEV is false in `vite build`, so the
+// route and the lazy import are removed), and outside RequireSession so it needs no sign-in or backend.
+const designRoutes: RouteObject[] = import.meta.env.DEV
+  ? [
+      {
+        path: '/design',
+        lazy: async () => ({ Component: (await import('../design/DesignPage')).DesignPage }),
+      },
+    ]
+  : []
+
 // AD-3: every route is declared here and only here.
 export const router = createBrowserRouter([
+  ...designRoutes,
   { path: '/signin', element: <SignInPage /> },
   { path: '/signup', element: <SignUpPage /> },
   {

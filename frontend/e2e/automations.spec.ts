@@ -1,11 +1,14 @@
 import { expect, test } from '@playwright/test'
 import { addTask, createList, createSpace, signUpAndCreateWorkspace } from './helpers'
-import { pick } from './ui'
+import { expectNoContrastViolations } from './a11y'
+import { open, pick } from './ui'
 import { snap } from './screenshots'
 
 // CAP-1, CAP-8 (3C S2): a rule is created, edited, switched off and deleted from the Automations page.
 
 test('UJ-1: create, edit, disable and delete a rule on a List', async ({ page }, testInfo) => {
+  // Reduced motion makes the motion tokens 0s, so switching the theme below is not caught mid-transition.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   await signUpAndCreateWorkspace(page, 'Automations Co')
   await createSpace(page, 'Engineering')
   await createList(page, 'Engineering', 'Platform')
@@ -18,6 +21,23 @@ test('UJ-1: create, edit, disable and delete a rule on a List', async ({ page },
   await page.getByRole('button', { name: 'New rule' }).click()
   const dialog = page.getByRole('dialog', { name: 'New rule' })
   await dialog.getByLabel('Rule name').fill('Done notes')
+
+  // AD-9: the open builder with its Trigger select open, in Light and in Aurora. (No full-page screenshot while
+  // the listbox is open: it resizes the viewport, which closes a Radix Select.)
+  const trigger = dialog.getByLabel('Trigger')
+  const listbox = await open(trigger)
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(
+      (value) => document.documentElement.setAttribute('data-theme', value),
+      theme,
+    )
+    await expectNoContrastViolations(page, `RuleBuilder with an open Select, ${theme}`)
+  }
+  await page.evaluate(() => document.documentElement.removeAttribute('data-theme'))
+  await page.keyboard.press('Escape')
+  await expect(listbox).toBeHidden()
+  await expect(dialog).toBeVisible()
+
   await pick(dialog.getByLabel('To status (optional)'), 'complete')
   await dialog.getByLabel('Comment text').fill('Shipped, thanks')
   await snap(page, testInfo, 'automations-builder')
@@ -28,11 +48,16 @@ test('UJ-1: create, edit, disable and delete a rule on a List', async ({ page },
   await expect(card.getByRole('switch')).toBeChecked()
   await snap(page, testInfo, 'automations-list')
 
-  // The toggle is optimistic and leaves `version` stale until the PATCH returns: wait for it before Edit.
-  await Promise.all([
-    page.waitForResponse((r) => r.request().method() === 'PATCH' && /automations\//.test(r.url())),
-    card.getByRole('switch').click(),
-  ])
+  // The toggle is optimistic and leaves `version` stale until the PATCH returns, and Edit reads the version
+  // from the list cache, which the refetch after the PATCH refreshes: arm both waiters before the click and
+  // wait for both before Edit (slice-1 carry-over 1).
+  const patched = page.waitForResponse(
+    (r) => r.request().method() === 'PATCH' && /automations\//.test(r.url()),
+  )
+  const refetched = page.waitForResponse(
+    (r) => r.request().method() === 'GET' && /\/locations\/[^/]+\/automations(\?|$)/.test(r.url()),
+  )
+  await Promise.all([patched, refetched, card.getByRole('switch').click()])
   await expect(card.getByRole('switch')).not.toBeChecked()
   await expect(card.getByText('Off')).toBeVisible()
 

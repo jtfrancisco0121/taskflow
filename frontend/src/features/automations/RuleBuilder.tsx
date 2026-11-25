@@ -3,6 +3,7 @@ import { ApiError, messageOf } from '../../api/errors'
 import type { RuleAction, RuleBody, RuleCondition, RuleTrigger, RuleView } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
 import { Dialog } from '../../shared/ui/Dialog'
+import { Select } from '../../shared/ui/Select'
 import { TextField } from '../../shared/ui/TextField'
 import { useLocationFields } from '../fields'
 import { useLocationStatuses } from '../statuses'
@@ -21,6 +22,10 @@ type Props = {
 
 const EMPTY_ACTION: RuleAction = { type: 'ADD_COMMENT', text: '' }
 const selectClass = 'rounded border border-slate-300 px-2 py-1.5 text-sm'
+const memberOptions = (members: Member[]) =>
+  members.map((m) => ({ value: m.userId ?? '', label: m.displayName ?? '' }))
+const fieldOptions = (fields: { id?: string; name?: string }[]) =>
+  fields.map((f) => ({ value: f.id ?? '', label: f.name ?? '' }))
 
 /** The rule builder (CAP-8): When (trigger), If (conditions) and Then (actions) fieldsets. */
 export function RuleBuilder({ workspaceId, locationId, rule, onClose, restoreFocus }: Props) {
@@ -91,59 +96,39 @@ export function RuleBuilder({ workspaceId, locationId, rule, onClose, restoreFoc
           <legend className="px-1 text-sm font-semibold">When</legend>
           <label className="flex flex-col gap-1 text-sm">
             Trigger
-            <select
-              className={selectClass}
-              value={trigger.type}
-              onChange={(e) => setTrigger({ type: e.target.value })}
-            >
-              {Object.entries(TRIGGER_LABEL).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            <Select
+              value={trigger.type ?? ''}
+              onValueChange={(next) => setTrigger({ type: next })}
+              options={Object.entries(TRIGGER_LABEL).map(([value, label]) => ({ value, label }))}
+            />
           </label>
           {trigger.type === 'STATUS_CHANGED' && (
             <>
               <label className="flex flex-col gap-1 text-sm">
                 From status (optional)
-                <select
-                  className={selectClass}
+                <Select
                   value={trigger.fromStatuses?.[0] ?? ''}
-                  onChange={(e) =>
-                    setTrigger({
-                      ...trigger,
-                      fromStatuses: e.target.value ? [e.target.value] : undefined,
-                    })
+                  onValueChange={(next) =>
+                    setTrigger({ ...trigger, fromStatuses: next ? [next] : undefined })
                   }
-                >
-                  <option value="">Any status</option>
-                  {statusNames.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: '', label: 'Any status' },
+                    ...statusNames.map((n) => ({ value: n, label: n })),
+                  ]}
+                />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 To status (optional)
-                <select
-                  className={selectClass}
+                <Select
                   value={trigger.toStatuses?.[0] ?? ''}
-                  onChange={(e) =>
-                    setTrigger({
-                      ...trigger,
-                      toStatuses: e.target.value ? [e.target.value] : undefined,
-                    })
+                  onValueChange={(next) =>
+                    setTrigger({ ...trigger, toStatuses: next ? [next] : undefined })
                   }
-                >
-                  <option value="">Any status</option>
-                  {statusNames.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: '', label: 'Any status' },
+                    ...statusNames.map((n) => ({ value: n, label: n })),
+                  ]}
+                />
               </label>
               <p className="text-xs text-slate-500">
                 Only statuses offered here are listed. Lists below this location that use another
@@ -154,35 +139,22 @@ export function RuleBuilder({ workspaceId, locationId, rule, onClose, restoreFoc
           {trigger.type === 'ASSIGNEE_CHANGED' && (
             <label className="flex flex-col gap-1 text-sm">
               When this person is added (optional)
-              <select
-                className={selectClass}
+              <Select
                 value={trigger.personId ?? ''}
-                onChange={(e) => setTrigger({ ...trigger, personId: e.target.value || undefined })}
-              >
-                <option value="">Any change</option>
-                {members.map((m) => (
-                  <option key={m.userId} value={m.userId}>
-                    {m.displayName}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(next) => setTrigger({ ...trigger, personId: next || undefined })}
+                options={[{ value: '', label: 'Any change' }, ...memberOptions(members)]}
+              />
             </label>
           )}
           {trigger.type === 'CUSTOM_FIELD_CHANGED' && (
             <label className="flex flex-col gap-1 text-sm">
               Field
-              <select
-                className={selectClass}
+              <Select
                 value={trigger.fieldId ?? ''}
-                onChange={(e) => setTrigger({ ...trigger, fieldId: e.target.value || undefined })}
-              >
-                <option value="">Choose a field</option>
-                {fieldList.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(next) => setTrigger({ ...trigger, fieldId: next || undefined })}
+                options={fieldOptions(fieldList)}
+                placeholder="Choose a field"
+              />
             </label>
           )}
           {triggerError && (
@@ -297,90 +269,54 @@ function ConditionRow({
   const ops = operators[c.type ?? 'STATUS'] ?? []
   return (
     <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Condition">
-      <select
+      <Select
         aria-label="Condition type"
-        className={selectClass}
-        value={c.type}
-        onChange={(e) => onChange({ type: e.target.value, operator: operators[e.target.value][0] })}
-      >
-        {Object.entries(CONDITION_LABEL).map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
-      <select
+        value={c.type ?? ''}
+        onValueChange={(next) => onChange({ type: next, operator: operators[next][0] })}
+        options={Object.entries(CONDITION_LABEL).map(([value, label]) => ({ value, label }))}
+      />
+      <Select
         aria-label="Operator"
-        className={selectClass}
-        value={c.operator}
-        onChange={(e) => onChange({ ...c, operator: e.target.value })}
-      >
-        {ops.map((o) => (
-          <option key={o} value={o}>
-            {o.toLowerCase().replace(/_/g, ' ')}
-          </option>
-        ))}
-      </select>
+        value={c.operator ?? ''}
+        onValueChange={(next) => onChange({ ...c, operator: next })}
+        options={ops.map((o) => ({ value: o, label: o.toLowerCase().replace(/_/g, ' ') }))}
+      />
       {c.type === 'STATUS' && (
-        <select
+        <Select
           aria-label="Status"
-          className={selectClass}
           value={c.values?.[0] ?? ''}
-          onChange={(e) => onChange({ ...c, values: e.target.value ? [e.target.value] : [] })}
-        >
-          <option value="">Choose a status</option>
-          {statusNames.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
+          onValueChange={(next) => onChange({ ...c, values: next ? [next] : [] })}
+          options={statusNames.map((n) => ({ value: n, label: n }))}
+          placeholder="Choose a status"
+        />
       )}
       {c.type === 'PRIORITY' && (
-        <select
+        <Select
           aria-label="Priority"
-          className={selectClass}
           value={c.values?.[0] ?? ''}
-          onChange={(e) => onChange({ ...c, values: e.target.value ? [e.target.value] : [] })}
-        >
-          <option value="">Choose a priority</option>
-          {PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
+          onValueChange={(next) => onChange({ ...c, values: next ? [next] : [] })}
+          options={PRIORITIES.map((p) => ({ value: p, label: p }))}
+          placeholder="Choose a priority"
+        />
       )}
       {c.type === 'ASSIGNEE' && c.operator === 'INCLUDES' && (
-        <select
+        <Select
           aria-label="Person"
-          className={selectClass}
           value={c.personId ?? ''}
-          onChange={(e) => onChange({ ...c, personId: e.target.value || undefined })}
-        >
-          <option value="">Choose a person</option>
-          {members.map((m) => (
-            <option key={m.userId} value={m.userId}>
-              {m.displayName}
-            </option>
-          ))}
-        </select>
+          onValueChange={(next) => onChange({ ...c, personId: next || undefined })}
+          options={memberOptions(members)}
+          placeholder="Choose a person"
+        />
       )}
       {c.type === 'CUSTOM_FIELD' && (
         <>
-          <select
+          <Select
             aria-label="Field"
-            className={selectClass}
             value={c.fieldId ?? ''}
-            onChange={(e) => onChange({ ...c, fieldId: e.target.value || undefined })}
-          >
-            <option value="">Choose a field</option>
-            {fieldList.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-          </select>
+            onValueChange={(next) => onChange({ ...c, fieldId: next || undefined })}
+            options={fieldOptions(fieldList)}
+            placeholder="Choose a field"
+          />
           {c.operator === 'EQUALS' && (
             <input
               aria-label="Value"
@@ -428,32 +364,20 @@ function ActionRow({
   }
   return (
     <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Action">
-      <select
+      <Select
         aria-label="Action type"
-        className={selectClass}
-        value={a.type}
-        onChange={(e) => onChange({ type: e.target.value })}
-      >
-        {Object.entries(ACTION_LABEL).map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
+        value={a.type ?? ''}
+        onValueChange={(next) => onChange({ type: next })}
+        options={Object.entries(ACTION_LABEL).map(([value, label]) => ({ value, label }))}
+      />
       {a.type === 'CHANGE_STATUS' && (
-        <select
+        <Select
           aria-label="Status"
-          className={selectClass}
           value={a.status ?? ''}
-          onChange={(e) => onChange({ ...a, status: e.target.value || undefined })}
-        >
-          <option value="">Choose a status</option>
-          {statusNames.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
+          onValueChange={(next) => onChange({ ...a, status: next || undefined })}
+          options={statusNames.map((n) => ({ value: n, label: n }))}
+          placeholder="Choose a status"
+        />
       )}
       {a.type === 'ASSIGN' && (
         <>
@@ -472,38 +396,24 @@ function ActionRow({
             Unassign everyone
           </label>
           {!a.unassignAll && (
-            <select
+            <Select
               aria-label="Person to assign"
-              className={selectClass}
               value={a.personIds?.[0] ?? ''}
-              onChange={(e) =>
-                onChange({ ...a, personIds: e.target.value ? [e.target.value] : [] })
-              }
-            >
-              <option value="">Choose a person</option>
-              {members.map((m) => (
-                <option key={m.userId} value={m.userId}>
-                  {m.displayName}
-                </option>
-              ))}
-            </select>
+              onValueChange={(next) => onChange({ ...a, personIds: next ? [next] : [] })}
+              options={memberOptions(members)}
+              placeholder="Choose a person"
+            />
           )}
         </>
       )}
       {a.type === 'SET_PRIORITY' && (
-        <select
+        <Select
           aria-label="Priority"
-          className={selectClass}
           value={a.priority ?? ''}
-          onChange={(e) => onChange({ ...a, priority: e.target.value || undefined })}
-        >
-          <option value="">Choose a priority</option>
-          {PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
+          onValueChange={(next) => onChange({ ...a, priority: next || undefined })}
+          options={PRIORITIES.map((p) => ({ value: p, label: p }))}
+          placeholder="Choose a priority"
+        />
       )}
       {a.type === 'ADD_COMMENT' && (
         <input
@@ -562,19 +472,15 @@ function ActionRow({
               {r === 'ASSIGNEES' ? 'Assignees' : 'Watchers'}
             </label>
           ))}
-          <select
+          <Select
             aria-label="Person to notify"
-            className={selectClass}
             value={a.personIds?.[0] ?? ''}
-            onChange={(e) => onChange({ ...a, personIds: e.target.value ? [e.target.value] : [] })}
-          >
-            <option value="">A specific person (optional)</option>
-            {members.map((m) => (
-              <option key={m.userId} value={m.userId}>
-                {m.displayName}
-              </option>
-            ))}
-          </select>
+            onValueChange={(next) => onChange({ ...a, personIds: next ? [next] : [] })}
+            options={[
+              { value: '', label: 'A specific person (optional)' },
+              ...memberOptions(members),
+            ]}
+          />
           <input
             aria-label="Message"
             className={`${selectClass} min-w-64 flex-1`}

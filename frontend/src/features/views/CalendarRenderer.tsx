@@ -188,7 +188,8 @@ function DayCell({
       role="gridcell"
       aria-label={day}
       data-day={day}
-      className={`min-h-24 bg-white p-1 text-xs ${dim ? 'opacity-50' : ''} ${isOver ? 'ring-2 ring-blue-400' : ''}`}
+      // Days outside the month sit on a quieter ground, not at half opacity: opacity cannot meet 4.5:1 (slice 2).
+      className={`min-h-24 p-1 text-xs ${dim ? 'bg-slate-50' : 'bg-white'} ${isOver ? 'ring-2 ring-blue-400' : ''}`}
     >
       <div className="mb-1 text-slate-500">{Number(day.slice(8))}</div>
       <ul className="flex flex-col gap-1">

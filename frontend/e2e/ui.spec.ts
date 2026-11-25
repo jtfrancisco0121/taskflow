@@ -59,7 +59,8 @@ test.describe('native select', () => {
     await expectValue(control, 'Change status')
     await pick(control, { index: 0 })
     await expectValue(control, 'Assign to')
-    expect(await optionsOf(control)).toEqual(['Choose an action', 'Assign to', 'Change status'])
+    // The placeholder is not an option a user can pick (AD-11).
+    expect(await optionsOf(control)).toEqual(['Assign to', 'Change status'])
   })
 
   test('a value instead of a label throws', async ({ page }) => {
@@ -88,5 +89,45 @@ test.describe('combobox trigger', () => {
   test('a value instead of a label throws', async ({ page }) => {
     const control = await load(page, COMBOBOX)
     await expect(pick(control, 'ASSIGN', { timeout: 500 })).rejects.toThrow()
+  })
+})
+
+// The Radix path against the real library Select on /design (slice-1 carry-over 5).
+test.describe('library Select on /design (real Radix)', () => {
+  test('picks, reads and lists; the placeholder is not an option; a real empty choice is', async ({
+    page,
+  }) => {
+    await page.goto('/design')
+    const prompted = page.getByLabel('Prompted select')
+    await expectValue(prompted, 'Choose a status')
+    expect(await optionsOf(prompted)).toEqual(['To do', 'In progress', 'Done'])
+    await pick(prompted, { index: 0 })
+    await expectValue(prompted, 'To do')
+    await pick(prompted, 'Done')
+    await expectValue(prompted, 'Done')
+
+    const any = page.getByLabel('Any select')
+    expect(await optionsOf(any)).toEqual(['Any status', 'To do', 'In progress', 'Done'])
+    await pick(any, { index: 0 })
+    await expectValue(any, 'Any status')
+    // /design also has a Command list (role listbox); only the Select's floating listbox must be gone.
+    await expect(page.locator('[data-tf-floating][role="listbox"]')).toHaveCount(0)
+  })
+
+  test('parity with a native select that has a placeholder', async ({ page }) => {
+    await page.goto('/design')
+    await page.evaluate(() => {
+      document.body.insertAdjacentHTML(
+        'beforeend',
+        '<label for="nat">Native parity</label><select id="nat"><option value="">Choose a status</option><option value="a">To do</option><option value="b">In progress</option><option value="c">Done</option></select>',
+      )
+    })
+    const native = page.getByLabel('Native parity')
+    const library = page.getByLabel('Prompted select')
+    expect(await optionsOf(native)).toEqual(await optionsOf(library))
+    await pick(native, { index: 0 })
+    await pick(library, { index: 0 })
+    await expectValue(native, 'To do')
+    await expectValue(library, 'To do')
   })
 })

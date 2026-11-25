@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { messageOf } from '../../api/errors'
 import type { StatusInfo } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
+import { Select } from '../../shared/ui/Select'
 import { resolveRemap } from './buildRemap'
 import { useLocationStatuses } from './useLocationStatuses'
 import { useResetStatuses } from './useStatusMutations'
@@ -54,21 +55,13 @@ export function ResetPanel({
           {resolution.needsChoice.map((status) => (
             <label key={status.id} className="mb-1 flex items-center gap-2 text-sm">
               <span className="w-40 truncate">{status.name}</span>
-              <select
+              <Select
                 aria-label={`Move tasks from ${status.name} to`}
-                className="rounded border border-slate-300 px-1.5 py-1 text-sm"
                 value={choices[status.id ?? ''] ?? ''}
-                onChange={(event) =>
-                  setChoices((all) => ({ ...all, [status.id ?? '']: event.target.value }))
-                }
-              >
-                <option value="">Choose a status</option>
-                {targets.map((target) => (
-                  <option key={target.key} value={target.key}>
-                    {target.name}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(next) => setChoices((all) => ({ ...all, [status.id ?? '']: next }))}
+                options={targets.map((target) => ({ value: target.key, label: target.name }))}
+                placeholder="Choose a status"
+              />
             </label>
           ))}
         </fieldset>

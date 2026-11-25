@@ -1,3 +1,5 @@
+// TODO(slice 4): the relative-date <select> stays native until slice 4 (it renders only inside FilterBuilder).
+// It is one of the two named exceptions to the no-native-select lint rule.
 import { useState } from 'react'
 import type { FieldView } from '../../api/types'
 import { isValueless } from './filterOps'

@@ -6,7 +6,8 @@ import { installFetch, json, problem, renderWithProviders } from '../../test/api
 import { ListRenderer } from './ListRenderer'
 import { baseRoutes, customFieldIds, fieldRoutes, scope, task } from './testSupport'
 import { useViewStore } from './viewStore'
-import { expectValue, pick, valueOf } from '../../test/ui'
+import { useLocation } from 'react-router'
+import { expectValue, open, pick, valueOf } from '../../test/ui'
 
 const grouped = { v: 1, group: 'status' }
 
@@ -165,6 +166,60 @@ describe('LIST-1 List view', () => {
     const patch = stub.calls.find((c) => c.method === 'PATCH')!
     expect(patch.body).toEqual({ customFields: { [customFieldIds.tier]: 'o-ent' } })
     expect(patch.headers.get('If-Match')).toBe('"2"')
+  })
+
+  it('FIELD-3: a Dropdown cell stays in edit mode while its listbox is open, and Escape closes one layer at a time (AD-12)', async () => {
+    const stub = serve([task(1, { customFields: {} })], {
+      ...fieldRoutes,
+      'PATCH /api/v1/tasks/:id': (_r: Request, body: unknown) =>
+        json({ ...task(1, { version: 3 }), ...(body as object) }),
+    } as never)
+    const user = userEvent.setup()
+    renderWithProviders(
+      <ListRenderer
+        scope={scope}
+        config={{
+          ...grouped,
+          columns: [{ field: 'title' }, { field: `cf:${customFieldIds.tier}` }],
+        }}
+      />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Customer tier: empty' }))
+    const trigger = screen.getByLabelText('Customer tier for ACME-1')
+    await open(user, trigger)
+    // Focus is in the portalled listbox: the editor must not unmount.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.getByLabelText('Customer tier for ACME-1')).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument())
+    expect(screen.getByLabelText('Customer tier for ACME-1')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(await screen.findByRole('button', { name: 'Customer tier: empty' })).toBeVisible()
+    expect(stub.calls.some((c) => c.method === 'PATCH')).toBe(false)
+  })
+
+  it('AD-12: picking a status in a row sends the change and does not open the task', async () => {
+    const stub = serve([task(1, { version: 2 })], {
+      'PATCH /api/v1/tasks/:id': (_r: Request, body: unknown) =>
+        json({ ...task(1, { version: 3 }), ...(body as object) }),
+    } as never)
+    const user = userEvent.setup()
+    function Where() {
+      return <output data-testid="where">{useLocation().pathname}</output>
+    }
+    renderWithProviders(
+      <>
+        <ListRenderer scope={scope} config={grouped} />
+        <Where />
+      </>,
+      { route: '/w/w1/l/l1' },
+    )
+    const status = await screen.findByLabelText('Status of ACME-1')
+    await pick(user, status, 'Done')
+    await waitFor(() => expect(stub.calls.some((c) => c.method === 'PATCH')).toBe(true))
+    expect(screen.getByTestId('where')).toHaveTextContent('/w/w1/l/l1')
+    expect(screen.getByTestId('where')).not.toHaveTextContent('/t/')
   })
 
   it('FIELD-3: a filter that matches nothing says so and offers Clear filters', async () => {

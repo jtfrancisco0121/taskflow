@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FieldView, TaskView } from '../../api/types'
+import { isWithinHost } from '../../shared/ui/isWithinHost'
 import { ValueCell, ValueEditor, formatValue, isEmpty } from '../fields'
 import { useTaskActions } from './useTaskActions'
 
@@ -52,10 +53,12 @@ export function FieldCell({ field, task }: { field: FieldView; task: TaskView })
       <div
         onClick={(e) => e.stopPropagation()}
         onBlur={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setEditing(false)
+          // A library Select's listbox is portalled, so focus moving into it is not leaving the editor (AD-12).
+          if (!isWithinHost(e.currentTarget, e.relatedTarget)) setEditing(false)
         }}
         onKeyDown={(e) => {
-          if (e.key === 'Escape') {
+          // An Escape that closed a library Select's listbox is already handled (defaultPrevented).
+          if (e.key === 'Escape' && !e.defaultPrevented) {
             e.stopPropagation()
             setEditing(false)
             button.current?.focus()

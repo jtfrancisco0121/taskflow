@@ -53,6 +53,15 @@ if (typeof window !== 'undefined' && !window.HTMLElement.prototype.releasePointe
   window.HTMLElement.prototype.releasePointerCapture = () => {}
 }
 
+// Radix Popper (Popover, Tooltip, DropdownMenu, Select) measures with ResizeObserver, which jsdom lacks.
+if (typeof window !== 'undefined' && !window.ResizeObserver) {
+  window.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver
+}
+
 afterEach(() => {
   cleanup()
   clearSession()

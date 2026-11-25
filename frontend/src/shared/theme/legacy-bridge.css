@@ -1,0 +1,76 @@
+/*
+ * TEMPORARY, ONE-WAY legacy palette bridge (AD-3). Screens that have not been rebuilt still use raw
+ * Tailwind palette classes (text-slate-500, bg-white ...). This file points those palette variables at
+ * the semantic tokens, so they follow Light, Aurora and System through tokens.css alone.
+ * Rules: no new entries for new code; no theme selector and no colour literal in this file (a test
+ * enforces both); a slice that rebuilds a screen replaces its palette classes with semantic utilities;
+ * this file is deleted when none remain. contrast.test.ts checks every bridged pair.
+ */
+:root {
+  --color-slate-50: var(--tf-surface-2);
+  --color-slate-100: var(--tf-surface-2);
+  --color-slate-200: var(--tf-surface-3);
+  --color-slate-300: var(--tf-line-strong);
+  --color-slate-400: var(--tf-faint);
+  --color-slate-500: var(--tf-muted);
+  --color-slate-600: var(--tf-muted);
+  --color-slate-700: var(--tf-fg);
+  --color-slate-800: var(--tf-fg);
+  --color-slate-900: var(--tf-fg);
+
+  --color-red-50: var(--tf-danger-soft);
+  --color-red-100: var(--tf-danger-soft);
+  --color-red-200: var(--tf-danger);
+  --color-red-300: var(--tf-danger);
+  --color-red-600: var(--tf-danger);
+  --color-red-700: var(--tf-danger);
+  --color-red-800: var(--tf-fg);
+  --color-red-900: var(--tf-fg);
+
+  --color-amber-50: var(--tf-warn-soft);
+  --color-amber-100: var(--tf-warn-soft);
+  --color-amber-200: var(--tf-status-review);
+  --color-amber-300: var(--tf-status-review);
+  --color-amber-500: var(--tf-status-review);
+  --color-amber-800: var(--tf-fg);
+  --color-amber-900: var(--tf-fg);
+
+  --color-orange-100: var(--tf-warn-soft);
+  --color-orange-800: var(--tf-fg);
+
+  --color-blue-50: var(--tf-blue-soft);
+  --color-blue-100: var(--tf-blue-soft);
+  --color-blue-300: var(--tf-accent-line);
+  --color-blue-400: var(--tf-accent-line);
+  --color-blue-600: var(--tf-accent);
+  --color-blue-700: var(--tf-accent);
+  --color-blue-800: var(--tf-fg);
+  --color-blue-900: var(--tf-fg);
+
+  --color-sky-100: var(--tf-blue-soft);
+  --color-sky-800: var(--tf-fg);
+
+  --color-green-100: var(--tf-ok-soft);
+  --color-green-600: var(--tf-status-done);
+  --color-green-700: var(--tf-status-done);
+  --color-green-800: var(--tf-fg);
+
+  --color-emerald-100: var(--tf-ok-soft);
+  --color-emerald-800: var(--tf-fg);
+
+  --color-violet-100: var(--tf-accent-soft);
+  --color-violet-800: var(--tf-fg);
+}
+
+/* One palette variable serving both a ground and a foreground cannot be mapped once: override the class. */
+@layer utilities {
+  .bg-white {
+    background-color: var(--tf-surface);
+  }
+  .text-white {
+    color: var(--tf-accent-fg);
+  }
+  .text-slate-300 {
+    color: var(--tf-faint);
+  }
+}

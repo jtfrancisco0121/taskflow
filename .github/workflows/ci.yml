@@ -56,6 +56,12 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # After the build, never inside npm test: dist/ must not hold the DEV-only /design page (AD-6), and the
+      # JS/CSS bundle must stay within the +15% cap over the slice-1 baseline (AD-8, frontend/bundle-budget.json).
+      - run: npm run check:dist
+      - run: npm run check:dist -- --self-test
+      - run: bash ../scripts/bundle-size.sh --check
+      - run: bash ../scripts/bundle-size.sh --self-test
 
   # FR-26: the Phase 1 browser flows run against the real backend (dev profile) and real infrastructure.
   e2e:

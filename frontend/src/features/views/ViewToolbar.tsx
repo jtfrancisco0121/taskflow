@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ViewConfig, ViewFilter } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
+import { Select } from '../../shared/ui/Select'
 import { canGroup, canSort } from '../fields'
 import { useLocationStatuses } from '../statuses'
 import { useMembers } from '../workspace'
@@ -72,61 +73,56 @@ export function ViewToolbar({
         {showGrouping && (
           <label className="flex items-center gap-1">
             Group by
-            <select
+            <Select
               aria-label="Group by"
               value={config.group ?? 'none'}
-              onChange={(e) => update({ g: e.target.value })}
-            >
-              {GROUPS.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-              {customGroups && fields.some(canGroup) && (
-                <optgroup label="Custom fields">
-                  {fields.filter(canGroup).map((f) => (
-                    <option key={f.id} value={`cf:${f.id}`}>
-                      {f.name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
+              onValueChange={(next) => update({ g: next })}
+              options={GROUPS.map(([value, label]) => ({ value, label }))}
+              groups={
+                customGroups && fields.some(canGroup)
+                  ? [
+                      {
+                        label: 'Custom fields',
+                        options: fields
+                          .filter(canGroup)
+                          .map((f) => ({ value: `cf:${f.id}`, label: f.name ?? '' })),
+                      },
+                    ]
+                  : []
+              }
+            />
           </label>
         )}
         <label className="flex items-center gap-1">
           Sort by
-          <select
+          <Select
             aria-label="Sort by"
             value={sort.key}
-            onChange={(e) => update({ s: [{ key: e.target.value, dir: sort.dir }] })}
-          >
-            {SORTS.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-            {fields.some(canSort) && (
-              <optgroup label="Custom fields">
-                {fields.filter(canSort).map((f) => (
-                  <option key={f.id} value={`cf:${f.id}`}>
-                    {f.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
+            onValueChange={(next) => update({ s: [{ key: next, dir: sort.dir }] })}
+            options={SORTS.map(([value, label]) => ({ value, label }))}
+            groups={
+              fields.some(canSort)
+                ? [
+                    {
+                      label: 'Custom fields',
+                      options: fields
+                        .filter(canSort)
+                        .map((f) => ({ value: `cf:${f.id}`, label: f.name ?? '' })),
+                    },
+                  ]
+                : []
+            }
+          />
         </label>
-        <select
+        <Select
           aria-label="Sort direction"
           value={sort.dir}
-          onChange={(e) =>
-            update({ s: [{ key: sort.key, dir: e.target.value as 'asc' | 'desc' }] })
-          }
-        >
-          <option value="asc">Ascending</option>
-          <option value="desc">Descending</option>
-        </select>
+          onValueChange={(next) => update({ s: [{ key: sort.key, dir: next as 'asc' | 'desc' }] })}
+          options={[
+            { value: 'asc', label: 'Ascending' },
+            { value: 'desc', label: 'Descending' },
+          ]}
+        />
       </div>
       {open && (
         <FilterGroup node={root} depth={1} options={options} onChange={(next) => setFilter(next)} />

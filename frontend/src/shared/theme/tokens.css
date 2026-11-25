@@ -1,0 +1,227 @@
+/*
+ * The single source of colour, font, radius, shadow, motion and layer values (UI-PRD section 3, AD-1).
+ * Light is the default; Aurora (the only dark theme) is data-theme="dark". No attribute means System:
+ * the @media block applies the Aurora values to :root:not([data-theme]) (AD-2).
+ * A contrast failure is fixed here, never in a component (AD-9). The format is rigid on purpose
+ * (one `--tf-name: value;` per line, no nested rules): contrast.test.ts parses this file.
+ */
+
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+  --tf-bg: #f7f6fc;
+  --tf-surface: #ffffff;
+  --tf-surface-2: #f4f2fb;
+  --tf-surface-3: #e9e6f6;
+  --tf-panel: #ffffffd1;
+  --tf-overlay: #0000004d;
+  --tf-line: #e4e1f0;
+  --tf-line-strong: #cdc8e1;
+  --tf-fg: #1b1830;
+  --tf-muted: #5d5878;
+  --tf-faint: #69657c;
+  --tf-accent: #6549f0;
+  --tf-accent-fg: #ffffff;
+  --tf-accent-soft: #eeeaff;
+  --tf-accent-line: #c4b8ff;
+  --tf-focus-ring: #6549f0;
+  --tf-primary-from: #4c67f5;
+  --tf-primary-to: #8558ec;
+  --tf-primary-fg: #ffffff;
+  --tf-status-todo: #626a68;
+  --tf-status-progress: #2a64ca;
+  --tf-status-review: #915c08;
+  --tf-status-done: #167642;
+  --tf-priority-urgent: #be3434;
+  --tf-priority-high: #965913;
+  --tf-priority-normal: #3166bc;
+  --tf-priority-low: #636a68;
+  --tf-danger: #c13232;
+  --tf-danger-fg: #ffffff;
+  --tf-danger-soft: #fbe5e3;
+  --tf-warn-soft: #fdf0d9;
+  --tf-ok-soft: #dcf2e4;
+  --tf-blue-soft: #e2ebfb;
+  --tf-glow-1: #6549f01f;
+  --tf-glow-2: #2a64ca14;
+  --tf-glow-3: #8558ec0f;
+  --tf-shadow-float: 0 8px 28px #1b183029;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --tf-bg: #060914;
+  --tf-surface: #0e1428;
+  --tf-surface-2: #ffffff0b;
+  --tf-surface-3: #ffffff17;
+  --tf-panel: #0f152cc7;
+  --tf-overlay: #00000080;
+  --tf-line: #ffffff14;
+  --tf-line-strong: #ffffff2e;
+  --tf-fg: #e9edff;
+  --tf-muted: #9ba5ca;
+  --tf-faint: #8e94b1;
+  --tf-accent: #8d9bff;
+  --tf-accent-fg: #0a0f2c;
+  --tf-accent-soft: #6e80ff2b;
+  --tf-accent-line: #8d9bff80;
+  --tf-focus-ring: #8d9bff;
+  --tf-primary-from: #4c67f5;
+  --tf-primary-to: #8558ec;
+  --tf-primary-fg: #ffffff;
+  --tf-status-todo: #9aa3c7;
+  --tf-status-progress: #5cb6ff;
+  --tf-status-review: #ffb44d;
+  --tf-status-done: #3ddc97;
+  --tf-priority-urgent: #ff7a8a;
+  --tf-priority-high: #ffa45c;
+  --tf-priority-normal: #7aa8ff;
+  --tf-priority-low: #8a93b8;
+  --tf-danger: #ff7a8a;
+  --tf-danger-fg: #0a0f2c;
+  --tf-danger-soft: #ff7a8a24;
+  --tf-warn-soft: #ffb44d24;
+  --tf-ok-soft: #3ddc9724;
+  --tf-blue-soft: #5cb6ff24;
+  --tf-glow-1: #4f46e57a;
+  --tf-glow-2: #2563eb57;
+  --tf-glow-3: #8b5cf633;
+  --tf-shadow-float: 0 8px 28px #00000080;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --tf-bg: #060914;
+    --tf-surface: #0e1428;
+    --tf-surface-2: #ffffff0b;
+    --tf-surface-3: #ffffff17;
+    --tf-panel: #0f152cc7;
+    --tf-overlay: #00000080;
+    --tf-line: #ffffff14;
+    --tf-line-strong: #ffffff2e;
+    --tf-fg: #e9edff;
+    --tf-muted: #9ba5ca;
+    --tf-faint: #8e94b1;
+    --tf-accent: #8d9bff;
+    --tf-accent-fg: #0a0f2c;
+    --tf-accent-soft: #6e80ff2b;
+    --tf-accent-line: #8d9bff80;
+    --tf-focus-ring: #8d9bff;
+    --tf-primary-from: #4c67f5;
+    --tf-primary-to: #8558ec;
+    --tf-primary-fg: #ffffff;
+    --tf-status-todo: #9aa3c7;
+    --tf-status-progress: #5cb6ff;
+    --tf-status-review: #ffb44d;
+    --tf-status-done: #3ddc97;
+    --tf-priority-urgent: #ff7a8a;
+    --tf-priority-high: #ffa45c;
+    --tf-priority-normal: #7aa8ff;
+    --tf-priority-low: #8a93b8;
+    --tf-danger: #ff7a8a;
+    --tf-danger-fg: #0a0f2c;
+    --tf-danger-soft: #ff7a8a24;
+    --tf-warn-soft: #ffb44d24;
+    --tf-ok-soft: #3ddc9724;
+    --tf-blue-soft: #5cb6ff24;
+    --tf-glow-1: #4f46e57a;
+    --tf-glow-2: #2563eb57;
+    --tf-glow-3: #8b5cf633;
+    --tf-shadow-float: 0 8px 28px #00000080;
+  }
+}
+
+/* Theme-independent values: layers (AD-12), radius, motion (AD-10), fonts (AD-7). */
+:root {
+  --tf-z-dialog: 40;
+  --tf-z-floating: 60;
+  --tf-z-toast: 70;
+  --tf-dur-fast: 120ms;
+  --tf-dur-base: 200ms;
+  --tf-font-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --tf-font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --tf-font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --tf-dur-fast: 0s;
+    --tf-dur-base: 0s;
+  }
+}
+
+/* Semantic utilities: bg-surface, text-muted, border-line, font-display ... Components use only these. */
+@theme inline {
+  --color-bg: var(--tf-bg);
+  --color-surface: var(--tf-surface);
+  --color-surface-2: var(--tf-surface-2);
+  --color-surface-3: var(--tf-surface-3);
+  --color-panel: var(--tf-panel);
+  --color-overlay: var(--tf-overlay);
+  --color-line: var(--tf-line);
+  --color-line-strong: var(--tf-line-strong);
+  --color-fg: var(--tf-fg);
+  --color-muted: var(--tf-muted);
+  --color-faint: var(--tf-faint);
+  --color-accent: var(--tf-accent);
+  --color-accent-fg: var(--tf-accent-fg);
+  --color-accent-soft: var(--tf-accent-soft);
+  --color-accent-line: var(--tf-accent-line);
+  --color-focus-ring: var(--tf-focus-ring);
+  --color-primary-from: var(--tf-primary-from);
+  --color-primary-to: var(--tf-primary-to);
+  --color-primary-fg: var(--tf-primary-fg);
+  --color-status-todo: var(--tf-status-todo);
+  --color-status-progress: var(--tf-status-progress);
+  --color-status-review: var(--tf-status-review);
+  --color-status-done: var(--tf-status-done);
+  --color-priority-urgent: var(--tf-priority-urgent);
+  --color-priority-high: var(--tf-priority-high);
+  --color-priority-normal: var(--tf-priority-normal);
+  --color-priority-low: var(--tf-priority-low);
+  --color-danger: var(--tf-danger);
+  --color-danger-fg: var(--tf-danger-fg);
+  --color-danger-soft: var(--tf-danger-soft);
+  --color-warn-soft: var(--tf-warn-soft);
+  --color-ok-soft: var(--tf-ok-soft);
+  --color-blue-soft: var(--tf-blue-soft);
+  --font-display: var(--tf-font-display);
+  --font-sans: var(--tf-font-sans);
+  --font-mono: var(--tf-font-mono);
+  --shadow-float: var(--tf-shadow-float);
+}
+
+/* The one place with backdrop-filter (AD-10): shell, dialogs and floating layers, never rows or cells. */
+@utility glass {
+  background-color: var(--tf-panel);
+  border: 1px solid var(--tf-line);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  box-shadow: var(--tf-shadow-float);
+}
+
+@layer base {
+  body {
+    background-color: var(--tf-bg);
+    background-image:
+      radial-gradient(60rem 40rem at 0% 0%, var(--tf-glow-1), transparent 70%),
+      radial-gradient(60rem 40rem at 100% 100%, var(--tf-glow-2), transparent 70%),
+      radial-gradient(50rem 36rem at 100% 0%, var(--tf-glow-3), transparent 70%);
+    background-repeat: no-repeat;
+    min-height: 100vh;
+    color: var(--tf-fg);
+    font-family: var(--tf-font-sans);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--tf-font-display);
+  }
+  :focus-visible {
+    outline: 2px solid var(--tf-focus-ring);
+    outline-offset: 2px;
+  }
+}
