@@ -28,10 +28,19 @@ const deepOf = (name, relative) => [
 const boundary = (files, patterns, message) => ({
   files,
   rules: {
-    'no-restricted-imports': ['error', { patterns: patterns.map((p) => ({ ...p, message })) }],
+    'no-restricted-imports': ['error', { patterns: patterns.map((p) => ({ message, ...p })) }],
   },
 })
 const deepMessage = 'Import another feature only through its index.ts (AD-11).'
+// Slice 2 (AD-4): only src/shared/ui wraps Radix and cmdk; everything else uses the owned components.
+// It is merged into the lists below: a second no-restricted-imports block for the same files would replace them.
+const libraryOnly = [
+  {
+    group: ['@radix-ui/*', 'cmdk'],
+    message:
+      'Use the components in src/shared/ui; only src/shared/ui imports Radix and cmdk (AD-4).',
+  },
+]
 
 export default tseslint.config(
   { ignores: ['dist', 'coverage', 'src/api/schema.d.ts'] },
@@ -123,15 +132,19 @@ export default tseslint.config(
   ...features.map((feature) =>
     boundary(
       [`src/features/${feature}/**/*.{ts,tsx}`],
-      features.filter((other) => other !== feature).flatMap((other) => deepOf(other, true)),
+      [
+        ...features.filter((other) => other !== feature).flatMap((other) => deepOf(other, true)),
+        ...libraryOnly,
+      ],
       deepMessage,
     ),
   ),
   boundary(
     ['src/app/**/*.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],
-    features.flatMap((feature) => deepOf(feature, false)),
+    [...features.flatMap((feature) => deepOf(feature, false)), ...libraryOnly],
     deepMessage,
   ),
+  boundary(['src/design/**/*.{ts,tsx}'], libraryOnly, deepMessage),
   boundary(
     ['src/shared/**/*.{ts,tsx}', 'src/api/**/*.{ts,tsx}'],
     [{ group: ['**/features', '**/features/**'] }],

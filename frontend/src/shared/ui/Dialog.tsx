@@ -10,8 +10,17 @@ type DialogProps = {
   wide?: boolean
 }
 
-const FOCUSABLE =
-  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+// Skips aria-hidden and tabindex=-1 elements (AD-12): Radix renders a hidden form <select> next to its trigger.
+const FOCUSABLE = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]',
+]
+  .map((selector) => `${selector}:not([aria-hidden="true"]):not([tabindex="-1"])`)
+  .join(',')
 
 /** A modal dialog: focus moves in, Tab is trapped, Escape closes, focus returns to the opener. */
 export function Dialog({ title, onClose, children, restoreFocus, wide }: DialogProps) {
@@ -35,6 +44,8 @@ export function Dialog({ title, onClose, children, restoreFocus, wide }: DialogP
   }, [])
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    // Events from a portalled floating layer (a Select, a menu) bubble here through the React tree (AD-12).
+    if (event.defaultPrevented || !ref.current?.contains(event.target as Node)) return
     if (event.key === 'Escape') {
       event.stopPropagation()
       onClose()
@@ -55,7 +66,7 @@ export function Dialog({ title, onClose, children, restoreFocus, wide }: DialogP
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4">
+    <div className="fixed inset-0 z-(--tf-z-dialog) flex items-center justify-center bg-overlay p-4">
       <div
         ref={ref}
         role="dialog"
@@ -63,9 +74,9 @@ export function Dialog({ title, onClose, children, restoreFocus, wide }: DialogP
         aria-labelledby={titleId}
         tabIndex={-1}
         onKeyDown={onKeyDown}
-        className={`max-h-[90vh] w-full overflow-auto rounded-lg bg-white p-5 shadow-xl ${wide ? 'max-w-2xl' : 'max-w-md'}`}
+        className={`max-h-[90vh] w-full overflow-auto rounded-xl p-5 glass ${wide ? 'max-w-2xl' : 'max-w-md'}`}
       >
-        <h2 id={titleId} className="mb-3 text-lg font-semibold">
+        <h2 id={titleId} className="mb-3 font-display text-base font-semibold">
           {title}
         </h2>
         {children}
