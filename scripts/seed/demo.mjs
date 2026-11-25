@@ -215,6 +215,38 @@ async function ensureFields(owner, spaceId, defs = CUSTOM_FIELDS) {
   return ids
 }
 
+/**
+ * The demo rule "Done to QA" on a Space, found by its name: when a task is completed it gets a comment
+ * and the reviewer (the first demo member) is notified. Marking a task Done shows "by automation Done to
+ * QA" in its activity and raises the reviewer's bell.
+ */
+async function ensureAutomation(owner, spaceId, reviewerId) {
+  const name = 'Done to QA'
+  const existing = (await owner.call('GET', `/api/v1/locations/${spaceId}/automations`)).rules ?? []
+  if (existing.some((r) => r.name === name && !r.inherited)) {
+    count('automation', 'existing')
+    return
+  }
+  await owner.call(
+    'POST',
+    `/api/v1/locations/${spaceId}/automations`,
+    {
+      name,
+      trigger: { type: 'STATUS_CHANGED', toStatuses: ['complete'] },
+      actions: [
+        { type: 'ADD_COMMENT', text: 'Ready for QA.' },
+        {
+          type: 'SEND_NOTIFICATION',
+          personIds: [reviewerId],
+          message: 'A task is ready for QA',
+        },
+      ],
+    },
+    { key: keyFor('automation', spaceId, name) },
+  )
+  count('automation', 'created')
+}
+
 /** Sets the demo values on a task that lacks them (found by what the task already carries). */
 async function seedValues(owner, task, i, fields) {
   const have = task.customFields ?? {}
@@ -302,6 +334,7 @@ async function main() {
     const spaceId = await ensureLocation(owner, workspaceId, null, 'SPACE', space.space)
     // Custom fields live on the first demo Space and reach every List below it.
     const fields = n === 0 ? await ensureFields(owner, spaceId) : undefined
+    if (n === 0) await ensureAutomation(owner, spaceId, memberIds[0])
     for (const list of space.lists) {
       const listId = await ensureLocation(owner, workspaceId, spaceId, 'LIST', list.name)
       await seedList(owner, workspaceId, listId, list.name, list.tasks, memberIds, fields)

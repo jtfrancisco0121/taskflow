@@ -1,6 +1,7 @@
 package com.taskflow.workspace.internal;
 
 import com.taskflow.identity.ServiceAccounts;
+import com.taskflow.shared.AutomationCause;
 import com.taskflow.workspace.Role;
 import com.taskflow.workspace.WorkspaceQuery;
 import java.util.Collection;
@@ -28,6 +29,14 @@ class WorkspaceQueryImpl implements WorkspaceQuery {
    */
   @Override
   public Optional<Role> roleOf(UUID workspaceId, UUID userId) {
+    // AD-8: an automation run is ADMIN in the Workspace of its cause, under its own rule id only.
+    // Anyone else checked inside a run keeps their own role; Actor.SYSTEM has none.
+    Optional<AutomationCause> cause = AutomationCause.current();
+    if (cause.isPresent()
+        && cause.get().ruleId().equals(userId)
+        && cause.get().workspaceId().equals(workspaceId)) {
+      return Optional.of(Role.ADMIN);
+    }
     Optional<Role> member = memberRole(workspaceId, userId);
     if (member.isPresent()) {
       return member;

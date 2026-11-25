@@ -68,6 +68,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/automations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get_8"];
+        put?: never;
+        post?: never;
+        delete: operations["delete_6"];
+        options?: never;
+        head?: never;
+        patch: operations["update_5"];
+        trace?: never;
+    };
+    "/api/v1/automations/{id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/checklist-items/{id}": {
         parameters: {
             query?: never;
@@ -139,7 +171,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_6"];
+        get: operations["get_7"];
         put?: never;
         post?: never;
         delete: operations["retire"];
@@ -189,7 +221,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["create_8"];
+        post: operations["create_9"];
         delete?: never;
         options?: never;
         head?: never;
@@ -219,7 +251,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_5"];
+        get: operations["get_6"];
         put?: never;
         post?: never;
         delete: operations["delete_3"];
@@ -238,6 +270,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["archive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/locations/{id}/automations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_7"];
+        put?: never;
+        post: operations["create_8"];
         delete?: never;
         options?: never;
         head?: never;
@@ -283,7 +331,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_8"];
+        get: operations["list_10"];
         put?: never;
         post?: never;
         delete?: never;
@@ -331,7 +379,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get"];
+        get: operations["get_1"];
         put: operations["replace"];
         post?: never;
         delete: operations["reset"];
@@ -404,6 +452,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["markRead"];
+        delete: operations["markUnread"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/tasks": {
         parameters: {
             query?: never;
@@ -411,7 +475,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_7"];
+        get: operations["list_9"];
         put?: never;
         post?: never;
         delete?: never;
@@ -427,7 +491,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_4"];
+        get: operations["get_5"];
         put?: never;
         post?: never;
         delete: operations["delete_2"];
@@ -564,6 +628,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/tasks/{id}/watch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["watch"];
+        post?: never;
+        delete: operations["unwatch"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/tasks/{id}/watchers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["watchers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/views": {
         parameters: {
             query?: never;
@@ -603,7 +699,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_3"];
+        get: operations["get_4"];
         put?: never;
         post?: never;
         delete: operations["delete_1"];
@@ -635,7 +731,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_2"];
+        get: operations["get_3"];
         put?: never;
         post?: never;
         delete: operations["delete"];
@@ -722,6 +818,70 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["changeRole"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{id}/notification-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["get"];
+        put: operations["put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{id}/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["list_8"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{id}/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["readAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{id}/notifications/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["unreadCount"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/workspaces/{id}/search": {
@@ -827,7 +987,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["get_1"];
+        get: operations["get_2"];
         put?: never;
         post?: never;
         delete?: never;
@@ -957,6 +1117,20 @@ export interface components {
             payload?: components["schemas"]["JsonNode"];
             type?: string;
         };
+        Action: {
+            clearDueDate?: boolean;
+            /** Format: int32 */
+            daysAfter?: number;
+            message?: string;
+            personIds?: string[];
+            priority?: string;
+            recipients?: string[];
+            status?: string;
+            text?: string;
+            title?: string;
+            type?: string;
+            unassignAll?: boolean;
+        };
         ActivityView: {
             /** Format: uuid */
             actorId?: string;
@@ -966,6 +1140,9 @@ export interface components {
             actorName?: string;
             /** @enum {string} */
             actorType?: "USER" | "SERVICE_ACCOUNT" | "AUTOMATION";
+            /** Format: uuid */
+            automationRuleId?: string;
+            automationRuleName?: string;
             /** Format: date-time */
             createdAt?: string;
             /** Format: uuid */
@@ -1034,6 +1211,7 @@ export interface components {
         CommentView: {
             /** Format: uuid */
             authorId?: string;
+            authorIsAutomation?: boolean;
             authorName?: string;
             body?: components["schemas"]["JsonNode"];
             /** Format: date-time */
@@ -1045,6 +1223,17 @@ export interface components {
             mentionIds?: string[];
             /** Format: uuid */
             taskId?: string;
+        };
+        Condition: {
+            /** Format: uuid */
+            fieldId?: string;
+            operator?: string;
+            /** Format: uuid */
+            personId?: string;
+            tag?: string;
+            type?: string;
+            value?: unknown;
+            values?: string[];
         };
         CreateChecklistRequest: {
             name: string;
@@ -1086,6 +1275,13 @@ export interface components {
             type: "SPACE" | "FOLDER" | "LIST";
             /** Format: uuid */
             workspaceId?: string;
+        };
+        CreateRuleRequest: {
+            actions: components["schemas"]["Action"][];
+            conditions?: components["schemas"]["Condition"][];
+            enabled?: boolean;
+            name: string;
+            trigger: components["schemas"]["Trigger"];
         };
         CreateTaskRequest: {
             assigneeIds?: string[];
@@ -1270,6 +1466,14 @@ export interface components {
             name?: string;
             status?: string;
         };
+        LastRun: {
+            /** Format: date-time */
+            at?: string;
+            reason?: string;
+            status?: string;
+            /** Format: uuid */
+            taskId?: string;
+        };
         LocationView: {
             archived?: boolean;
             children?: components["schemas"]["LocationView"][];
@@ -1325,6 +1529,24 @@ export interface components {
         NameRequest: {
             name: string;
         };
+        NotificationView: {
+            actorName?: string;
+            actorType?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: uuid */
+            id?: string;
+            kind?: string;
+            message?: string;
+            read?: boolean;
+            /** Format: date-time */
+            readAt?: string;
+            ruleName?: string;
+            /** Format: uuid */
+            taskId?: string;
+            taskReadableId?: string;
+            taskTitle?: string;
+        };
         OptionInfo: {
             color?: string;
             /** Format: uuid */
@@ -1361,6 +1583,14 @@ export interface components {
             items?: components["schemas"]["MemberView"][];
             nextCursor?: string;
         };
+        PageNotificationView: {
+            items?: components["schemas"]["NotificationView"][];
+            nextCursor?: string;
+        };
+        PageRunView: {
+            items?: components["schemas"]["RunView"][];
+            nextCursor?: string;
+        };
         PageSearchHit: {
             items?: components["schemas"]["SearchHit"][];
             nextCursor?: string;
@@ -1385,6 +1615,27 @@ export interface components {
             items?: components["schemas"]["WorkspaceView"][];
             nextCursor?: string;
         };
+        Person: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+        };
+        Preference: {
+            emailDigest?: boolean;
+            inApp?: boolean;
+            kind?: string;
+        };
+        PreferenceItem: {
+            emailDigest: boolean;
+            inApp: boolean;
+            kind: string;
+        };
+        PreferencesRequest: {
+            kinds: components["schemas"]["PreferenceItem"][];
+        };
+        PreferencesView: {
+            kinds?: components["schemas"]["Preference"][];
+        };
         QueryResponse: {
             droppedFields?: components["schemas"]["DroppedField"][];
             groups?: components["schemas"]["GroupInfo"][];
@@ -1405,6 +1656,14 @@ export interface components {
             limit?: number;
             scope: components["schemas"]["QueryScope"];
         };
+        ReadAllRequest: {
+            /** Format: uuid */
+            upToId?: string;
+        };
+        ReadAllResult: {
+            /** Format: int64 */
+            marked?: number;
+        };
         RemapRequest: {
             /** Format: uuid */
             from: string;
@@ -1419,6 +1678,57 @@ export interface components {
         };
         ResetStatusesRequest: {
             remap?: components["schemas"]["RemapRequest"][];
+        };
+        RuleListView: {
+            canEdit?: boolean;
+            /** Format: int32 */
+            limit?: number;
+            /** Format: uuid */
+            locationId?: string;
+            rules?: components["schemas"]["RuleView"][];
+        };
+        RuleView: {
+            actions?: components["schemas"]["Action"][];
+            conditions?: components["schemas"]["Condition"][];
+            /** Format: date-time */
+            createdAt?: string;
+            createdBy?: components["schemas"]["Person"];
+            /** Format: uuid */
+            definedAt?: string;
+            definedAtName?: string;
+            enabled?: boolean;
+            /** Format: uuid */
+            id?: string;
+            inherited?: boolean;
+            lastRun?: components["schemas"]["LastRun"];
+            /** Format: uuid */
+            locationId?: string;
+            name?: string;
+            trigger?: components["schemas"]["Trigger"];
+            /** Format: date-time */
+            updatedAt?: string;
+            /** Format: int64 */
+            version?: number;
+        };
+        RunView: {
+            /** Format: int32 */
+            attempt?: number;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: int32 */
+            depth?: number;
+            error?: string;
+            /** Format: uuid */
+            id?: string;
+            reason?: string;
+            retryable?: boolean;
+            status?: string;
+            /** Format: uuid */
+            taskId?: string;
+            taskReadableId?: string;
+            taskTitle?: string;
+            /** Format: date-time */
+            updatedAt?: string;
         };
         SearchHit: {
             blocked?: boolean;
@@ -1550,6 +1860,19 @@ export interface components {
             /** @enum {string} */
             type?: "SPACE" | "FOLDER" | "LIST";
         };
+        Trigger: {
+            /** Format: uuid */
+            fieldId?: string;
+            fromStatuses?: string[];
+            /** Format: uuid */
+            personId?: string;
+            toStatuses?: string[];
+            type?: string;
+        };
+        UnreadCount: {
+            /** Format: int64 */
+            count?: number;
+        };
         UpdateChecklistRequest: {
             /** Format: uuid */
             afterId?: string;
@@ -1582,6 +1905,13 @@ export interface components {
         UpdateLocationRequest: {
             isPrivate?: boolean;
             name?: string;
+        };
+        UpdateRuleRequest: {
+            actions?: components["schemas"]["Action"][];
+            conditions?: components["schemas"]["Condition"][];
+            enabled?: boolean;
+            name?: string;
+            trigger?: components["schemas"]["Trigger"];
         };
         UpdateTaskRequest: {
             assigneeIds?: string[];
@@ -1645,6 +1975,17 @@ export interface components {
         };
         ViewList: {
             items?: components["schemas"]["ViewDto"][];
+        };
+        WatchView: {
+            /** Format: int32 */
+            count?: number;
+            items?: components["schemas"]["Watcher"][];
+            watching?: boolean;
+        };
+        Watcher: {
+            displayName?: string;
+            /** Format: uuid */
+            userId?: string;
         };
         WorkspaceView: {
             /** Format: date-time */
@@ -1751,6 +2092,103 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["AuthResponse"];
+                };
+            };
+        };
+    };
+    get_8: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RuleView"];
+                };
+            };
+        };
+    };
+    delete_6: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_5: {
+        parameters: {
+            query?: never;
+            header?: {
+                "If-Match"?: string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RuleView"];
+                };
+            };
+        };
+    };
+    runs: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageRunView"];
                 };
             };
         };
@@ -1919,7 +2357,7 @@ export interface operations {
             };
         };
     };
-    get_6: {
+    get_7: {
         parameters: {
             query?: never;
             header?: never;
@@ -2035,7 +2473,7 @@ export interface operations {
             };
         };
     };
-    create_8: {
+    create_9: {
         parameters: {
             query?: never;
             header?: never;
@@ -2085,7 +2523,7 @@ export interface operations {
             };
         };
     };
-    get_5: {
+    get_6: {
         parameters: {
             query?: never;
             header?: never;
@@ -2171,6 +2609,54 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["LocationView"];
+                };
+            };
+        };
+    };
+    list_7: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RuleListView"];
+                };
+            };
+        };
+    };
+    create_8: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRuleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RuleView"];
                 };
             };
         };
@@ -2269,7 +2755,7 @@ export interface operations {
             };
         };
     };
-    list_8: {
+    list_10: {
         parameters: {
             query?: {
                 cursor?: string;
@@ -2362,7 +2848,7 @@ export interface operations {
             };
         };
     };
-    get: {
+    get_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -2520,7 +3006,47 @@ export interface operations {
             };
         };
     };
-    list_7: {
+    markRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    markUnread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_9: {
         parameters: {
             query?: {
                 locationId?: string;
@@ -2546,7 +3072,7 @@ export interface operations {
             };
         };
     };
-    get_4: {
+    get_5: {
         parameters: {
             query?: never;
             header?: never;
@@ -2893,6 +3419,72 @@ export interface operations {
             };
         };
     };
+    watch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WatchView"];
+                };
+            };
+        };
+    };
+    unwatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WatchView"];
+                };
+            };
+        };
+    };
+    watchers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["WatchView"];
+                };
+            };
+        };
+    };
     create_3: {
         parameters: {
             query?: never;
@@ -2941,7 +3533,7 @@ export interface operations {
             };
         };
     };
-    get_3: {
+    get_4: {
         parameters: {
             query?: never;
             header?: never;
@@ -3056,7 +3648,7 @@ export interface operations {
             };
         };
     };
-    get_2: {
+    get_3: {
         parameters: {
             query?: never;
             header?: never;
@@ -3289,6 +3881,128 @@ export interface operations {
             };
         };
     };
+    get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PreferencesView"];
+                };
+            };
+        };
+    };
+    put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PreferencesView"];
+                };
+            };
+        };
+    };
+    list_8: {
+        parameters: {
+            query?: {
+                unread?: boolean;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["PageNotificationView"];
+                };
+            };
+        };
+    };
+    readAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReadAllRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReadAllResult"];
+                };
+            };
+        };
+    };
+    unreadCount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["UnreadCount"];
+                };
+            };
+        };
+    };
     search: {
         parameters: {
             query: {
@@ -3461,7 +4175,7 @@ export interface operations {
             };
         };
     };
-    get_1: {
+    get_2: {
         parameters: {
             query?: never;
             header?: never;

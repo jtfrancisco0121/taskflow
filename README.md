@@ -96,6 +96,10 @@ Every setting has a default in `backend/src/main/resources/application.yml`, exc
 | `TASKFLOW_REDIS_HOST`, `TASKFLOW_REDIS_PORT` | `localhost`, `6379` | Rate limiting (sign-in) |
 | `TASKFLOW_MAIL_HOST`, `TASKFLOW_MAIL_PORT` | `localhost`, `1025` | SMTP for invite mail (Mailpit in development) |
 | `TASKFLOW_APP_URL` | `http://localhost:5173` | Base of the invite links |
+| `TASKFLOW_RABBITMQ_HOST`, `_PORT`, `_USER`, `_PASSWORD` | `localhost`, `5672`, `taskflow`, `taskflow` | RabbitMQ for the automation and notification consumers |
+| `TASKFLOW_DB_POOL_SIZE` | `20` | Database pool shared by HTTP, both relays, the due sweep and the consumers |
+| `taskflow.workers.enabled` | `true` | Runs the RabbitMQ listeners and the due-date sweep (`TASKFLOW_WORKERS_ENABLED`) |
+| `taskflow.outbox.amqp.enabled` | `true` | Publishes outbox rows to RabbitMQ (`TASKFLOW_OUTBOX_AMQP_ENABLED`) |
 
 ### Agent access (service accounts, API keys, MCP)
 
@@ -107,7 +111,22 @@ Connect an MCP client (streamable HTTP) with only a URL and the key in the `Auth
 claude mcp add --transport http taskflow http://localhost:5173/api/v1/mcp --header "Authorization: Bearer tf_sk_..."
 ```
 
-Tools: `search_tasks` (words, a location, custom field conditions and `blocked`), `get_task` (with `blocked`, `blockerCount` and `dependencies`), `add_dependency` and `remove_dependency` (relate tasks: `WAITING_ON`, `BLOCKING` or `LINKED`, across Lists of the Workspace; a loop is refused with `dependency.cycle`), `create_task`, `update_task`, `move_task`, `delete_task` (30-day trash), `add_comment`, `list_locations`, `list_views`, `list_custom_fields`. `create_task` and `update_task` take `customFields` (`{field id or name: value}`, Dropdown and Labels by Option name); `list_custom_fields(locationId)` shows what a location offers. The same key works on REST (`curl -H "Authorization: Bearer tf_sk_..." http://localhost:8080/api/v1/workspaces`). Each key has a per-minute budget shared by REST and MCP (default 100, `taskflow.api-keys.rate-limit.plans.default`): responses carry `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`, and the call over the limit answers 429 with `Retry-After`. `create_task`, `update_task`, `add_comment` and `add_dependency` take an optional `idempotencyKey` argument: send a new UUID per call and reuse it only to retry, so a retry returns the first result instead of repeating the change (the same key with other arguments fails with `idempotency.key_reused`). Every change an agent makes is attributed to the service account and the key. See [decision 005](docs/decisions/005-agent-access.md).
+Tools: `search_tasks` (words, a location, custom field conditions and `blocked`), `get_task` (with `blocked`, `blockerCount` and `dependencies`), `add_dependency` and `remove_dependency` (relate tasks: `WAITING_ON`, `BLOCKING` or `LINKED`, across Lists of the Workspace; a loop is refused with `dependency.cycle`), `create_task`, `update_task`, `move_task`, `delete_task` (30-day trash), `add_comment`, `list_locations`, `list_views`, `list_custom_fields`, and the automation and inbox tools below. `create_task` and `update_task` take `customFields` (`{field id or name: value}`, Dropdown and Labels by Option name); `list_custom_fields(locationId)` shows what a location offers. The same key works on REST (`curl -H "Authorization: Bearer tf_sk_..." http://localhost:8080/api/v1/workspaces`). Each key has a per-minute budget shared by REST and MCP (default 100, `taskflow.api-keys.rate-limit.plans.default`): responses carry `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`, and the call over the limit answers 429 with `Retry-After`. `create_task`, `update_task`, `add_comment` and `add_dependency` take an optional `idempotencyKey` argument: send a new UUID per call and reuse it only to retry, so a retry returns the first result instead of repeating the change (the same key with other arguments fails with `idempotency.key_reused`). Every change an agent makes is attributed to the service account and the key. See [decision 005](docs/decisions/005-agent-access.md).
+
+Automation and inbox tools (Phase 3C, [decision 009](docs/decisions/009-automations-notifications.md)):
+
+- `list_automations(locationId)`: the rules a Space, Folder or List defines and inherits, with `id`, `version`, `enabled`, `definedAt` and the last run.
+- `create_automation(locationId, name, trigger, actions, conditions?, enabled?, idempotencyKey?)`: a rule. `trigger` is `{type, ...}` with type `TASK_CREATED`, `STATUS_CHANGED` (`fromStatuses`, `toStatuses` by status name), `ASSIGNEE_CHANGED` (`personId`), `CUSTOM_FIELD_CHANGED` (`fieldId`), `DUE_DATE_APPROACHING` or `DUE_DATE_ARRIVED`; `conditions` and `actions` are lists of `{type, ...}` as in the REST API (`POST /api/v1/locations/{id}/automations`). A retry with the same `idempotencyKey` returns the first rule. A bad rule fails with `automation.invalid_trigger`, `automation.invalid_condition`, `automation.invalid_action` or `automation.limit`.
+- `toggle_automation(automationId, enabled)`: switch a rule on or off.
+- `list_notifications(unread?, cursor?, limit?)` and `mark_notification_read(notificationId)`: the inbox of the person who created the service account, in its Workspace. A service account with no owner, or whose owner left the Workspace, gets `notification.no_owner` and nothing changes.
+
+Rule changes an agent makes are attributed to the service account and the key like any other.
+
+### Automations and notifications (Phase 3C)
+
+Rules (`/w/<workspace>/l/<location>/automations`) run in the API process from RabbitMQ; notifications reach the bell and `/w/<workspace>/inbox` live. Open the RabbitMQ management UI at <http://localhost:15672> (user and password `taskflow`) and look at the queues `taskflow.automation.dlq` and `taskflow.notification.dlq`: a message there failed three times and the rule run shows as Failed in its run history. The migrations of this phase use the window `V202612030000`-`V202612032359` ([decision 009](docs/decisions/009-automations-notifications.md)).
+
+Rollback note: before returning to an older build, drain the outbox first (let the relays catch up). Unpublished `notification.*` and `automation.*` rows would otherwise reach the old `EventRouter` default and go to the Workspace topic (ids only, no text).
 
 ### Authentication
 

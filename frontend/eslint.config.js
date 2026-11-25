@@ -18,6 +18,8 @@ const features = [
   'search',
   'serviceAccounts',
   'dependencies',
+  'automations',
+  'notifications',
 ]
 const deepOf = (name, relative) => [
   { group: [`**/features/${name}/**`, `!**/features/${name}/index*`] },

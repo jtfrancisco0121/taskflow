@@ -5,6 +5,11 @@ spring:
     url: ${TASKFLOW_DB_URL:jdbc:postgresql://localhost:5432/taskflow}
     username: ${TASKFLOW_DB_USER:taskflow}
     password: ${TASKFLOW_DB_PASSWORD:taskflow}
+    hikari:
+      # Shared by HTTP, both relays, the due sweep and the consumers; each consumer holds one
+      # connection at a time (decision 009).
+      maximum-pool-size: ${TASKFLOW_DB_POOL_SIZE:20}
+      connection-timeout: 5000
   jpa:
     hibernate:
       ddl-auto: validate
@@ -22,6 +27,14 @@ spring:
       port: ${TASKFLOW_REDIS_PORT:6379}
       # A hung Redis call must not stall the relay or the presence sweep (AD-11).
       timeout: 2s
+  rabbitmq:
+    host: ${TASKFLOW_RABBITMQ_HOST:localhost}
+    port: ${TASKFLOW_RABBITMQ_PORT:5672}
+    username: ${TASKFLOW_RABBITMQ_USER:taskflow}
+    password: ${TASKFLOW_RABBITMQ_PASSWORD:taskflow}
+    # A hung broker must not stall the AMQP relay (AD-2).
+    connection-timeout: 2s
+    publisher-confirm-type: correlated
   task:
     scheduling:
       pool:
@@ -54,6 +67,12 @@ taskflow:
     # Publishes committed outbox rows to Redis (AD-11).
     enabled: true
     interval-ms: 250
+    amqp:
+      # Publishes committed outbox rows to RabbitMQ for the automation and notification consumers.
+      enabled: true
+  workers:
+    # Gates the RabbitMQ listeners and the due-date sweep (decision 009.4).
+    enabled: true
   api-keys:
     rate-limit:
       # Calls per key per minute, by plan (PRD open question 6). Every Workspace is on "default".

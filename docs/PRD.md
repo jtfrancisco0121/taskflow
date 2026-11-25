@@ -148,14 +148,14 @@ Requirement IDs are stable. Agents and tests should reference them.
 
 **AUTO: Automations v1**
 
-- AUTO-1: A rule has a trigger (task created, status changed, field changed, due date approaching), optional conditions, and actions (set status, assign, comment, notify).
-- AUTO-2: Rules are set on a location and apply to tasks below it.
-- AUTO-3: A rule cannot trigger itself in a loop. Each event carries the id of the automation that caused it.
-- AUTO-4: Time-based triggers run from a scheduler that is safe across several instances.
+- AUTO-1: A rule has a trigger (task created, status changed, assignee changed, custom field changed, due date approaching or arriving), optional conditions, and actions (change status, assign, set priority, add comment, set due date, create subtask, send notification). Status: done (3C).
+- AUTO-2: Rules are set on a location and apply to tasks below it. A rule acts only on tasks its creator can view. Status: done (3C).
+- AUTO-3: A rule cannot trigger itself in a loop. Each event carries the id of the automation that caused it, a depth limit of 3 stops chains, a rule never runs on its own change, and at most 10 runs per rule and task in 10 minutes. Actions are attributed in the activity feed ("by automation <name>"), failed runs go to the dead-letter queue and show in the run history. Status: done (3C).
+- AUTO-4: Time-based triggers run from a scheduler that is safe across several instances (a unique signal table, no ShedLock: decision 009). Status: done (3C).
 
 **NOTIF: Notifications**
 
-- NOTIF-1: In-app notifications for assignments, mentions and status changes. Email for mentions and assignments, with per-user preferences.
+- NOTIF-1: In-app notifications for assignments, mentions, comments and status changes on watched tasks, due dates, resolved blockers and rule messages, with an unread count that updates live over STOMP and per-user preferences. Never for service accounts. Email is the digest hook only: nothing is sent. Status: done (3C).
 
 **SA, KEY and MCP: Agent access** (details in section 8)
 

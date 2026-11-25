@@ -1,8 +1,10 @@
 import { createBrowserRouter } from 'react-router'
 import { SignInPage, SignUpPage } from '../features/auth'
+import { AutomationsPage } from '../features/automations'
 import { TaskTabs } from '../features/comments'
 import { TaskPanelRoute } from '../features/tasks'
 import { WorkspaceHomePage } from '../features/locations'
+import { InboxPage, NotificationSettingsPage } from '../features/notifications'
 import { Presence } from '../features/realtime'
 import { ServiceAccountDetailPage, ServiceAccountsPage } from '../features/serviceAccounts'
 import { LocationViewRoute, ViewBackground, WorkspaceViewRoute } from '../features/views'
@@ -26,6 +28,11 @@ export const router = createBrowserRouter([
             path: '/w/:workspaceId',
             element: <WorkspaceHomePage populated={<WorkspaceViewRoute />} />,
           },
+          { path: '/w/:workspaceId/inbox', element: <InboxPage /> },
+          {
+            path: '/w/:workspaceId/settings/notifications',
+            element: <NotificationSettingsPage />,
+          },
           { path: '/w/:workspaceId/settings/service-accounts', element: <ServiceAccountsPage /> },
           {
             path: '/w/:workspaceId/settings/service-accounts/:serviceAccountId',
@@ -35,6 +42,7 @@ export const router = createBrowserRouter([
           // the existing List URL renders the Default List view (phase 1 links keep working)
           { path: '/w/:workspaceId/l/:locationId', element: <LocationViewRoute /> },
           { path: '/w/:workspaceId/l/:locationId/v/:viewId', element: <LocationViewRoute /> },
+          { path: '/w/:workspaceId/l/:locationId/automations', element: <AutomationsPage /> },
           {
             path: '/t/:taskId',
             element: (

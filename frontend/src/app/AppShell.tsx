@@ -2,6 +2,7 @@ import { Outlet, useParams } from 'react-router'
 import { useTaskWorkspaceId } from '../features/tasks'
 import { SidebarTree } from '../features/locations'
 import { useSession, useSignOut } from '../features/auth'
+import { NotificationBell } from '../features/notifications'
 import { LiveUpdates } from '../features/realtime'
 import { SearchBox } from '../features/search'
 import { ServiceAccountsLink } from '../features/serviceAccounts'
@@ -37,6 +38,7 @@ export function AppShell() {
           <WorkspaceSwitcher currentId={workspaceId} />
           {workspaceId && <SearchBox workspaceId={workspaceId} />}
           <div className="ml-auto flex items-center gap-3 text-sm">
+            {workspaceId && <NotificationBell workspaceId={workspaceId} />}
             {workspaceId && <ServiceAccountsLink workspaceId={workspaceId} />}
             {session.user?.displayName && <span>{session.user.displayName}</span>}
             <Button onClick={() => void signOut()}>Sign out</Button>

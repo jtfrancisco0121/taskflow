@@ -60,8 +60,14 @@ class AgentGateIT extends ServiceAccountTestBase {
       assertThat(names)
           .contains("create_task", "update_task", "move_task", "add_comment", "delete_task");
       assertThat(names)
-          .hasSize(12)
-          .contains("list_custom_fields", "add_dependency", "remove_dependency");
+          .hasSize(17)
+          .contains("list_custom_fields", "add_dependency", "remove_dependency")
+          .contains(
+              "list_automations",
+              "create_automation",
+              "toggle_automation",
+              "list_notifications",
+              "mark_notification_read");
 
       JsonNode created =
           tool(client, "create_task", Map.of("listId", backlog.toString(), "title", "Fix login"));

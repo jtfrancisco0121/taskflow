@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.taskflow.identity.ApiKeyDirectory;
+import com.taskflow.identity.AutomationAuthors;
 import com.taskflow.identity.UserDirectory;
 import com.taskflow.identity.UserInfo;
 import com.taskflow.shared.ActivityItem;
@@ -39,7 +40,8 @@ class CommentService {
       JsonNode body,
       List<UUID> mentionIds,
       Instant createdAt,
-      Instant editedAt) {}
+      Instant editedAt,
+      boolean authorIsAutomation) {}
 
   record ActivityView(
       UUID id,
@@ -50,7 +52,9 @@ class CommentService {
       UUID actorKeyId,
       String actorKeyName,
       JsonNode payload,
-      Instant createdAt) {}
+      Instant createdAt,
+      UUID automationRuleId,
+      String automationRuleName) {}
 
   private record Row(
       UUID id,
@@ -68,6 +72,8 @@ class CommentService {
   private final UserDirectory users;
   private final ActivityQuery activity;
   private final ApiKeyDirectory apiKeys;
+  private final AuthorResolver authors;
+  private final AutomationAuthors automationAuthors;
 
   CommentService(
       JdbcTemplate jdbc,
@@ -76,7 +82,11 @@ class CommentService {
       WorkspaceQuery workspaces,
       UserDirectory users,
       ActivityQuery activity,
-      ApiKeyDirectory apiKeys) {
+      ApiKeyDirectory apiKeys,
+      AuthorResolver authors,
+      AutomationAuthors automationAuthors) {
+    this.authors = authors;
+    this.automationAuthors = automationAuthors;
     this.jdbc = jdbc;
     this.mapper = mapper;
     this.events = events;
@@ -120,7 +130,7 @@ class CommentService {
         id,
         workspaceId,
         taskId,
-        CurrentActor.userId(),
+        authors.authorOf(workspaceId),
         json(body));
     syncMentions(workspaceId, id, mentions);
     events.record(
@@ -216,19 +226,44 @@ class CommentService {
     List<ActivityView> items = new ArrayList<>();
     for (ActivityItem i : page.items()) {
       UserInfo u = i.actorType() == ActorType.AUTOMATION ? null : names.get(i.actorId());
+      UUID ruleId = null;
+      String ruleName = null;
+      String actorName;
+      if (i.actorType() == ActorType.AUTOMATION) {
+        // A run names its rule in the payload (AD-5); an AUTOMATION actor without one is a system
+        // entry such as a due-date event, not a rule.
+        JsonNode automation = i.payload() == null ? null : i.payload().path("automation");
+        ruleName =
+            automation != null && automation.hasNonNull("ruleName")
+                ? automation.get("ruleName").asText()
+                : null;
+        if (ruleName != null) {
+          try {
+            ruleId = UUID.fromString(automation.path("ruleId").asText());
+          } catch (IllegalArgumentException e) {
+            ruleId = null;
+          }
+        }
+        actorName = ruleName != null ? ruleName : "Taskflow";
+      } else {
+        actorName =
+            u == null
+                ? (i.actorType() == ActorType.USER ? null : i.actorType().name())
+                : u.displayName();
+      }
       items.add(
           new ActivityView(
               i.id(),
               i.type(),
               i.actorType(),
               i.actorId(),
-              u == null
-                  ? (i.actorType() == ActorType.USER ? null : i.actorType().name())
-                  : u.displayName(),
+              actorName,
               i.actorKeyId(),
               i.actorKeyId() == null ? null : keyNames.get(i.actorKeyId()),
               i.payload(),
-              i.createdAt()));
+              i.createdAt(),
+              ruleId,
+              ruleName));
     }
     return new Page<>(items, page.nextCursor());
   }
@@ -277,7 +312,9 @@ class CommentService {
     if (rows.isEmpty()) {
       return List.of();
     }
-    Map<UUID, UserInfo> authors = users.byIds(rows.stream().map(Row::authorId).distinct().toList());
+    List<UUID> authorIds = rows.stream().map(Row::authorId).distinct().toList();
+    Map<UUID, UserInfo> people = users.byIds(authorIds);
+    Set<UUID> automated = automationAuthors.authorsAmong(authorIds);
     Map<UUID, List<UUID>> mentions = new HashMap<>();
     for (Row r : rows) {
       mentions.put(
@@ -289,7 +326,7 @@ class CommentService {
     }
     List<CommentView> out = new ArrayList<>();
     for (Row r : rows) {
-      UserInfo author = authors.get(r.authorId());
+      UserInfo author = people.get(r.authorId());
       out.add(
           new CommentView(
               r.id(),
@@ -299,7 +336,8 @@ class CommentService {
               r.body(),
               mentions.get(r.id()),
               r.createdAt(),
-              r.editedAt()));
+              r.editedAt(),
+              automated.contains(r.authorId())));
     }
     return out;
   }

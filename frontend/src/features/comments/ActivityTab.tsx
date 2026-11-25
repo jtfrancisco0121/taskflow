@@ -5,6 +5,7 @@ import { queryKeys } from '../../api/queryKeys'
 import type { TaskView } from '../../api/types'
 import { formatDateTime, relativeTime } from '../../shared/dates'
 import { AgentBadge } from '../../shared/ui/AgentBadge'
+import { AutomationBadge } from '../../shared/ui/AutomationBadge'
 import { Button } from '../../shared/ui/Button'
 import { useLocationStatuses } from '../statuses'
 import { useMembers } from '../workspace'
@@ -76,9 +77,7 @@ export function ActivityTab({ task }: { task: TaskView }) {
           <li key={entry.id} className="text-sm">
             <span className="font-medium">{actorLabel(entry)}</span>
             {entry.actorType === 'SERVICE_ACCOUNT' && <AgentBadge />}
-            {entry.actorType === 'AUTOMATION' && (
-              <span className="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-xs">Automation</span>
-            )}
+            {entry.actorType === 'AUTOMATION' && entry.automationRuleName && <AutomationBadge />}
             {activitySentences(entry, lookup).map((sentence, index) => (
               <p key={index} className="m-0">
                 {sentence}

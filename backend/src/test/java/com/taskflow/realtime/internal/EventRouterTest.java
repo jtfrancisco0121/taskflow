@@ -40,4 +40,23 @@ class EventRouterTest {
                 ws, "member", UUID.randomUUID(), "member.removed", mapper.createObjectNode()))
         .containsExactly("/topic/workspace/" + ws);
   }
+
+  @Test
+  void aNotificationReachesOnlyItsRecipientsUserTopic() {
+    UUID ws = UUID.randomUUID();
+    UUID recipient = UUID.randomUUID();
+    var payload = mapper.createObjectNode().put("recipientId", recipient.toString());
+    assertThat(
+            router.topics(ws, "notification", UUID.randomUUID(), "notification.created", payload))
+        .containsExactly("/topic/user/" + recipient);
+    // without a recipient there is nowhere safe to send it: never the Workspace topic
+    assertThat(
+            router.topics(
+                ws,
+                "notification",
+                UUID.randomUUID(),
+                "notification.read",
+                mapper.createObjectNode()))
+        .isEmpty();
+  }
 }

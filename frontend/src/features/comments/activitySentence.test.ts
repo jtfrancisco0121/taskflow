@@ -113,6 +113,32 @@ describe('actorLabel', () => {
     expect(actorLabel({ actorType: 'USER' })).toBe('Someone')
   })
 
+  it('CAP-7: a rule reads "by automation <rule>", the system reads "Taskflow"', () => {
+    expect(
+      actorLabel({
+        actorType: 'AUTOMATION',
+        actorName: 'Done to QA',
+        automationRuleName: 'Done to QA',
+      }),
+    ).toBe('by automation Done to QA')
+    expect(actorLabel({ actorType: 'AUTOMATION', actorName: 'Taskflow' })).toBe('Taskflow')
+    expect(actorLabel({ actorType: 'AUTOMATION', actorName: 'Taskflow' })).not.toMatch(
+      /by automation/,
+    )
+  })
+
+  it('the due-date events have their own sentences', () => {
+    expect(
+      activitySentences({ type: 'task.due_soon' }, { statusName: () => '', memberName: () => '' }),
+    ).toEqual(['Due date approaching'])
+    expect(
+      activitySentences(
+        { type: 'task.due_reached' },
+        { statusName: () => '', memberName: () => '' },
+      ),
+    ).toEqual(['Due date reached'])
+  })
+
   it('a user without an email still has a display name to show', () => {
     expect(actorLabel({ actorType: 'USER', actorName: 'Maya Lopez' })).not.toMatch(/@/)
   })

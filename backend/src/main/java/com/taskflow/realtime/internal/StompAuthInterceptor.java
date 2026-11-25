@@ -41,6 +41,7 @@ class StompAuthInterceptor implements ChannelInterceptor {
   private static final Pattern TASK_TOPIC = Pattern.compile("^/topic/task/(" + UUID_RE + ")$");
   private static final Pattern PRESENCE_TOPIC =
       Pattern.compile("^/topic/task/(" + UUID_RE + ")/presence$");
+  private static final Pattern USER_TOPIC = Pattern.compile("^/topic/user/(" + UUID_RE + ")$");
   private static final Pattern PRESENCE_SEND = Pattern.compile("^/app/presence/(" + UUID_RE + ")$");
 
   private final JwtDecoder decoder;
@@ -134,7 +135,12 @@ class StompAuthInterceptor implements ChannelInterceptor {
       throw new MessagingException("A subscription needs a destination");
     }
     Matcher m;
-    if ((m = LOCATION_TOPIC.matcher(destination)).matches()) {
+    if ((m = USER_TOPIC.matcher(destination)).matches()) {
+      // Notifications (3C): only the person's own topic, checked against the session's user.
+      if (!UUID.fromString(m.group(1)).equals(session.userId())) {
+        throw new MessagingException("You may only subscribe to your own notifications");
+      }
+    } else if ((m = LOCATION_TOPIC.matcher(destination)).matches()) {
       permissions.require(Permissions.LOCATION, UUID.fromString(m.group(1)), Action.VIEW);
     } else if ((m = TASK_TOPIC.matcher(destination)).matches()
         || (m = PRESENCE_TOPIC.matcher(destination)).matches()) {
