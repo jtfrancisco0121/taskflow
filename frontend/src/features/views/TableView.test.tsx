@@ -6,7 +6,7 @@ import { installFetch, json, problem, renderWithProviders } from '../../test/api
 import { baseRoutes, customFieldIds, fieldRoutes, scope, task } from './testSupport'
 import { clampWidth, dropColumn, moveColumn, toggleColumn, withWidth } from './tableColumns'
 import { TableRenderer } from './TableRenderer'
-import { expectValue, pick } from '../../test/ui'
+import { expectValue, open, pick } from '../../test/ui'
 
 describe('TABLE-1 column model', () => {
   const columns = [
@@ -219,6 +219,25 @@ describe('FIELD-3 custom field columns (3A S4)', () => {
     const patch = stub.calls.find((c) => c.method === 'PATCH')!
     expect(patch.body).toEqual({ customFields: { [customFieldIds.tier]: 'o-ent' } })
     expect(patch.headers.get('If-Match')).toBe('"3"')
+  })
+
+  it('FIELD-3: a Dropdown cell stays in edit mode while its listbox is open, and Escape closes one layer at a time (AD-12)', async () => {
+    const stub = serveFields([task(1, { customFields: {} })])
+    const user = userEvent.setup()
+    renderWithProviders(<TableRenderer scope={scope} config={withTier} update={vi.fn()} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Customer tier: empty' }))
+    await open(user, screen.getByLabelText('Customer tier for ACME-1'))
+    // Focus is in the portalled listbox: the editor must not unmount.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(screen.getByLabelText('Customer tier for ACME-1')).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument())
+    expect(screen.getByLabelText('Customer tier for ACME-1')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(await screen.findByRole('button', { name: 'Customer tier: empty' })).toBeVisible()
+    expect(stub.calls.some((c) => c.method === 'PATCH')).toBe(false)
   })
 
   it('FIELD-3: a 409 rolls the cell back to the server value and toasts', async () => {

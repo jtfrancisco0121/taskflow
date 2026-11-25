@@ -1,9 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useState } from 'react'
-import { useFieldArray, useForm, useWatch } from 'react-hook-form'
+import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { messageOf } from '../../api/errors'
 import type { StatusInfo } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
+import { Select } from '../../shared/ui/Select'
 import { draftTargets, removedStatuses, resolveRemap } from './buildRemap'
 import { statusSetSchema, type StatusSetForm } from './statusSchema'
 import { COLOR_PRESETS, GROUPS, GROUP_LABEL, type DraftRow, type Group } from './statusTypes'
@@ -99,17 +100,18 @@ export function StatusEditor({
                   className={`${input} w-40`}
                   {...form.register(`statuses.${index}.name`)}
                 />
-                <select
-                  aria-label={`Status ${n} group`}
-                  className={input}
-                  {...form.register(`statuses.${index}.group`)}
-                >
-                  {GROUPS.map((group) => (
-                    <option key={group} value={group}>
-                      {GROUP_LABEL[group]}
-                    </option>
-                  ))}
-                </select>
+                <Controller
+                  control={form.control}
+                  name={`statuses.${index}.group`}
+                  render={({ field: group }) => (
+                    <Select
+                      aria-label={`Status ${n} group`}
+                      value={group.value}
+                      onValueChange={group.onChange}
+                      options={GROUPS.map((g) => ({ value: g, label: GROUP_LABEL[g] }))}
+                    />
+                  )}
+                />
                 <span
                   aria-hidden="true"
                   className="h-4 w-4 rounded-full border border-slate-300"
@@ -200,23 +202,15 @@ export function StatusEditor({
           {resolution.needsChoice.map((status) => (
             <label key={status.id} className="mb-1 flex items-center gap-2 text-sm">
               <span className="w-40 truncate">{status.name}</span>
-              <select
+              <Select
                 aria-label={`Move tasks from ${status.name} to`}
-                className={input}
                 value={resolution.chosen[status.id ?? '']?.key ?? ''}
-                onChange={(event) =>
-                  setChoices((all) => ({ ...all, [status.id ?? '']: event.target.value }))
-                }
-              >
-                <option value="">Choose a status</option>
-                {drafts
+                onValueChange={(next) => setChoices((all) => ({ ...all, [status.id ?? '']: next }))}
+                options={drafts
                   .filter((draft) => draft.name.trim())
-                  .map((draft) => (
-                    <option key={draft.key} value={draft.key}>
-                      {draft.name.trim()}
-                    </option>
-                  ))}
-              </select>
+                  .map((draft) => ({ value: draft.key, label: draft.name.trim() }))}
+                placeholder="Choose a status"
+              />
             </label>
           ))}
         </fieldset>

@@ -1,3 +1,5 @@
+// TODO(slice 4): this file keeps native <select>s until the List view chip bar rebuilds the filter UI on the
+// library Select (slice 4). It is one of the two named exceptions to the no-native-select lint rule.
 import type { FieldView, ViewFilter } from '../../api/types'
 import {
   FilterInput,

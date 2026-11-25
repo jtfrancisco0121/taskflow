@@ -3,6 +3,7 @@ import { messageOf } from '../../api/errors'
 import type { CreatedApiKey } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
 import { Dialog } from '../../shared/ui/Dialog'
+import { Select } from '../../shared/ui/Select'
 import { TextField } from '../../shared/ui/TextField'
 import { isStatus, useCreateApiKey } from './hooks'
 
@@ -61,18 +62,12 @@ export function CreateKeyDialog({ workspaceId, accountId, onClose, onCreated }: 
           <label htmlFor="key-expiry" className="text-sm font-medium">
             Expires
           </label>
-          <select
+          <Select
             id="key-expiry"
             value={expiry}
-            onChange={(event) => setExpiry(event.target.value as typeof expiry)}
-            className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-          >
-            {EXPIRY.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            onValueChange={(next) => setExpiry(next as typeof expiry)}
+            options={EXPIRY}
+          />
           {pastExpiry && (
             <p role="alert" className="text-sm text-red-700">
               {messageOf(create.error)}

@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import { formatDay, toApiDate, toInputDay } from '../../shared/dates'
 import { StatusPill } from '../../shared/ui/StatusPill'
+import { Select } from '../../shared/ui/Select'
 import type { StatusInfo, TaskView } from '../../api/types'
 import { FieldShell, type Hint } from './FieldShell'
 import { PRIORITIES, PRIORITY_LABEL } from './labels'
@@ -71,21 +72,14 @@ export function StatusField({
     <FieldShell label="Status" htmlFor={id} hint={hints.status}>
       <div className="flex items-center gap-2">
         {current && <StatusPill name={current.name ?? ''} color={current.color} />}
-        <select
+        <Select
           id={id}
           value={task.statusId ?? ''}
-          onChange={(event) => void save('status', 'status', { statusId: event.target.value })}
-          className={`${inputClass} flex-1`}
-        >
-          {!current && (
-            <option value={task.statusId ?? ''}>{loading ? 'Loading…' : 'Unknown status'}</option>
-          )}
-          {statuses.map((status) => (
-            <option key={status.id} value={status.id}>
-              {status.name}
-            </option>
-          ))}
-        </select>
+          onValueChange={(next) => void save('status', 'status', { statusId: next })}
+          options={statuses.map((status) => ({ value: status.id ?? '', label: status.name ?? '' }))}
+          placeholder={loading ? 'Loading…' : 'Unknown status'}
+          className="flex-1"
+        />
       </div>
     </FieldShell>
   )
@@ -95,22 +89,19 @@ export function PriorityField({ task, hints, save }: CommonProps) {
   const id = useId()
   return (
     <FieldShell label="Priority" htmlFor={id} hint={hints.priority}>
-      <select
+      <Select
         id={id}
         value={task.priority ?? 'NONE'}
-        onChange={(event) =>
+        onValueChange={(next) =>
           void save('priority', 'priority', {
-            priority: event.target.value as NonNullable<TaskPatch['priority']>,
+            priority: next as NonNullable<TaskPatch['priority']>,
           })
         }
-        className={inputClass}
-      >
-        {PRIORITIES.map((priority) => (
-          <option key={priority} value={priority}>
-            {PRIORITY_LABEL[priority] === '—' ? 'None' : PRIORITY_LABEL[priority]}
-          </option>
-        ))}
-      </select>
+        options={PRIORITIES.map((priority) => ({
+          value: priority,
+          label: PRIORITY_LABEL[priority] === '—' ? 'None' : PRIORITY_LABEL[priority],
+        }))}
+      />
     </FieldShell>
   )
 }

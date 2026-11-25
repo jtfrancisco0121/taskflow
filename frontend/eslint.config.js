@@ -108,6 +108,29 @@ export default tseslint.config(
     },
   },
   {
+    // Slice 2 (AD-5): product code uses the library Select, never a native <select>. The two exceptions keep
+    // their native selects until slice 4 (List view chip bar) and are named in the slice report. Test files
+    // and src/test hold <select> fixtures for the helpers. This block sets the rule for files no other
+    // no-restricted-syntax block matches, so it does not replace the test guards above or below it.
+    files: ['src/**/*.tsx'],
+    ignores: [
+      'src/features/views/FilterBuilder.tsx',
+      'src/features/fields/FilterInput.tsx',
+      'src/test/**',
+      'src/**/*.test.tsx',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "JSXOpeningElement[name.name='select']",
+          message:
+            'Use Select from src/shared/ui. Only FilterBuilder and FilterInput keep a native select until slice 4.',
+        },
+      ],
+    },
+  },
+  {
     // Slice 1: component tests pick, read and list select-like controls only through src/test/ui.ts.
     // toHaveValue and findByRole('option') stay legal (inputs, typed comboboxes); select uses are reviewed.
     files: ['src/**/*.test.{ts,tsx}'],

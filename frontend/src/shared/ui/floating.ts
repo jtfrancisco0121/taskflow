@@ -21,3 +21,15 @@ export const floatingClass = 'glass z-(--tf-z-floating) rounded-lg text-[13px] t
 
 export const itemClass =
   'relative flex h-7 cursor-pointer items-center gap-2 rounded-md px-2 text-[13px] text-fg outline-none select-none data-[highlighted]:bg-accent-soft data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50'
+
+/**
+ * `onCloseAutoFocus` for floating content. Radix gives focus back to the trigger a moment after the layer
+ * closes. When the pick opened something that took focus meanwhile (a confirmation Dialog), that would steal
+ * the focus from it, so the return is skipped when focus is already on a real element outside the layer.
+ */
+export function keepFocusIfMoved(event: Event) {
+  const active = document.activeElement
+  if (active && active !== document.body && !active.closest('[data-tf-floating]')) {
+    event.preventDefault()
+  }
+}

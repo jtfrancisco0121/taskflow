@@ -5,6 +5,7 @@ import { queryKeys } from '../../api/queryKeys'
 import type { TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 import { Button } from '../../shared/ui/Button'
+import { Select } from '../../shared/ui/Select'
 import { useLocationStatuses } from '../statuses'
 import { PRIORITIES, PRIORITY_LABEL } from '../tasks'
 import { runLimited } from './bulk'
@@ -119,52 +120,45 @@ export function BulkBar({
       {chosen.length > 0 && (
         <>
           <span>{chosen.length} selected</span>
-          <select
+          <Select
             aria-label="Set priority"
             value=""
-            onChange={(e) =>
-              e.target.value &&
+            onValueChange={(next) =>
+              next &&
               void fanOut('Priority', (t) =>
-                actions.patch(t, { priority: e.target.value as TaskView['priority'] }, true),
+                actions.patch(t, { priority: next as TaskView['priority'] }, true),
               )
             }
-          >
-            <option value="">Set priority…</option>
-            {PRIORITIES.map((p) => (
-              <option key={p} value={p}>
-                {PRIORITY_LABEL[p] === '—' ? 'None' : PRIORITY_LABEL[p]}
-              </option>
-            ))}
-          </select>
+            options={PRIORITIES.map((p) => ({
+              value: p,
+              label: PRIORITY_LABEL[p] === '—' ? 'None' : PRIORITY_LABEL[p],
+            }))}
+            placeholder="Set priority…"
+          />
           {scope.locationId && (
-            <select
+            <Select
               aria-label="Set status"
               value=""
-              onChange={(e) =>
-                e.target.value &&
-                void fanOut('Status', (t) => actions.setStatusByName(t, e.target.value, true))
+              onValueChange={(next) =>
+                next && void fanOut('Status', (t) => actions.setStatusByName(t, next, true))
               }
-            >
-              <option value="">Set status…</option>
-              {(statuses.data?.statuses ?? []).map((s) => (
-                <option key={s.id} value={s.name}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
+              options={(statuses.data?.statuses ?? []).map((s) => ({
+                value: s.name ?? '',
+                label: s.name ?? '',
+              }))}
+              placeholder="Set status…"
+            />
           )}
-          <select
+          <Select
             aria-label="Assignee"
             value={assignee}
-            onChange={(e) => setAssignee(e.target.value)}
-          >
-            <option value="">Assignee…</option>
-            {members.map((m) => (
-              <option key={m.userId} value={m.userId}>
-                {m.displayName ?? m.email}
-              </option>
-            ))}
-          </select>
+            onValueChange={setAssignee}
+            options={members.map((m) => ({
+              value: m.userId ?? '',
+              label: m.displayName ?? m.email ?? '',
+            }))}
+            placeholder="Assignee…"
+          />
           <Button
             disabled={!assignee}
             onClick={() =>

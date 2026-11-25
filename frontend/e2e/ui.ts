@@ -17,10 +17,15 @@ async function isNativeSelect(control: Locator) {
 
 /** Opens a trigger and returns the floating listbox or menu it controls. */
 export async function open(trigger: Locator): Promise<Locator> {
+  // Hold the element itself: while a Radix listbox is open the page behind it is aria-hidden, so a locator
+  // that finds the trigger by its <label> (getByLabel) no longer resolves until the popup closes.
+  const element = await trigger.elementHandle()
   await trigger.click()
   // The popup is portalled and wired by aria-controls, which is set only while it is open.
-  await expect(trigger).toHaveAttribute('aria-controls', /.+/)
-  const id = (await trigger.getAttribute('aria-controls')) as string
+  const controls = await trigger
+    .page()
+    .waitForFunction((el) => el?.getAttribute('aria-controls') || false, element)
+  const id = (await controls.jsonValue()) as string
   const popup = trigger.page().locator(`[id="${id}"]`)
   await expect(popup).toBeVisible()
   return popup

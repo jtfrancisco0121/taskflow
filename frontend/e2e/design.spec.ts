@@ -60,3 +60,17 @@ test('/design: a Select inside the open Dialog is themed, above it, and Escape c
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
 })
+
+for (const theme of THEMES) {
+  test(`/design toasts in the ${theme.file} theme have no contrast violations`, async ({
+    page,
+  }) => {
+    await page.goto('/design')
+    await page.getByRole('button', { name: theme.name, exact: true }).click()
+    await page.getByRole('button', { name: 'Show toast', exact: true }).click()
+    await page.getByRole('button', { name: 'Show error toast', exact: true }).click()
+    await expect(page.getByRole('status')).toContainText('Saved the rule')
+    await expect(page.getByRole('alert').filter({ hasText: 'Could not save' })).toBeVisible()
+    await expectNoContrastViolations(page, `toasts ${theme.file}`, '[aria-live="polite"]')
+  })
+}

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { ApiError, messageOf } from '../../api/errors'
 import type { FieldView } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
+import { Select } from '../../shared/ui/Select'
 import { TextField } from '../../shared/ui/TextField'
 import { CREATABLE_TYPES, FIELD_TYPES, OPTION_COLORS, PALETTE, type FieldType } from './fieldTypes'
 import { useCreateField, useUpdateField, type CreateFieldBody } from './useFieldMutations'
@@ -144,19 +145,16 @@ export function FieldEditor({
         <label htmlFor="field-type" className="text-sm font-medium">
           Field type
         </label>
-        <select
+        <Select
           id="field-type"
-          className={input}
           value={type}
           disabled={editing}
-          onChange={(event) => setType(event.target.value as FieldType)}
-        >
-          {(editing ? [type] : CREATABLE_TYPES).map((t) => (
-            <option key={t} value={t}>
-              {FIELD_TYPES[t].label}
-            </option>
-          ))}
-        </select>
+          onValueChange={(next) => setType(next as FieldType)}
+          options={(editing ? [type] : CREATABLE_TYPES).map((t) => ({
+            value: t,
+            label: FIELD_TYPES[t].label,
+          }))}
+        />
         {editing && <p className="text-xs text-slate-500">The type can't change after creation.</p>}
       </div>
       {type === 'NUMBER' && (
@@ -164,18 +162,12 @@ export function FieldEditor({
           <label htmlFor="field-decimals" className="text-sm font-medium">
             Decimals shown
           </label>
-          <select
+          <Select
             id="field-decimals"
-            className={input}
-            value={decimals}
-            onChange={(event) => setDecimals(Number(event.target.value))}
-          >
-            {[0, 1, 2, 3, 4, 5, 6].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
+            value={String(decimals)}
+            onValueChange={(next) => setDecimals(Number(next))}
+            options={[0, 1, 2, 3, 4, 5, 6].map((n) => ({ value: String(n), label: String(n) }))}
+          />
         </div>
       )}
       {type === 'RATING' && (
@@ -183,18 +175,15 @@ export function FieldEditor({
           <label htmlFor="field-max" className="text-sm font-medium">
             Number of stars
           </label>
-          <select
+          <Select
             id="field-max"
-            className={input}
-            value={max}
-            onChange={(event) => setMax(Number(event.target.value))}
-          >
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
+            value={String(max)}
+            onValueChange={(next) => setMax(Number(next))}
+            options={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => ({
+              value: String(n),
+              label: String(n),
+            }))}
+          />
         </div>
       )}
       {FIELD_TYPES[type].hasOptions && (
@@ -219,18 +208,12 @@ export function FieldEditor({
                 maxLength={60}
                 onChange={(event) => patchOption(index, { name: event.target.value })}
               />
-              <select
+              <Select
                 aria-label={`Option ${index + 1} color`}
-                className={input}
                 value={option.color}
-                onChange={(event) => patchOption(index, { color: event.target.value })}
-              >
-                {PALETTE.map((color) => (
-                  <option key={color} value={color}>
-                    {color}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(next) => patchOption(index, { color: next })}
+                options={PALETTE.map((color) => ({ value: color, label: color }))}
+              />
               <Button
                 aria-label={`Move option ${index + 1} up`}
                 disabled={index === 0}

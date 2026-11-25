@@ -1,14 +1,14 @@
 import * as SelectPrimitive from '@radix-ui/react-select'
-import { floatingClass, floatingProps, itemClass } from './floating'
+import { floatingClass, floatingProps, itemClass, keepFocusIfMoved } from './floating'
 
 export type SelectOption = { value: string; label: string; disabled?: boolean }
-export type SelectGroup = { label: string; options: SelectOption[] }
+export type SelectGroup = { label: string; options: readonly SelectOption[] }
 
 export type SelectProps = {
   value: string
   onValueChange: (value: string) => void
-  options?: SelectOption[]
-  groups?: SelectGroup[]
+  options?: readonly SelectOption[]
+  groups?: readonly SelectGroup[]
   /** Shown on the trigger only, never as an item (AD-5). Use it for a prompt such as "Choose a status". */
   placeholder?: string
   id?: string
@@ -98,6 +98,7 @@ export function Select({
           position="popper"
           sideOffset={4}
           {...floatingProps}
+          onCloseAutoFocus={keepFocusIfMoved}
           className={`${floatingClass} max-h-72 min-w-(--radix-select-trigger-width) overflow-hidden p-1`}
         >
           <SelectPrimitive.Viewport>

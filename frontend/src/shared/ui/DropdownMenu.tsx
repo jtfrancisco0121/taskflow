@@ -1,6 +1,6 @@
 import * as MenuPrimitive from '@radix-ui/react-dropdown-menu'
 import type { ReactElement } from 'react'
-import { floatingClass, floatingProps, itemClass } from './floating'
+import { floatingClass, floatingProps, itemClass, keepFocusIfMoved } from './floating'
 import { Kbd } from './Kbd'
 
 export type MenuItem =
@@ -30,6 +30,7 @@ export function DropdownMenu({ trigger, items }: DropdownMenuProps) {
           sideOffset={6}
           align="start"
           {...floatingProps}
+          onCloseAutoFocus={keepFocusIfMoved}
           className={`${floatingClass} min-w-40 p-1`}
         >
           {items.map((item, i) =>

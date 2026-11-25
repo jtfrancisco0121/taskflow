@@ -4,6 +4,7 @@ import { messageOf } from '../../api/errors'
 import type { ViewConfig, ViewDto } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 import { Button } from '../../shared/ui/Button'
+import { Select } from '../../shared/ui/Select'
 import { useMembers } from '../workspace'
 import { viewPath, type ViewScope } from './scope'
 import { useDeleteView, useSaveView, viewKey } from './useViews'
@@ -194,28 +195,24 @@ function NewViewForm({
       </label>
       <label className="flex flex-col">
         Type
-        <select
+        <Select
           value={type}
           disabled={lockType}
-          onChange={(e) => setType(e.target.value as ViewType)}
-        >
-          {TYPES.map((t) => (
-            <option key={t} value={t}>
-              {TYPE_LABEL[t]}
-            </option>
-          ))}
-        </select>
+          onValueChange={(next) => setType(next as ViewType)}
+          options={TYPES.map((t) => ({ value: t, label: TYPE_LABEL[t] }))}
+        />
       </label>
       <label className="flex flex-col">
         Who can see it
-        <select
+        <Select
           value={visibility}
-          onChange={(e) => setVisibility(e.target.value as typeof visibility)}
-        >
-          <option value="SHARED">Everyone who can see this place</option>
-          <option value="PERSONAL">Only me</option>
-          <option value="PRIVATE">Me and people I choose</option>
-        </select>
+          onValueChange={(next) => setVisibility(next as typeof visibility)}
+          options={[
+            { value: 'SHARED', label: 'Everyone who can see this place' },
+            { value: 'PERSONAL', label: 'Only me' },
+            { value: 'PRIVATE', label: 'Me and people I choose' },
+          ]}
+        />
       </label>
       {visibility === 'PRIVATE' && (
         <fieldset className="flex flex-wrap gap-2">

@@ -1,6 +1,6 @@
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import type { ReactElement, ReactNode } from 'react'
-import { floatingClass, floatingProps } from './floating'
+import { floatingClass, floatingProps, keepFocusIfMoved } from './floating'
 
 type PopoverProps = {
   /** One element: it opens and closes the popover. */
@@ -22,6 +22,7 @@ export function Popover({ trigger, children, open, onOpenChange, label }: Popove
           aria-label={label}
           sideOffset={6}
           {...floatingProps}
+          onCloseAutoFocus={keepFocusIfMoved}
           className={`${floatingClass} p-3`}
         >
           {children}

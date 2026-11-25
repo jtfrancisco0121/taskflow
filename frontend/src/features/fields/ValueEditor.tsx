@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import type { FieldView } from '../../api/types'
 import { toApiDate, toInputDay } from '../../shared/dates'
+import { Select } from '../../shared/ui/Select'
 import { isEmpty } from './format'
 import { PeopleEditor } from './People'
 
@@ -121,21 +122,20 @@ export function ValueEditor(props: ValueEditorProps) {
       )
     case 'DROPDOWN':
       return (
-        <select
+        <Select
           aria-label={label}
           disabled={disabled}
           autoFocus={props.autoFocus}
           value={typeof value === 'string' ? value : ''}
-          onChange={(event) => onCommit(event.target.value === '' ? null : event.target.value)}
-          className={inputClass}
-        >
-          <option value="">—</option>
-          {field.options?.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.name}
-            </option>
-          ))}
-        </select>
+          onValueChange={(next) => onCommit(next === '' ? null : next)}
+          options={[
+            { value: '', label: '—' },
+            ...(field.options ?? []).map((option) => ({
+              value: option.id ?? '',
+              label: option.name ?? '',
+            })),
+          ]}
+        />
       )
     case 'LABELS': {
       const selected = Array.isArray(value) ? (value as string[]) : []

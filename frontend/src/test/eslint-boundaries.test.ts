@@ -76,3 +76,31 @@ describe('the component library owns Radix and cmdk (slice 2, AD-4)', () => {
     expect(result.messages.filter((m) => m.ruleId === 'no-restricted-imports')).toHaveLength(2)
   })
 })
+
+describe('no native <select> in product code (slice 2, AD-5)', () => {
+  const code = 'export const A = () => <select aria-label="Pick" />\n'
+
+  it('rejects a native select in a feature file', async () => {
+    expect(await ruleIds(code, 'src/features/tasks/TaskFields.tsx')).toContain(
+      'no-restricted-syntax',
+    )
+  })
+
+  it('allows it in the two named exceptions, test files and test helpers', async () => {
+    for (const file of [
+      'src/features/views/FilterBuilder.tsx',
+      'src/features/fields/FilterInput.tsx',
+      'src/features/views/Anything.test.tsx',
+      'src/test/ui.test.tsx',
+    ]) {
+      expect(await ruleIds(code, file), file).not.toContain('no-restricted-syntax')
+    }
+  })
+
+  it('keeps the test guards on test files', async () => {
+    const guarded = "import { x } from 'y'\nx.selectOptions(a, b)\n"
+    expect(await ruleIds(guarded, 'src/features/views/Anything.test.tsx')).toContain(
+      'no-restricted-syntax',
+    )
+  })
+})

@@ -8,6 +8,7 @@ import {
   openFields,
   row,
   signUpAndCreateWorkspace,
+  statusOf,
 } from './helpers'
 import { pick } from './ui'
 import { snap } from './screenshots'
@@ -58,6 +59,13 @@ test('UJ-2: a Customer tier column is edited inline in Table and List, and shows
   await pick(page.getByLabel(/^Customer tier for /), 'Pro')
   await expect(row(page, 'Beta').getByRole('button', { name: 'Customer tier: Pro' })).toBeVisible()
   await snap(page, testInfo, 'fields-cells-list')
+
+  // AD-12: picking a status in a row is a pick in a portalled listbox; it must not reach the row's click
+  // handler, which would open the task panel.
+  await pick(row(page, 'Beta').getByLabel(/^Status of/), 'in progress')
+  await expect(statusOf(page, 'Beta')).toHaveText('in progress')
+  await expect(page).not.toHaveURL(/\/t\//)
+  await expect(page.getByRole('complementary', { name: /^Task / })).toBeHidden()
 
   // Board: a chip per card that has a value.
   await page.getByRole('tab', { name: 'Board' }).click()

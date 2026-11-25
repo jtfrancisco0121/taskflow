@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { AutomationsPage } from './AutomationsPage'
-import { findOption, pick } from '../../test/ui'
+import { expectValue, findOption, optionsOf, pick } from '../../test/ui'
 
 const baseRoutes = {
   'GET /api/v1/workspaces/:id/members': {
@@ -116,6 +116,56 @@ describe('CAP-8 Automations page', () => {
       actions: [{ type: 'ADD_COMMENT', text: 'Shipped' }],
     })
     expect(post.headers.get('Idempotency-Key')).toBeTruthy()
+  })
+
+  it('saves "Any status" and "A specific person (optional)" with the same payloads as before (CAP-8)', async () => {
+    const stub = serve(
+      { locationId: 'l1', canEdit: true, limit: 50, rules: [] },
+      { 'POST /api/v1/locations/:id/automations': () => json(rule(), 201) },
+    )
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'New rule' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText('Rule name'), 'Any status')
+    const from = within(dialog).getByLabelText('From status (optional)')
+    const to = within(dialog).getByLabelText('To status (optional)')
+    await pick(user, from, 'Done')
+    await pick(user, to, 'Done')
+    // "Any status" is a real choice that stores '': picking it again clears the status.
+    await pick(user, from, 'Any status')
+    expectValue(from, 'Any status')
+    await pick(user, within(dialog).getByLabelText('Action type'), 'Send notification')
+    const person = within(dialog).getByLabelText('Person to notify')
+    await pick(user, person, 'Omar Haddad')
+    await pick(user, person, 'A specific person (optional)')
+    expectValue(person, 'A specific person (optional)')
+    await user.type(within(dialog).getByLabelText('Message'), 'Done!')
+    await user.click(within(dialog).getByRole('button', { name: 'Create rule' }))
+    await waitFor(() => expect(stub.count('POST', /automations$/)).toBe(1))
+    const post = stub.calls.find((c) => c.method === 'POST')!
+    expect(post.body).toMatchObject({
+      trigger: { type: 'STATUS_CHANGED', toStatuses: ['Done'] },
+      actions: [{ type: 'SEND_NOTIFICATION', personIds: [], message: 'Done!' }],
+    })
+    expect((post.body as { trigger: object }).trigger).not.toHaveProperty('fromStatuses')
+  })
+
+  it('never lists a "Choose a ..." prompt as an option (AD-11)', async () => {
+    serve({ locationId: 'l1', canEdit: true, limit: 50, rules: [] })
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'New rule' }))
+    const dialog = await screen.findByRole('dialog')
+    await pick(user, within(dialog).getByLabelText('Action type'), 'Change status')
+    const status = within(dialog).getByLabelText('Status')
+    expect(status).toHaveTextContent('Choose a status')
+    expect(await optionsOf(user, status)).toEqual(['To do', 'Done'])
+    expect(await optionsOf(user, within(dialog).getByLabelText('From status (optional)'))).toEqual([
+      'Any status',
+      'To do',
+      'Done',
+    ])
   })
 
   it('shows a server error next to its field', async () => {
