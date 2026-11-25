@@ -7,7 +7,12 @@ import { expect } from 'vitest'
  * (a native <select> today, a Radix-style trigger with a floating listbox or menu later).
  * Options are always named by their visible label, never by their value, so a test keeps
  * working when a control is swapped. `{ index: n }` is the documented fallback when an
- * option has no stable name; it counts only real options (a placeholder is skipped).
+ * option has no stable name. `optionsOf` and `{ index }` list the options a user can pick (AD-11):
+ * a placeholder never counts, and a disabled option never counts. On a native <select> a placeholder is the
+ * option with value=""; on the library Select (Radix) it is shown on the trigger and is never an item, while a
+ * real "" choice such as "Any status" is an item and is listed. A native select with a real "" choice is not
+ * supported: the lint rule bans new native selects, and the two that remain (FilterBuilder, FilterInput) use
+ * "" only as a placeholder.
  * ESLint keeps tests from calling `selectOptions`, `toHaveDisplayValue` or casting to
  * HTMLSelectElement; `toHaveValue` and option queries on a select are kept out by review.
  */
@@ -39,9 +44,16 @@ export async function open(user: UserEvent, trigger: HTMLElement): Promise<HTMLE
 const itemRole = (popup: HTMLElement) =>
   popup.getAttribute('role') === 'menu' ? 'menuitem' : 'option'
 
-async function close(user: UserEvent) {
+/** The items a user can pick: a disabled (aria-disabled) item does not count. */
+const pickable = (popup: HTMLElement) =>
+  within(popup)
+    .getAllByRole(itemRole(popup))
+    .filter((item) => item.getAttribute('aria-disabled') !== 'true')
+
+/** Closes the popup this call opened and waits for that element to leave the DOM, not for every popup. */
+async function close(user: UserEvent, popup: HTMLElement) {
   await user.keyboard('{Escape}')
-  await waitFor(() => expect(document.querySelector('[role="listbox"],[role="menu"]')).toBeNull())
+  await waitFor(() => expect(popup.isConnected).toBe(false))
 }
 
 /** Picks an option by its visible label (or `{ index }`, placeholders not counted). */
@@ -64,7 +76,7 @@ export async function pick(user: UserEvent, control: HTMLElement, option: Option
   const item =
     typeof option === 'string'
       ? within(popup).getByRole(role, { name: option })
-      : within(popup).getAllByRole(role)[option.index]
+      : pickable(popup)[option.index]
   await user.click(item)
 }
 
@@ -80,10 +92,10 @@ export function expectValue(control: HTMLElement, label: string) {
 
 /** The visible labels of the control's options, in order. */
 export async function optionsOf(user: UserEvent, control: HTMLElement): Promise<string[]> {
-  if (isNative(control)) return Array.from(control.options).map(textOf)
+  if (isNative(control)) return realOptions(control).map(textOf)
   const popup = await open(user, control)
-  const labels = within(popup).getAllByRole(itemRole(popup)).map(textOf)
-  await close(user)
+  const labels = pickable(popup).map(textOf)
+  await close(user, popup)
   return labels
 }
 
@@ -96,6 +108,6 @@ export async function findOption(
   if (isNative(control)) return textOf(await within(control).findByRole('option', { name: label }))
   const popup = await open(user, control)
   const found = textOf(await within(popup).findByRole(itemRole(popup), { name: label }))
-  await close(user)
+  await close(user, popup)
   return found
 }
