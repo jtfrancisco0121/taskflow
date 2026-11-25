@@ -5,6 +5,7 @@ import { api } from '../../api/client'
 import { messageOf, unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
 import type { SearchHit } from '../../api/types'
+import { isTypingTarget } from '../../shared/ui/typing'
 
 const DEBOUNCE_MS = 250
 
@@ -48,8 +49,7 @@ export function SearchBox({ workspaceId }: { workspaceId: string }) {
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return
-      const target = event.target as HTMLElement | null
-      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (isTypingTarget(event.target)) return
       event.preventDefault()
       inputRef.current?.focus()
     }
