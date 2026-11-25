@@ -18,25 +18,29 @@ test('UJ-1: create, edit, disable and delete a rule on a List', async ({ page },
   await expect(page.getByText('No rules here yet')).toBeVisible()
   await snap(page, testInfo, 'automations-empty')
 
+  // AD-9: the open builder with its Trigger select open, in Light and in Aurora, with the theme chosen through
+  // the real switcher. (No full-page screenshot while the listbox is open: it resizes the viewport, which closes
+  // a Radix Select.)
+  const themes = page.getByRole('group', { name: 'Theme' })
+  for (const [button, label] of [
+    ['Light', 'light'],
+    ['Aurora', 'dark'],
+  ]) {
+    await themes.getByRole('button', { name: button }).click()
+    await page.getByRole('button', { name: 'New rule' }).click()
+    const scanned = page.getByRole('dialog', { name: 'New rule' })
+    const listbox = await open(scanned.getByLabel('Trigger'))
+    await expectNoContrastViolations(page, `RuleBuilder with an open Select, ${label}`)
+    await page.keyboard.press('Escape')
+    await expect(listbox).toBeHidden()
+    await page.keyboard.press('Escape')
+    await expect(scanned).toBeHidden()
+  }
+  await themes.getByRole('button', { name: 'System' }).click()
+
   await page.getByRole('button', { name: 'New rule' }).click()
   const dialog = page.getByRole('dialog', { name: 'New rule' })
   await dialog.getByLabel('Rule name').fill('Done notes')
-
-  // AD-9: the open builder with its Trigger select open, in Light and in Aurora. (No full-page screenshot while
-  // the listbox is open: it resizes the viewport, which closes a Radix Select.)
-  const trigger = dialog.getByLabel('Trigger')
-  const listbox = await open(trigger)
-  for (const theme of ['light', 'dark']) {
-    await page.evaluate(
-      (value) => document.documentElement.setAttribute('data-theme', value),
-      theme,
-    )
-    await expectNoContrastViolations(page, `RuleBuilder with an open Select, ${theme}`)
-  }
-  await page.evaluate(() => document.documentElement.removeAttribute('data-theme'))
-  await page.keyboard.press('Escape')
-  await expect(listbox).toBeHidden()
-  await expect(dialog).toBeVisible()
 
   await pick(dialog.getByLabel('To status (optional)'), 'complete')
   await dialog.getByLabel('Comment text').fill('Shipped, thanks')

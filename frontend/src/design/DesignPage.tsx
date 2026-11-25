@@ -198,7 +198,6 @@ export function DesignPage() {
               {
                 heading: 'Tasks',
                 filter: false,
-                status: { kind: 'loading', text: 'Searching…' },
                 items: [
                   {
                     value: 'task:1',
