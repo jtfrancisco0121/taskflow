@@ -25,7 +25,17 @@ export function useLoadedLocations(workspaceId: string | undefined): TreeNode[] 
       )
     }
     read()
-    return queryClient.getQueryCache().subscribe(read)
+    let live = true
+    const unsubscribe = queryClient.getQueryCache().subscribe(() => {
+      // Defer: the cache notifies synchronously while another component renders.
+      queueMicrotask(() => {
+        if (live) read()
+      })
+    })
+    return () => {
+      live = false
+      unsubscribe()
+    }
   }, [workspaceId, queryClient])
   return workspaceId ? nodes : []
 }

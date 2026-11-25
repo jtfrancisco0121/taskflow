@@ -160,6 +160,14 @@ const palette = (page: Page) => page.getByRole('dialog', { name: 'Command palett
 const paletteField = (page: Page) =>
   page.getByRole('combobox', { name: 'Search commands and tasks' })
 
+async function enterOn(page: Page, name: string | RegExp) {
+  await expect(palette(page).getByRole('option', { name }).first()).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await page.keyboard.press('Enter')
+}
+
 test('SM-2: a task, a List, a Theme and the Inbox are reachable from the palette', async ({
   page,
 }) => {
@@ -183,12 +191,12 @@ test('SM-2: a task, a List, a Theme and the Inbox are reachable from the palette
   await expect(page.getByRole('treeitem', { name: 'Platform' })).toBeVisible()
   await page.keyboard.press('ControlOrMeta+k')
   await paletteField(page).fill('Platf')
-  await page.keyboard.press('Enter')
+  await enterOn(page, /Platform/)
   await expect(page.getByRole('heading', { name: 'Platform', level: 1 })).toBeVisible()
 
   await page.keyboard.press('ControlOrMeta+k')
   await paletteField(page).fill('Aurora')
-  await page.keyboard.press('Enter')
+  await enterOn(page, /Aurora/)
   await expect(palette(page)).toHaveCount(0)
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await page.reload()
@@ -196,15 +204,15 @@ test('SM-2: a task, a List, a Theme and the Inbox are reachable from the palette
 
   await page.keyboard.press('ControlOrMeta+k')
   await paletteField(page).fill('Go to Inbox')
-  await page.keyboard.press('Enter')
+  await enterOn(page, /Inbox/)
   await expect(page.getByRole('heading', { name: 'Inbox' })).toBeVisible()
   await page.keyboard.press('ControlOrMeta+k')
   await paletteField(page).fill('notification settings')
-  await page.keyboard.press('Enter')
+  await enterOn(page, /notification/i)
   await expect(page).toHaveURL(/\/settings\/notifications$/)
   await page.keyboard.press('ControlOrMeta+k')
   await paletteField(page).fill('service accounts')
-  await page.keyboard.press('Enter')
+  await enterOn(page, /service account/i)
   await expect(page).toHaveURL(/\/settings\/service-accounts$/)
 })
 
