@@ -3,6 +3,7 @@ import { cleanup } from '@testing-library/react'
 import { afterEach, vi } from 'vitest'
 import { clearSession, resetSessionForTests } from '../api/session'
 import { useToastStore } from '../shared/toast-store'
+import { useThemeStore } from '../shared/theme/theme-store'
 import { useUiStore } from '../shared/ui-store'
 
 // AD-12: component tests stub HTTP by giving `api` a stub fetch (see installFetch in test/api.tsx).
@@ -69,6 +70,8 @@ afterEach(() => {
   if (typeof localStorage !== 'undefined') localStorage.clear()
   if (typeof sessionStorage !== 'undefined') sessionStorage.clear()
   useToastStore.setState({ toasts: [] })
+  if (typeof document !== 'undefined') document.documentElement.removeAttribute('data-theme')
+  useThemeStore.setState({ choice: 'system' })
   useUiStore.setState({ sidebarOpen: true, creatingSpace: false, expanded: {} })
 })
 

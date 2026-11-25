@@ -3,6 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // Pre-paint theme bootstrap (AD-1). Keep key and values equal to theme-store.ts.
+      try {
+        var t = localStorage.getItem('taskflow:theme')
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t)
+      } catch (e) {}
+    </script>
     <title>Taskflow</title>
   </head>
   <body>

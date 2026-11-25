@@ -20,10 +20,10 @@ import { Skeleton } from '../shared/ui/Skeleton'
 import { StatusBadge } from '../shared/ui/StatusBadge'
 import { StatusPill } from '../shared/ui/StatusPill'
 import { Switch } from '../shared/ui/Switch'
+import { ThemeSwitcher } from '../shared/ui/ThemeSwitcher'
 import { Textarea } from '../shared/ui/Textarea'
 import { TextField } from '../shared/ui/TextField'
 import { Tooltip } from '../shared/ui/Tooltip'
-import { ThemeToggle } from './ThemeToggle'
 
 const STATUSES = [
   { value: 'todo', label: 'To do' },
@@ -59,7 +59,7 @@ export function DesignPage() {
   return (
     <main data-tf-design-page className="mx-auto flex max-w-5xl flex-col gap-4 p-6">
       <PageHeader title="Design system">
-        <ThemeToggle />
+        <ThemeSwitcher />
       </PageHeader>
 
       <Section title="Buttons">
