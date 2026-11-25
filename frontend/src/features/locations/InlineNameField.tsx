@@ -63,7 +63,7 @@ export function InlineNameField({
             onCancel()
           }
         }}
-        className="w-full rounded border border-slate-300 px-1.5 py-0.5 text-sm focus:outline-2 focus:outline-blue-600"
+        className="w-full rounded border border-line-strong px-1.5 py-0.5 text-sm focus:outline-2 focus:outline-focus-ring"
       />
       {withPrivate && (
         <label className="mt-1 flex items-center gap-1 text-xs">
@@ -76,12 +76,12 @@ export function InlineNameField({
         </label>
       )}
       {pending && (
-        <p role="status" className="text-xs text-slate-500">
+        <p role="status" className="text-xs text-muted">
           Saving…
         </p>
       )}
       {error != null && (
-        <p role="alert" className="text-xs text-red-700">
+        <p role="alert" className="text-xs text-danger">
           {messageOf(error)}
         </p>
       )}

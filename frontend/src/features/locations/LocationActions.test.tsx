@@ -229,6 +229,21 @@ describe('Location actions', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('Shift+F10 on a tree item opens its actions with the first item focused; Escape returns to the item', async () => {
+    backend(base)
+    const user = userEvent.setup()
+    renderTree()
+
+    const item = await screen.findByRole('treeitem', { name: 'Marketing' })
+    item.focus()
+    await user.keyboard('{Shift>}{F10}{/Shift}')
+    const menu = await screen.findByRole('menu', { name: 'Marketing actions' })
+    await waitFor(() => expect(within(menu).getAllByRole('menuitem')[0]).toHaveFocus())
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    await waitFor(() => expect(item).toHaveFocus())
+  })
+
   it('FR-13: a Space has no Move action', async () => {
     backend(base)
     const user = userEvent.setup()

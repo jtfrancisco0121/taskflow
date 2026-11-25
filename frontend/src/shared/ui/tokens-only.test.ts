@@ -5,12 +5,26 @@ import { describe, expect, it } from 'vitest'
 const PALETTES =
   'white|black|slate|gray|zinc|neutral|stone|red|amber|yellow|orange|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|lime'
 
-describe('src/shared/ui and src/design use tokens only', () => {
-  const files = import.meta.glob(['./**/*.tsx', '../../design/**/*.tsx'], {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>
+describe('the library, /design, the shell and the rebuilt feature files use tokens only', () => {
+  // AD-8: the library, /design, the app shell and the feature files rebuilt on tokens.
+  const files = import.meta.glob(
+    [
+      './**/*.tsx',
+      '../../design/**/*.tsx',
+      '../../app/**/*.tsx',
+      '../../features/locations/{SidebarTree,TreeItem,TreeItemMenu,InlineNameField}.tsx',
+      '../../features/workspace/WorkspaceSwitcher.tsx',
+      '../../features/notifications/{NotificationBell,InboxLink}.tsx',
+      '../../features/search/SearchBox.tsx',
+      '../../features/serviceAccounts/ServiceAccountsLink.tsx',
+      '../../features/tasks/{TaskPanelRoute,TaskPanel}.tsx',
+    ],
+    {
+      query: '?raw',
+      import: 'default',
+      eager: true,
+    },
+  ) as Record<string, string>
 
   it('scans the library', () => {
     expect(Object.keys(files).length).toBeGreaterThan(5)

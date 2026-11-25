@@ -4,7 +4,7 @@ import type { ViewDto } from '../../api/types'
 import { useState, useRef } from 'react'
 import { Link } from 'react-router'
 import { Button } from '../../shared/ui/Button'
-import { useLocationInfo } from '../locations'
+import { automationsPath, useLocationInfo } from '../locations'
 import { StatusesDialog } from '../statuses'
 import { QuickAdd } from '../tasks'
 import { BoardRenderer } from './BoardRenderer'
@@ -63,7 +63,7 @@ export function ViewPage({
         {type && <span className="text-sm text-slate-500">{TYPE_NAME[type]}</span>}
         {location.data && type && scope.locationId && (
           <Link
-            to={`/w/${scope.workspaceId}/l/${scope.locationId}/automations`}
+            to={automationsPath(scope.workspaceId, scope.locationId)}
             className="ml-auto rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-slate-100"
           >
             Automations

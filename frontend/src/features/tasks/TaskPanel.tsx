@@ -82,7 +82,7 @@ export function TaskPanel({ taskId, onClose, children }: TaskPanelProps) {
       <aside
         role="complementary"
         aria-label="Task"
-        className="w-96 shrink-0 border-l border-slate-200 bg-white p-4"
+        className="w-96 shrink-0 border-l border-line bg-surface p-4"
         onKeyDown={onKeyDown}
       >
         <p>{status === 403 || status === 404 ? 'Task not found.' : messageOf(query.error)}</p>
@@ -98,12 +98,12 @@ export function TaskPanel({ taskId, onClose, children }: TaskPanelProps) {
         role="complementary"
         aria-label="Task"
         aria-busy="true"
-        className="w-96 shrink-0 border-l border-slate-200 bg-white p-4"
+        className="w-96 shrink-0 border-l border-line bg-surface p-4"
       >
         <div className="flex animate-pulse flex-col gap-3">
-          <div className="h-6 rounded bg-slate-200" />
-          <div className="h-4 rounded bg-slate-200" />
-          <div className="h-4 rounded bg-slate-200" />
+          <div className="h-6 rounded bg-surface-3" />
+          <div className="h-4 rounded bg-surface-3" />
+          <div className="h-4 rounded bg-surface-3" />
         </div>
       </aside>
     )
@@ -234,11 +234,11 @@ function TaskPanelBody({ task, panelRef, onClose, onKeyDown, children }: BodyPro
       role="complementary"
       aria-label={`Task ${task.readableId}`}
       onKeyDown={onKeyDown}
-      className="flex max-h-screen w-96 shrink-0 flex-col gap-3 overflow-auto border-l border-slate-200 bg-white p-4"
+      className="flex h-full max-h-full w-96 shrink-0 flex-col gap-3 overflow-auto border-l border-line bg-surface p-4"
     >
       <header className="flex items-center justify-between">
         <span className="flex items-center gap-2">
-          <span className="font-mono text-sm text-slate-500">{task.readableId}</span>
+          <span className="font-mono text-sm text-muted">{task.readableId}</span>
           {task.blocked && (
             <button
               type="button"
@@ -258,7 +258,7 @@ function TaskPanelBody({ task, panelRef, onClose, onKeyDown, children }: BodyPro
             type="button"
             aria-label="Close task panel"
             onClick={onClose}
-            className="rounded px-2 text-xl leading-none hover:bg-slate-100"
+            className="rounded px-2 text-xl leading-none hover:bg-surface-2"
           >
             ×
           </button>

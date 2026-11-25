@@ -47,6 +47,8 @@ test('UJ-2: an assignment in A raises the bell in B within 2 seconds, and markin
       assigneeIds: [b.id],
     })
     await expect(pageB.getByTestId('unread-badge')).toHaveText(String(i), { timeout: 4000 })
+    // FR-11: the sidebar Inbox link follows the same count without a reload
+    if (i === 1) await expect(pageB.getByRole('link', { name: 'Inbox, 1 unread' })).toBeVisible()
     elapsed.push(Date.now() - started)
   }
   elapsed.sort((x, y) => x - y)

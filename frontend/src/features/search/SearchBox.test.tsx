@@ -56,6 +56,28 @@ describe('SEARCH-1 search box', () => {
     expect(screen.getByRole('combobox', { name: 'Search tasks' })).not.toHaveFocus()
   })
 
+  it('pressing / does not steal focus from a library Select trigger or a floating layer', async () => {
+    serve()
+    const user = userEvent.setup()
+    render()
+    const trigger = document.createElement('button')
+    trigger.setAttribute('role', 'combobox')
+    trigger.textContent = 'Status'
+    const floating = document.createElement('div')
+    floating.setAttribute('data-tf-floating', '')
+    const inner = document.createElement('button')
+    inner.textContent = 'Item'
+    floating.append(inner)
+    document.body.append(trigger, floating)
+    for (const node of [trigger, inner]) {
+      node.focus()
+      await user.keyboard('/')
+      expect(node).toHaveFocus()
+    }
+    trigger.remove()
+    floating.remove()
+  })
+
   it('shows readable id, title, List name and a highlighted snippet', async () => {
     const stub = serve()
     const user = userEvent.setup()

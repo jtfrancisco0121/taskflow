@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes, useParams } from 'react-router'
 import { describe, expect, it } from 'vitest'
@@ -72,6 +72,19 @@ describe('WorkspaceSwitcher', () => {
 
     expect(await screen.findByRole('menuitemradio', { name: /Beta/ })).toBeVisible()
     expect(stub.calls.at(-1)!.url.searchParams.get('cursor')).toBe('c2')
+  })
+
+  it('Escape closes the menu and focus returns to the switcher', async () => {
+    installFetch({ 'GET /api/v1/workspaces': { items: [acme, beta] } })
+    const user = userEvent.setup()
+    renderApp('/w/w1')
+
+    const trigger = await screen.findByRole('button', { name: 'Workspace switcher' })
+    await user.click(trigger)
+    await screen.findByRole('menu')
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    await waitFor(() => expect(trigger).toHaveFocus())
   })
 
   it('FR-7: / restores the last Workspace', async () => {

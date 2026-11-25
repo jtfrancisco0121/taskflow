@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { formatDateTime, relativeTime } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
+import { Popover } from '../../shared/ui/Popover'
 import { useUserTopic } from '../realtime'
+import { inboxPath, notificationSettingsPath } from './routes'
 import { notificationText } from './notificationText'
 import {
   useInbox,
@@ -17,7 +19,6 @@ export function NotificationBell({ workspaceId }: { workspaceId: string }) {
   const count = useUnreadCount(workspaceId)
   const refresh = useRefreshInbox(workspaceId)
   const [open, setOpen] = useState(false)
-  const button = useRef<HTMLButtonElement>(null)
   const unread = count.data?.count ?? 0
   const label = unread > 99 ? '99+' : String(unread)
 
@@ -41,67 +42,46 @@ export function NotificationBell({ workspaceId }: { workspaceId: string }) {
 
   return (
     <div className="relative">
-      <button
-        ref={button}
-        type="button"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-label={unread > 0 ? `Notifications, ${label} unread` : 'Notifications'}
-        onClick={() => setOpen((o) => !o)}
-        className="relative rounded border border-slate-300 px-2 py-1 text-sm hover:bg-slate-100 focus:outline-2 focus:outline-offset-2 focus:outline-blue-600"
-      >
-        <span aria-hidden="true">🔔</span>
-        {unread > 0 && (
-          <span
-            data-testid="unread-badge"
-            className="ml-1 rounded-full bg-red-600 px-1.5 py-0.5 text-xs font-semibold text-white"
+      <Popover
+        open={open}
+        onOpenChange={setOpen}
+        label="Notifications"
+        trigger={
+          <button
+            type="button"
+            aria-label={unread > 0 ? `Notifications, ${label} unread` : 'Notifications'}
+            className="relative rounded-md border border-line-strong bg-surface px-2 py-1 text-[13px] text-fg hover:bg-surface-2"
           >
-            {label}
-          </span>
-        )}
-      </button>
+            <span aria-hidden="true">🔔</span>
+            {unread > 0 && (
+              <span
+                data-testid="unread-badge"
+                className="ml-1 rounded-full bg-danger px-1.5 py-0.5 text-xs font-semibold text-danger-fg"
+              >
+                {label}
+              </span>
+            )}
+          </button>
+        }
+      >
+        <NotificationList workspaceId={workspaceId} onClose={() => setOpen(false)} />
+      </Popover>
       <div role="status" aria-live="polite" className="sr-only">
         {announcement}
       </div>
-      {open && (
-        <Popover
-          workspaceId={workspaceId}
-          onClose={() => {
-            setOpen(false)
-            button.current?.focus()
-          }}
-        />
-      )}
     </div>
   )
 }
 
-function Popover({ workspaceId, onClose }: { workspaceId: string; onClose: () => void }) {
+function NotificationList({ workspaceId, onClose }: { workspaceId: string; onClose: () => void }) {
   const inbox = useInbox(workspaceId, false, 20)
   const setRead = useSetRead(workspaceId)
   const markAll = useMarkAllRead(workspaceId)
   const navigate = useNavigate()
   const items = inbox.data?.pages[0]?.items ?? []
 
-  // Escape closes the popover from wherever focus is, and the bell gets focus back.
-  const close = useRef(onClose)
-  useEffect(() => {
-    close.current = onClose
-  })
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close.current()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [])
-
   return (
-    <div
-      role="dialog"
-      aria-label="Notifications"
-      className="absolute right-0 z-30 mt-1 w-96 rounded-lg border border-slate-200 bg-white p-2 shadow-xl"
-    >
+    <div className="w-96">
       <div className="mb-1 flex items-center gap-2 px-1">
         <h2 className="text-sm font-semibold">Notifications</h2>
         <Button
@@ -118,12 +98,12 @@ function Popover({ workspaceId, onClose }: { workspaceId: string; onClose: () =>
         </p>
       )}
       {inbox.isError && (
-        <p role="alert" className="p-2 text-sm text-red-700">
+        <p role="alert" className="p-2 text-sm text-danger">
           Couldn&apos;t load notifications.
         </p>
       )}
       {inbox.isSuccess && items.length === 0 && (
-        <p className="p-2 text-sm text-slate-600">No notifications yet.</p>
+        <p className="p-2 text-sm text-muted">No notifications yet.</p>
       )}
       <ul className="m-0 max-h-96 list-none overflow-auto p-0">
         {items.map((n) => (
@@ -135,13 +115,13 @@ function Popover({ workspaceId, onClose }: { workspaceId: string; onClose: () =>
                 onClose()
                 void navigate(`/t/${n.taskId}`)
               }}
-              className={`flex w-full flex-col gap-0.5 rounded px-2 py-1.5 text-left text-sm hover:bg-slate-100 ${n.read ? 'text-slate-600' : 'font-medium'}`}
+              className={`flex w-full flex-col gap-0.5 rounded px-2 py-1.5 text-left text-sm hover:bg-surface-2 ${n.read ? 'text-muted' : 'font-medium'}`}
             >
               <span>{notificationText(n)}</span>
               <time
                 dateTime={n.createdAt}
                 title={formatDateTime(n.createdAt)}
-                className="text-xs font-normal text-slate-500"
+                className="text-xs font-normal text-faint"
               >
                 {relativeTime(n.createdAt)}
               </time>
@@ -149,14 +129,14 @@ function Popover({ workspaceId, onClose }: { workspaceId: string; onClose: () =>
           </li>
         ))}
       </ul>
-      <div className="mt-1 flex items-center gap-3 border-t border-slate-200 px-1 pt-2 text-sm">
-        <Link to={`/w/${workspaceId}/inbox`} onClick={onClose} className="text-blue-700 underline">
+      <div className="mt-1 flex items-center gap-3 border-t border-line px-1 pt-2 text-sm">
+        <Link to={inboxPath(workspaceId)} onClick={onClose} className="text-accent underline">
           Open inbox
         </Link>
         <Link
-          to={`/w/${workspaceId}/settings/notifications`}
+          to={notificationSettingsPath(workspaceId)}
           onClick={onClose}
-          className="ml-auto text-blue-700 underline"
+          className="ml-auto text-accent underline"
         >
           Settings
         </Link>

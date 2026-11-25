@@ -19,6 +19,7 @@ export function Tooltip({ label, children, delayDuration = 400 }: TooltipProps) 
           <TooltipPrimitive.Content
             sideOffset={6}
             {...floatingProps}
+            data-tf-tooltip=""
             className={`${floatingClass} !border-transparent !bg-fg px-2 py-1 text-xs !text-surface`}
           >
             {label}

@@ -20,10 +20,10 @@ import { Skeleton } from '../shared/ui/Skeleton'
 import { StatusBadge } from '../shared/ui/StatusBadge'
 import { StatusPill } from '../shared/ui/StatusPill'
 import { Switch } from '../shared/ui/Switch'
+import { ThemeSwitcher } from '../shared/ui/ThemeSwitcher'
 import { Textarea } from '../shared/ui/Textarea'
 import { TextField } from '../shared/ui/TextField'
 import { Tooltip } from '../shared/ui/Tooltip'
-import { ThemeToggle } from './ThemeToggle'
 
 const STATUSES = [
   { value: 'todo', label: 'To do' },
@@ -59,7 +59,7 @@ export function DesignPage() {
   return (
     <main data-tf-design-page className="mx-auto flex max-w-5xl flex-col gap-4 p-6">
       <PageHeader title="Design system">
-        <ThemeToggle />
+        <ThemeSwitcher />
       </PageHeader>
 
       <Section title="Buttons">
@@ -187,6 +187,30 @@ export function DesignPage() {
             ]}
           />
         </div>
+        <div className="glass rounded-lg p-2">
+          <Command
+            label="Search server results"
+            groups={[
+              {
+                heading: 'Go to',
+                items: [{ value: 'inbox', label: 'Inbox', onSelect: () => {} }],
+              },
+              {
+                heading: 'Tasks',
+                filter: false,
+                items: [
+                  {
+                    value: 'task:1',
+                    label: 'Matched by description only',
+                    lead: 'TF-12',
+                    detail: 'Launch',
+                    onSelect: () => {},
+                  },
+                ],
+              },
+            ]}
+          />
+        </div>
       </Section>
 
       <Section title="Badges">
@@ -230,6 +254,7 @@ export function DesignPage() {
       {dialog && (
         <Dialog title="Example dialog" onClose={() => setDialog(false)}>
           <p className="mb-3 text-muted">A dialog with a select inside it.</p>
+          <TextField label="Name in dialog" />
           <label htmlFor="design-dialog-select" className="text-xs font-medium text-muted">
             Status in dialog
           </label>

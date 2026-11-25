@@ -8,6 +8,7 @@ import { useUiStore } from '../../shared/ui-store'
 import { InlineNameField } from './InlineNameField'
 import { LocationIcon, LockMarker } from './LocationIcon'
 import { MoveDialog } from './MoveDialog'
+import { locationPath } from './routes'
 import { type MenuAction } from './menuItems'
 import { TreeItemMenu } from './TreeItemMenu'
 import { useCreateLocation, useUpdateLocation } from './useLocationMutations'
@@ -105,7 +106,7 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
         else focusItem(item.parentElement?.closest('[role="treeitem"]'))
         break
       case 'Enter':
-        void navigate(`/w/${workspaceId}/l/${id}`)
+        void navigate(locationPath(workspaceId, id))
         break
       default:
         return
@@ -131,8 +132,8 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
       className="list-none outline-none"
     >
       <div
-        className={`group flex items-center gap-1 rounded py-1 pr-1 text-sm hover:bg-slate-100 focus-within:bg-slate-100 ${
-          locationId === id ? 'bg-blue-50 font-medium' : ''
+        className={`group flex items-center gap-1 rounded py-1 pr-1 text-sm hover:bg-surface-2 focus-within:bg-surface-2 ${
+          locationId === id ? 'bg-accent-soft font-medium' : ''
         }`}
         style={{ paddingLeft: `${(level - 1) * 12 + 4}px` }}
       >
@@ -140,7 +141,7 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
           <span
             aria-hidden="true"
             onClick={() => setExpanded(workspaceId, id, !expanded)}
-            className="w-4 shrink-0 cursor-pointer text-center text-xs text-slate-500"
+            className="w-4 shrink-0 cursor-pointer text-center text-xs text-muted"
           >
             {expanded ? '▾' : '▸'}
           </span>
@@ -174,7 +175,7 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
           </div>
         ) : (
           <NavLink
-            to={`/w/${workspaceId}/l/${id}`}
+            to={locationPath(workspaceId, id)}
             tabIndex={-1}
             className="min-w-0 flex-1 truncate"
           >
@@ -182,7 +183,13 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
           </NavLink>
         )}
         {node.isPrivate && <LockMarker />}
-        <TreeItemMenu node={node} open={menuOpen} onOpenChange={setMenuOpen} onAction={onAction} />
+        <TreeItemMenu
+          node={node}
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+          onAction={onAction}
+          returnFocusTo={() => itemRef.current}
+        />
       </div>
       {(expanded || creating) && (
         <ul role="group" className="m-0 p-0">
@@ -207,12 +214,12 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
             </li>
           )}
           {expanded && children.isPending && node.hasChildren && (
-            <li role="status" className="list-none py-1 pl-8 text-xs text-slate-500">
+            <li role="status" className="list-none py-1 pl-8 text-xs text-muted">
               Loading…
             </li>
           )}
           {expanded && children.isError && (
-            <li role="none" className="list-none py-1 pl-8 text-xs text-red-700">
+            <li role="none" className="list-none py-1 pl-8 text-xs text-danger">
               Couldn&apos;t load.{' '}
               <button type="button" className="underline" onClick={() => void children.refetch()}>
                 Retry
