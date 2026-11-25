@@ -14,6 +14,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -194,11 +195,25 @@ class NotificationProcessor {
         && human(actorId)) {
       watchIfAbsent(workspaceId, taskId, actorId);
     }
-    for (UUID u : assignedNow) {
-      watch(workspaceId, taskId, u, true);
+    // New assignees and mentions watch whether or not a notification row was inserted (the actor
+    // and people who turned the in-app kind off included). Redelivery may re-watch: accepted.
+    Set<UUID> watchNow = new LinkedHashSet<>();
+    if (type.equals("task.created") || type.equals("task.updated")) {
+      watchNow.addAll(added(changes.path("assigneeIds")));
     }
-    for (UUID u : mentionedNow) {
-      watch(workspaceId, taskId, u, true);
+    if (type.equals("comment.created")) {
+      watchNow.addAll(uuids(payload.path("mentions")));
+    }
+    watchNow.addAll(assignedNow);
+    watchNow.addAll(mentionedNow);
+    for (UUID u : watchNow) {
+      if (!human(u)) {
+        continue;
+      }
+      Role role = workspaces.roleOf(workspaceId, u).orElse(null);
+      if (role != null && canView(taskId, u, role)) {
+        watch(workspaceId, taskId, u, true);
+      }
     }
   }
 

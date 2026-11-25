@@ -77,6 +77,17 @@ class WatchingIT extends NotificationSupport {
   }
 
   @Test
+  void aSelfAssignmentWatchesTheActorSoALaterCommentNotifiesThem() {
+    Fx f = fx();
+    UUID task2 = taskFor(f.ws().owner(), f.list(), "T2");
+    long v2 = get("/api/v1/tasks/" + task2, f.ws().member().token()).at("/version").asLong();
+    patchTask(f.ws().member(), task2, v2, Map.of("assigneeIds", List.of(f.ws().member().id())));
+    await(() -> watching(task2, f.ws().member().id()), b -> b);
+    comment(f.ws().admin(), task2, "hello");
+    awaitKind(f.ws().member().id(), task2, "COMMENTED");
+  }
+
+  @Test
   void ruleMadeAndServiceAccountEventsAddNoWatcherForTheirActorButStillNotify() {
     Fx f = fx();
     Agent agent = agent(f.ws().owner(), f.ws().id());

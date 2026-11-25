@@ -143,6 +143,42 @@ class AutomationNotificationMcpIT extends McpTestBase {
   }
 
   @Test
+  void markNotificationReadNeverReachesTheOwnersNotificationsInAnotherWorkspace() {
+    Ws ws = workspaceWithAllRoles();
+    Agent agent = agent(ws.admin(), ws.id(), "scoped-agent", "CI-2");
+    Ws other = workspaceWithAllRoles();
+    addMember(other.id(), ws.admin(), "MEMBER");
+    UUID otherSpace = space(other.owner(), other.id(), "Eng");
+    UUID otherList = list(other.owner(), otherSpace, "Backlog");
+    UUID task =
+        UUID.fromString(
+            post(
+                    "/api/v1/lists/" + otherList + "/tasks",
+                    other.owner().token(),
+                    Map.of("title", "T"))
+                .at("/id")
+                .asText());
+    UUID id = UUID.randomUUID();
+    jdbc.update(
+        "INSERT INTO notification (id, workspace_id, recipient_id, kind, task_id, source_event_id,"
+            + " actor_type, actor_id) VALUES (?, ?, ?, 'ASSIGNED', ?, ?, 'USER', ?)",
+        id,
+        other.id(),
+        ws.admin().id(),
+        task,
+        UUID.randomUUID(),
+        other.owner().id());
+    assertThat(
+            call(agent.secret(), "mark_notification_read", Map.of("notificationId", id.toString()))
+                .isError())
+        .isTrue();
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT read_at IS NULL FROM notification WHERE id = ?", Boolean.class, id))
+        .isTrue();
+  }
+
+  @Test
   void withNoOwnerOrANonMemberOwnerTheInboxToolsFailAndTouchNothing() {
     Ws ws = workspaceWithAllRoles();
     Agent noOwner = agent(ws.admin(), ws.id(), "orphan-1", "k");

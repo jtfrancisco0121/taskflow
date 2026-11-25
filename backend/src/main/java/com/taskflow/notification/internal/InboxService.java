@@ -168,10 +168,19 @@ class InboxService {
   /** Marks one notification read or unread; someone else's (or a missing one) is a 404. */
   @Transactional
   void setRead(UUID notificationId, UUID me, boolean read) {
+    setRead(notificationId, me, read, null);
+  }
+
+  /** As above, and when {@code workspaceId} is given only a notification of that Workspace. */
+  @Transactional
+  void setRead(UUID notificationId, UUID me, boolean read, UUID workspaceId) {
     List<UUID> ws =
         named.queryForList(
-            "SELECT workspace_id FROM notification WHERE id = :id AND recipient_id = :me",
-            new MapSqlParameterSource("id", notificationId).addValue("me", me),
+            "SELECT workspace_id FROM notification WHERE id = :id AND recipient_id = :me"
+                + " AND (CAST(:ws AS uuid) IS NULL OR workspace_id = CAST(:ws AS uuid))",
+            new MapSqlParameterSource("id", notificationId)
+                .addValue("me", me)
+                .addValue("ws", workspaceId),
             UUID.class);
     if (ws.isEmpty()) {
       throw TaskflowException.notFound("notification.not_found", "Notification not found");

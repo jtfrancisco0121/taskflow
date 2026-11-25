@@ -86,7 +86,7 @@ class NotificationAgentTools {
         args -> {
           Scope s = scope();
           UUID id = AgentToolArgs.uuid(args, "notificationId");
-          inbox.setRead(id, s.owner(), true);
+          inbox.setRead(id, s.owner(), true, s.workspaceId());
           return Map.of("notificationId", id.toString(), "read", true);
         });
   }
