@@ -28,7 +28,11 @@ test('UJ-1: create, edit, disable and delete a rule on a List', async ({ page },
   await expect(card.getByRole('switch')).toBeChecked()
   await snap(page, testInfo, 'automations-list')
 
-  await card.getByRole('switch').click()
+  // The toggle is optimistic and leaves `version` stale until the PATCH returns: wait for it before Edit.
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === 'PATCH' && /automations\//.test(r.url())),
+    card.getByRole('switch').click(),
+  ])
   await expect(card.getByRole('switch')).not.toBeChecked()
   await expect(card.getByText('Off')).toBeVisible()
 
