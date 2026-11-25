@@ -75,6 +75,29 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // Slice 1: e2e specs pick, read and list select-like controls only through e2e/ui.ts,
+    // by visible label. (toHaveValue stays legal on text inputs; select reads are reviewed.)
+    files: ['e2e/**/*.ts'],
+    ignores: ['e2e/ui.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.property.name='selectOption']",
+          message: 'Use pick() from e2e/ui.ts: it picks by visible label.',
+        },
+        {
+          selector: 'Literal[value=/option:checked/]',
+          message: 'Use valueOf() or expectValue() from e2e/ui.ts.',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/option:checked/]',
+          message: 'Use valueOf() or expectValue() from e2e/ui.ts.',
+        },
+      ],
+    },
+  },
   ...features.map((feature) =>
     boundary(
       [`src/features/${feature}/**/*.{ts,tsx}`],

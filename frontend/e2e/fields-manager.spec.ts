@@ -23,8 +23,8 @@ test('UJ-1: fields defined on a Space show on its List as inherited, hidden and 
   await expect(dialog.getByRole('button', { name: 'New field' })).toBeVisible()
   await snap(page, testInfo, 'fields-manager-empty')
 
-  await createField(dialog, 'Story points', 'NUMBER')
-  await createField(dialog, 'Customer tier', 'DROPDOWN', ['Free', 'Pro'])
+  await createField(dialog, 'Story points', 'Number')
+  await createField(dialog, 'Customer tier', 'Dropdown', ['Free', 'Pro'])
   await expect(dialog.getByText('Story points')).toBeVisible()
   await expect(dialog.getByText('Customer tier')).toBeVisible()
 
@@ -45,7 +45,7 @@ test('UJ-1: fields defined on a Space show on its List as inherited, hidden and 
 
   // A field on the List itself, and the Space's fields shown as inherited, "from Engineering".
   dialog = await openFields(page, 'Platform')
-  await createField(dialog, 'Notes', 'TEXT')
+  await createField(dialog, 'Notes', 'Text')
   await expect(dialog.getByRole('heading', { name: 'Inherited' })).toBeVisible()
   await expect(dialog.getByText('from Engineering').first()).toBeVisible()
   await expect(dialog.getByText('Story points')).toBeVisible()

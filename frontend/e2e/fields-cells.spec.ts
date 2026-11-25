@@ -9,6 +9,7 @@ import {
   row,
   signUpAndCreateWorkspace,
 } from './helpers'
+import { pick } from './ui'
 import { snap } from './screenshots'
 
 // FIELD-3 (3A S4, UJ-2): custom field columns in Table and List are editable inline, Board cards show chips.
@@ -20,8 +21,8 @@ test('UJ-2: a Customer tier column is edited inline in Table and List, and shows
   await createSpace(page, 'Engineering')
   await createList(page, 'Engineering', 'Backlog')
   const dialog = await openFields(page, 'Engineering')
-  await createField(dialog, 'Customer tier', 'DROPDOWN', ['Free', 'Pro', 'Enterprise'])
-  await createField(dialog, 'Story points', 'NUMBER')
+  await createField(dialog, 'Customer tier', 'Dropdown', ['Free', 'Pro', 'Enterprise'])
+  await createField(dialog, 'Story points', 'Number')
   await dialog.getByRole('button', { name: 'Close' }).click()
   await addTask(page, 'Alpha')
   await addTask(page, 'Beta')
@@ -34,7 +35,7 @@ test('UJ-2: a Customer tier column is edited inline in Table and List, and shows
   await page.getByRole('checkbox', { name: /Story points/ }).click()
   await expect(page.getByRole('columnheader', { name: /Story points/ })).toBeVisible()
   await row(page, 'Alpha').getByRole('button', { name: 'Customer tier: empty' }).click()
-  await page.getByLabel(/^Customer tier for /).selectOption('Enterprise')
+  await pick(page.getByLabel(/^Customer tier for /), 'Enterprise')
   await expect(
     row(page, 'Alpha').getByRole('button', { name: 'Customer tier: Enterprise' }),
   ).toBeVisible()
@@ -54,7 +55,7 @@ test('UJ-2: a Customer tier column is edited inline in Table and List, and shows
   await page.getByRole('checkbox', { name: /Customer tier/ }).click()
   await expect(page.getByRole('columnheader', { name: /Customer tier/ })).toBeVisible()
   await row(page, 'Beta').getByRole('button', { name: 'Customer tier: empty' }).click()
-  await page.getByLabel(/^Customer tier for /).selectOption('Pro')
+  await pick(page.getByLabel(/^Customer tier for /), 'Pro')
   await expect(row(page, 'Beta').getByRole('button', { name: 'Customer tier: Pro' })).toBeVisible()
   await snap(page, testInfo, 'fields-cells-list')
 

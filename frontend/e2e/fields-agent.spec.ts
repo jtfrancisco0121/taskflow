@@ -23,7 +23,7 @@ test('UJ-3: an agent files a task with Customer tier by name; the Table shows it
   await createList(page, 'Engineering', 'Backlog')
   const listId = page.url().match(/\/l\/([0-9a-f-]+)/)![1]
   const dialog = await openFields(page, 'Engineering')
-  await createField(dialog, 'Customer tier', 'DROPDOWN', ['Free', 'Pro', 'Enterprise'])
+  await createField(dialog, 'Customer tier', 'Dropdown', ['Free', 'Pro', 'Enterprise'])
   await dialog.getByRole('button', { name: 'Close' }).click()
 
   // A key through the Settings UI.
