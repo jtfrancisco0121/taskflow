@@ -208,7 +208,8 @@
       radial-gradient(60rem 40rem at 0% 0%, var(--tf-glow-1), transparent 70%),
       radial-gradient(60rem 40rem at 100% 100%, var(--tf-glow-2), transparent 70%),
       radial-gradient(50rem 36rem at 100% 0%, var(--tf-glow-3), transparent 70%);
-    background-attachment: fixed;
+    background-repeat: no-repeat;
+    min-height: 100vh;
     color: var(--tf-fg);
     font-family: var(--tf-font-sans);
     font-size: 13px;
