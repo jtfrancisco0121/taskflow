@@ -182,7 +182,13 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
           </NavLink>
         )}
         {node.isPrivate && <LockMarker />}
-        <TreeItemMenu node={node} open={menuOpen} onOpenChange={setMenuOpen} onAction={onAction} />
+        <TreeItemMenu
+          node={node}
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+          onAction={onAction}
+          returnFocusTo={() => itemRef.current}
+        />
       </div>
       {(expanded || creating) && (
         <ul role="group" className="m-0 p-0">

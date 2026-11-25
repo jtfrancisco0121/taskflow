@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { FOCUSABLE } from './floating'
 
 type DialogProps = {
   title: string
@@ -9,18 +10,6 @@ type DialogProps = {
   restoreFocus?: () => HTMLElement | null
   wide?: boolean
 }
-
-// Skips aria-hidden and tabindex=-1 elements (AD-12): Radix renders a hidden form <select> next to its trigger.
-const FOCUSABLE = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]',
-]
-  .map((selector) => `${selector}:not([aria-hidden="true"]):not([tabindex="-1"])`)
-  .join(',')
 
 /** A modal dialog: focus moves in, Tab is trapped, Escape closes, focus returns to the opener. */
 export function Dialog({ title, onClose, children, restoreFocus, wide }: DialogProps) {
