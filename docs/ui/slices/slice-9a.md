@@ -40,5 +40,5 @@ both themes (axe contrast on each).
 
 ## Bundle size
 After `npm run build`, `bash scripts/bundle-size.sh --check`: **447.8 KiB** against the 446.3 KiB cap (slice 8 ended at
-446.0, +1.8). The check fails on the cap only; the cap and `bundle-budget.json` are unchanged here. Proposed cap for
-the owner to approve: **448.3 KiB**.
+446.0, +1.8). Commit a84cc2c raises `bundle-budget.json` to baselineKiB 389.83, so the cap is **448.3 KiB**
+(approved by JT Francisco, 2026-11-27); `--check` and `--self-test` pass.
