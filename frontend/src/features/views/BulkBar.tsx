@@ -1,6 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
-import { api } from '../../api/client'
+import { useState } from 'react'
 import { queryKeys } from '../../api/queryKeys'
 import type { TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
@@ -11,10 +10,10 @@ import { PRIORITIES, PRIORITY_LABEL } from '../tasks'
 import { runLimited } from './bulk'
 import type { ViewScope } from './scope'
 import { useTaskActions } from './useTaskActions'
+import { useTrashTasks } from './useTrashTasks'
 import { useViewStore } from './viewStore'
 
 const IN_FLIGHT = 6
-const UNDO_MS = 10_000
 
 type Member = { userId?: string; displayName?: string; email?: string }
 
@@ -37,12 +36,10 @@ export function BulkBar({
   const actions = useTaskActions()
   const statuses = useLocationStatuses(scope.workspaceId, scope.locationId)
   const [assignee, setAssignee] = useState('')
-  const [undo, setUndo] = useState<Array<{ id: string; version: number }> | null>(null)
-  const undoTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  useEffect(() => () => clearTimeout(undoTimer.current), [])
+  const trashTasks = useTrashTasks(scope)
 
   const chosen = tasks.filter((t) => selected.includes(t.id!))
-  if (chosen.length === 0 && !undo) return null
+  if (chosen.length === 0) return null
 
   async function fanOut(
     label: string,
@@ -63,59 +60,11 @@ export function BulkBar({
     void queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(scope.workspaceId) })
   }
 
-  async function remove() {
-    const deleted: Array<{ id: string; version: number }> = []
-    const results = await runLimited(
-      chosen,
-      async (task) => {
-        const { response } = await api.DELETE('/api/v1/tasks/{id}', {
-          params: { path: { id: task.id! }, header: { 'If-Match': `"${task.version}"` } },
-        })
-        if (response.ok) deleted.push({ id: task.id!, version: (task.version ?? 0) + 1 })
-        return response.ok ? ('saved' as const) : ('failed' as const)
-      },
-      IN_FLIGHT,
-    )
-    const failed = results.filter((r) => r.result !== 'saved')
-    if (failed.length) {
-      show(`Not deleted: ${failed.map((f) => f.item.readableId).join(', ')}`, 'error')
-    }
-    clear()
-    void queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(scope.workspaceId) })
-    if (deleted.length) {
-      setUndo(deleted)
-      clearTimeout(undoTimer.current)
-      undoTimer.current = setTimeout(() => setUndo(null), UNDO_MS)
-    }
-  }
-
-  async function restore() {
-    const items = undo ?? []
-    setUndo(null)
-    clearTimeout(undoTimer.current)
-    const results = await runLimited(
-      items,
-      async (item) => {
-        const { response } = await api.POST('/api/v1/tasks/{id}/restore', {
-          params: { path: { id: item.id }, header: { 'If-Match': `"${item.version}"` } },
-        })
-        return response.ok
-      },
-      IN_FLIGHT,
-    )
-    const bad = results.filter((r) => !r.result).length
-    show(
-      bad ? `${bad} tasks could not be restored.` : `Restored ${items.length} tasks.`,
-      bad ? 'error' : 'info',
-    )
-    void queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(scope.workspaceId) })
-  }
-
   return (
     <div
       role="toolbar"
       aria-label="Bulk actions"
-      className="mb-2 flex flex-wrap items-center gap-2 rounded bg-blue-50 px-3 py-2 text-sm"
+      className="glass sticky top-2 z-10 mb-2 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-fg"
     >
       {chosen.length > 0 && (
         <>
@@ -187,17 +136,14 @@ export function BulkBar({
           >
             Unassign
           </Button>
-          <Button onClick={() => void remove()}>Delete</Button>
+          <Button
+            disabled={trashTasks.pending}
+            onClick={() => void trashTasks.trash(chosen, tasks)}
+          >
+            Delete
+          </Button>
           <Button onClick={clear}>Clear</Button>
         </>
-      )}
-      {undo && (
-        <span role="status">
-          Deleted {undo.length} tasks.{' '}
-          <button type="button" className="font-semibold underline" onClick={() => void restore()}>
-            Undo
-          </button>
-        </span>
       )}
     </div>
   )

@@ -1,5 +1,3 @@
-// TODO(slice 4): this file keeps native <select>s until the List view chip bar rebuilds the filter UI on the
-// library Select (slice 4). It is one of the two named exceptions to the no-native-select lint rule.
 import type { FieldView, ViewFilter } from '../../api/types'
 import {
   FilterInput,
@@ -9,59 +7,53 @@ import {
   operatorsFor,
 } from '../fields'
 import { PRIORITIES, PRIORITY_LABEL } from '../tasks'
-import { MultiPickCell } from './cells'
+import { Button } from '../../shared/ui/Button'
+import { Picker } from '../../shared/ui/Picker'
+import { Select } from '../../shared/ui/Select'
+import { FIELDS, OP_LABEL } from './filterSpec'
 
 type Option = { value: string; label: string }
 
+const inputClass =
+  'h-8 rounded-md border border-line-strong bg-surface px-2 text-[13px] text-fg placeholder:text-faint'
+
+/** A multi-choice value (priority, status, assignee): a trigger with a summary that opens a Picker. */
+function MultiValue({
+  options,
+  selected,
+  onChange,
+  summary,
+}: {
+  options: Option[]
+  selected: string[]
+  onChange: (next: string[]) => void
+  summary: string
+}) {
+  return (
+    <Picker
+      mode="multi"
+      label="Filter value options"
+      trigger={
+        <button
+          type="button"
+          aria-label="Filter value"
+          className="inline-flex h-8 items-center rounded-md border border-line-strong bg-surface px-2 text-[13px] text-fg"
+        >
+          {summary}
+        </button>
+      }
+      items={options}
+      selected={selected}
+      onPick={(value) =>
+        onChange(
+          selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value],
+        )
+      }
+    />
+  )
+}
+
 export type FilterOptions = { statuses: Option[]; members: Option[]; fields?: FieldView[] }
-
-const OP_LABEL: Record<string, string> = {
-  any_of: 'is any of',
-  none_of: 'is none of',
-  all_of: 'has all of',
-  contains: 'contains',
-  not_contains: 'does not contain',
-  is_set: 'is set',
-  is_empty: 'is empty',
-  before: 'is before',
-  after: 'is after',
-  on: 'is on',
-  overdue: 'is overdue',
-  include: 'include subtasks',
-  exclude: 'exclude subtasks',
-  is_true: 'is blocked',
-  is_false: 'is not blocked',
-}
-
-type Kind = 'text' | 'priority' | 'status' | 'assignee' | 'tags' | 'date' | 'none'
-
-const FIELDS: Record<string, { label: string; ops: string[]; kind: Kind }> = {
-  title: { label: 'Title', ops: ['contains', 'not_contains'], kind: 'text' },
-  priority: {
-    label: 'Priority',
-    ops: ['any_of', 'none_of', 'is_set', 'is_empty'],
-    kind: 'priority',
-  },
-  status: { label: 'Status', ops: ['any_of', 'none_of'], kind: 'status' },
-  assignee: {
-    label: 'Assignee',
-    ops: ['any_of', 'all_of', 'none_of', 'is_empty', 'is_set'],
-    kind: 'assignee',
-  },
-  tag: { label: 'Tag', ops: ['any_of', 'all_of', 'none_of', 'is_empty'], kind: 'tags' },
-  dueDate: {
-    label: 'Due date',
-    ops: ['before', 'after', 'on', 'is_empty', 'is_set', 'overdue'],
-    kind: 'date',
-  },
-  startDate: {
-    label: 'Start date',
-    ops: ['before', 'after', 'on', 'is_empty', 'is_set'],
-    kind: 'date',
-  },
-  subtasks: { label: 'Subtasks', ops: ['include', 'exclude'], kind: 'none' },
-  blocked: { label: 'Blocked', ops: ['is_true', 'is_false'], kind: 'none' },
-}
 
 const NO_VALUE = new Set([
   'is_set',
@@ -123,54 +115,49 @@ export function FilterGroup({ node, depth, options, onChange, onRemove }: Props)
   const removeItem = (index: number) =>
     onChange({ ...node, items: items.filter((_, i) => i !== index) })
   return (
-    <div className="flex flex-col gap-2 rounded border border-slate-200 p-2">
-      <div className="flex items-center gap-2 text-sm">
-        <select
+    <div className="flex flex-col gap-2 rounded-lg border border-line p-2">
+      <div className="flex items-center gap-2 text-[13px]">
+        <Select
           aria-label={`Match ${depth}`}
-          value={node.op}
-          onChange={(e) => onChange({ ...node, op: e.target.value })}
-        >
-          <option value="AND">All of</option>
-          <option value="OR">Any of</option>
-        </select>
+          value={node.op ?? 'AND'}
+          onValueChange={(op) => onChange({ ...node, op })}
+          options={[
+            { value: 'AND', label: 'All of' },
+            { value: 'OR', label: 'Any of' },
+          ]}
+        />
         {onRemove && (
-          <button type="button" className="text-slate-500" onClick={onRemove}>
+          <Button variant="ghost" onClick={onRemove}>
             Remove group
-          </button>
+          </Button>
         )}
       </div>
-      {items.map((item, i) =>
-        item.items ? (
-          <FilterGroup
-            key={i}
-            node={item}
-            depth={depth + 1}
-            options={options}
-            onChange={(next) => setItem(i, next)}
-            onRemove={() => removeItem(i)}
-          />
-        ) : (
-          <ConditionRow
-            key={i}
-            node={item}
-            options={options}
-            onChange={(next) => setItem(i, next)}
-            onRemove={() => removeItem(i)}
-          />
-        ),
-      )}
-      <div className="flex gap-2 text-sm">
-        <button
-          type="button"
-          className="text-blue-700"
-          onClick={() => onChange({ ...node, items: [...items, newCondition()] })}
-        >
+      {items.map((item, i) => (
+        <div key={i} data-item-index={i}>
+          {item.items ? (
+            <FilterGroup
+              node={item}
+              depth={depth + 1}
+              options={options}
+              onChange={(next) => setItem(i, next)}
+              onRemove={() => removeItem(i)}
+            />
+          ) : (
+            <ConditionRow
+              node={item}
+              options={options}
+              onChange={(next) => setItem(i, next)}
+              onRemove={() => removeItem(i)}
+            />
+          )}
+        </div>
+      ))}
+      <div className="flex gap-2 text-[13px]">
+        <Button onClick={() => onChange({ ...node, items: [...items, newCondition()] })}>
           + Add filter
-        </button>
+        </Button>
         {depth < MAX_DEPTH && (
-          <button
-            type="button"
-            className="text-blue-700"
+          <Button
             onClick={() =>
               onChange({
                 ...node,
@@ -179,7 +166,7 @@ export function FilterGroup({ node, depth, options, onChange, onRemove }: Props)
             }
           >
             + Add group
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -207,33 +194,34 @@ function ConditionRow({
   const withValue = (value: unknown) => onChange({ ...node, value: value as ViewFilter['value'] })
   const valueless = custom ? isValueless(node.op) : NO_VALUE.has(node.op ?? '')
   return (
-    <div className="flex flex-wrap items-center gap-2 text-sm">
-      <select
+    <div className="flex flex-wrap items-center gap-2 text-[13px]">
+      <Select
         aria-label="Filter field"
         value={field}
-        onChange={(e) => onChange(newCondition(e.target.value, options.fields))}
-      >
-        {Object.entries(FIELDS).map(([key, f]) => (
-          <option key={key} value={key}>
-            {f.label}
-          </option>
-        ))}
-        {(options.fields ?? []).length > 0 && (
-          <optgroup label="Custom fields">
-            {options.fields?.map((f) => (
-              <option key={f.id} value={`cf:${f.id}`}>
-                {f.name}
-              </option>
-            ))}
-          </optgroup>
-        )}
-        {field.startsWith('cf:') && !custom && <option value={field}>Unknown field</option>}
-      </select>
-      <select
+        onValueChange={(next) => onChange(newCondition(next, options.fields))}
+        options={[
+          ...Object.entries(FIELDS).map(([key, f]) => ({ value: key, label: f.label })),
+          ...(field.startsWith('cf:') && !custom ? [{ value: field, label: 'Unknown field' }] : []),
+        ]}
+        groups={
+          (options.fields ?? []).length > 0
+            ? [
+                {
+                  label: 'Custom fields',
+                  options: (options.fields ?? []).map((f) => ({
+                    value: `cf:${f.id}`,
+                    label: f.name ?? '',
+                  })),
+                },
+              ]
+            : []
+        }
+      />
+      <Select
         aria-label="Filter operator"
-        value={node.op}
-        onChange={(e) => {
-          const op = e.target.value
+        value={node.op ?? ''}
+        placeholder="Choose…"
+        onValueChange={(op) => {
           if (custom) {
             const value = defaultValue(custom, op)
             onChange(
@@ -244,13 +232,11 @@ function ConditionRow({
           } else if (NO_VALUE.has(op)) onChange({ field, op })
           else onChange({ ...newCondition(field), op })
         }}
-      >
-        {(custom ? operatorsFor(custom) : spec.ops).map((op) => (
-          <option key={op} value={op}>
-            {OP_LABEL[op] ?? CUSTOM_OP_LABEL[op] ?? op}
-          </option>
-        ))}
-      </select>
+        options={(custom ? operatorsFor(custom) : spec.ops).map((op) => ({
+          value: op,
+          label: OP_LABEL[op] ?? CUSTOM_OP_LABEL[op] ?? op,
+        }))}
+      />
       {custom && (
         <FilterInput
           field={custom}
@@ -264,13 +250,12 @@ function ConditionRow({
         <input
           aria-label="Filter value"
           value={text}
-          className="rounded border border-slate-300 px-1"
+          className={inputClass}
           onChange={(e) => withValue(e.target.value)}
         />
       )}
       {!custom && !valueless && spec.kind === 'priority' && (
-        <MultiPickCell
-          label="Filter value"
+        <MultiValue
           options={PRIORITIES.map((p) => ({
             value: p,
             label: p === 'NONE' ? 'None' : PRIORITY_LABEL[p],
@@ -281,8 +266,7 @@ function ConditionRow({
         />
       )}
       {!custom && !valueless && spec.kind === 'status' && (
-        <MultiPickCell
-          label="Filter value"
+        <MultiValue
           options={options.statuses}
           selected={list}
           onChange={withValue}
@@ -290,8 +274,7 @@ function ConditionRow({
         />
       )}
       {!custom && !valueless && spec.kind === 'assignee' && (
-        <MultiPickCell
-          label="Filter value"
+        <MultiValue
           options={[{ value: 'me', label: 'Me' }, ...options.members]}
           selected={list}
           onChange={withValue}
@@ -302,7 +285,7 @@ function ConditionRow({
         <input
           aria-label="Filter value"
           value={list.join(', ')}
-          className="rounded border border-slate-300 px-1"
+          className={inputClass}
           onChange={(e) =>
             withValue(
               e.target.value
@@ -314,21 +297,21 @@ function ConditionRow({
         />
       )}
       {!custom && !valueless && spec.kind === 'date' && (
-        <select aria-label="Filter value" value={text} onChange={(e) => withValue(e.target.value)}>
-          <option value="today">today</option>
-          <option value="this_week">this week</option>
-          <option value="next_7_days">next 7 days</option>
-          {/^\d{4}-/.test(text) && <option value={text}>{text}</option>}
-        </select>
+        <Select
+          aria-label="Filter value"
+          value={text}
+          onValueChange={withValue}
+          options={[
+            { value: 'today', label: 'today' },
+            { value: 'this_week', label: 'this week' },
+            { value: 'next_7_days', label: 'next 7 days' },
+            ...(/^\d{4}-/.test(text) ? [{ value: text, label: text }] : []),
+          ]}
+        />
       )}
-      <button
-        type="button"
-        aria-label="Remove filter"
-        className="text-slate-500"
-        onClick={onRemove}
-      >
+      <Button variant="ghost" aria-label="Remove filter" onClick={onRemove}>
         ✕
-      </button>
+      </Button>
     </div>
   )
 }

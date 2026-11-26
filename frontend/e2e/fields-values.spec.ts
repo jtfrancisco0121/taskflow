@@ -46,13 +46,22 @@ test('UJ-2: values are set and cleared in the task panel, a refusal shows the se
   await expect(panel.getByText('from Engineering').first()).toBeVisible()
 
   const points = panel.getByRole('textbox', { name: /^Story points for / })
+  // Every edit is waited on until the server has answered: the panel shows a value optimistically, so a
+  // reload right after the UI looks done could otherwise race the request still in flight.
+  const saved = (act: () => Promise<unknown>) =>
+    Promise.all([
+      page.waitForResponse(
+        (r) => r.request().method() === 'PATCH' && /\/api\/v1\/tasks\//.test(r.url()) && r.ok(),
+      ),
+      act(),
+    ])
   await points.fill('5')
-  await points.press('Enter')
+  await saved(() => points.press('Enter'))
   await expect(panel.getByText('Saved').first()).toBeVisible()
-  await pick(panel.getByLabel(/^Customer tier for /), 'Enterprise')
-  await panel.getByRole('checkbox', { name: /^Done for / }).check()
+  await saved(() => pick(panel.getByLabel(/^Customer tier for /), 'Enterprise'))
+  await saved(() => panel.getByRole('checkbox', { name: /^Done for / }).check())
   await panel.getByRole('textbox', { name: /^Notes for / }).fill('call back')
-  await panel.getByRole('textbox', { name: /^Notes for / }).press('Enter')
+  await saved(() => panel.getByRole('textbox', { name: /^Notes for / }).press('Enter'))
   await expect(panel.getByRole('checkbox', { name: /^Done for / })).toBeChecked()
   await snap(page, testInfo, 'fields-panel-values')
 

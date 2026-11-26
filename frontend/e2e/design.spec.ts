@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { expectNoContrastViolations, tokenOf, watchFontRequests } from './a11y'
 import { snap } from './screenshots'
+import { pick } from './ui'
 
 // CAP-7, CAP-2, CAP-3 (slice 2): /design shows every library component, the Light / Aurora / System toggle
 // switches the theme at once, and both themes (and System-dark) pass the axe color-contrast rule.
@@ -76,3 +77,51 @@ for (const theme of THEMES) {
     await expectNoContrastViolations(page, `toasts ${theme.file}`, '[aria-live="polite"]')
   })
 }
+
+test('/design: two pick() calls in a row on an open multi Picker select both items', async ({
+  page,
+}) => {
+  await page.goto('/design')
+  const trigger = page.getByRole('button', { name: /^Tags/ })
+  await pick(trigger, 'Ship')
+  await pick(trigger, 'Later')
+  await expect(page.getByRole('option', { name: 'Ship', exact: true })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  )
+  await expect(page.getByRole('option', { name: 'Later', exact: true })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  )
+  await expect(page.getByRole('option', { name: 'Plan', exact: true })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  )
+})
+
+test('/design: a menu inside a Dialog gives focus back to its trigger, and still enters a Dialog it opens', async ({
+  page,
+}) => {
+  await page.goto('/design')
+  await page.getByRole('button', { name: 'Open dialog' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Example dialog' })
+  const trigger = dialog.getByRole('button', { name: 'Dialog actions' })
+  await trigger.click()
+  await expect(page.getByRole('menu')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu')).toBeHidden()
+  await expect(dialog).toBeVisible()
+  await expect(trigger).toBeFocused()
+
+  await trigger.click()
+  await page.getByRole('menuitem', { name: 'Do nothing' }).click()
+  await expect(page.getByRole('menu')).toBeHidden()
+  await expect(trigger).toBeFocused()
+  await expect(dialog.getByLabel('Name in dialog')).not.toBeFocused()
+
+  await trigger.click()
+  await page.getByRole('menuitem', { name: 'Open confirmation' }).click()
+  const nested = page.getByRole('dialog', { name: 'Confirm example' })
+  await expect(nested).toBeVisible()
+  await expect(nested.getByLabel('Reason')).toBeFocused()
+})

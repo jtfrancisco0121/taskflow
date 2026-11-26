@@ -281,4 +281,60 @@ describe('LIST-1 List view', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('The request failed')
     expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible()
   })
+
+  it('CAP-9: loading shows six skeleton rows in a status', async () => {
+    installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': () => new Promise<Response>(() => {}),
+    })
+    renderWithProviders(<ListRenderer scope={scope} config={grouped} />)
+    expect(await screen.findByRole('status', { name: 'Loading tasks' })).toBeVisible()
+  })
+
+  it('CAP-9: an empty List shows the empty text', async () => {
+    serve([])
+    renderWithProviders(
+      <ListRenderer
+        scope={scope}
+        config={{ v: 1 }}
+        empty="No tasks yet. Type a title below to add one."
+      />,
+    )
+    expect(await screen.findByText('No tasks yet. Type a title below to add one.')).toBeVisible()
+  })
+
+  it('CAP-9: a filter that matches nothing offers Clear filters', async () => {
+    serve([])
+    const update = vi.fn()
+    const user = userEvent.setup()
+    renderWithProviders(
+      <ListRenderer
+        scope={scope}
+        config={{
+          v: 1,
+          filter: { op: 'AND', items: [{ field: 'title', op: 'contains', value: 'zzz' }] },
+        }}
+        update={update}
+      />,
+    )
+    await user.click(await screen.findByRole('button', { name: 'Clear filters' }))
+    expect(update).toHaveBeenCalledWith({ f: { op: 'AND', items: [] } })
+  })
+
+  it('CAP-9: a failed load shows the server message and Retry loads again', async () => {
+    let fail = true
+    installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': () =>
+        fail
+          ? problem(500, 'server.error', 'The server is down')
+          : json({ items: [{ task: task(1) }] }),
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<ListRenderer scope={scope} config={{ v: 1 }} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent('The server is down')
+    fail = false
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByRole('link', { name: 'Task 1' })).toBeVisible()
+  })
 })

@@ -37,7 +37,7 @@ export function useViewState(base: ViewConfig) {
   return {
     config,
     state,
-    dirty: isDirty(state),
+    dirty: isDirty(base, state),
     update: (patch: Partial<UrlState>) => {
       const merged = { ...state, ...patch }
       URL_KEYS.forEach((key) => {

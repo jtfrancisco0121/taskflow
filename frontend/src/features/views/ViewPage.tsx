@@ -1,9 +1,10 @@
 import { matchPath, useNavigate, useParams } from 'react-router'
 import { messageOf } from '../../api/errors'
 import type { ViewDto } from '../../api/types'
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router'
 import { Button } from '../../shared/ui/Button'
+import { ErrorState } from '../../shared/ui/ErrorState'
 import { automationsPath, useLocationInfo } from '../locations'
 import { StatusesDialog } from '../statuses'
 import { QuickAdd } from '../tasks'
@@ -16,7 +17,8 @@ import { useViewState } from './useViewState'
 import { ViewParamsContext } from './viewParams'
 import { useViews, viewKey } from './useViews'
 import { ViewTabs } from './ViewTabs'
-import { ViewToolbar } from './ViewToolbar'
+import { useViewStore } from './viewStore'
+import { ChipBar } from './ChipBar'
 
 const TYPE_NAME = { SPACE: 'Space', FOLDER: 'Folder', LIST: 'List' } as const
 const EMPTY_BASE = { v: 1 }
@@ -42,7 +44,7 @@ export function ViewPage({
     return (
       <div>
         <p>This location doesn&apos;t exist or you don&apos;t have access.</p>
-        <Link to={`/w/${scope.workspaceId}`} className="text-blue-700 underline">
+        <Link to={`/w/${scope.workspaceId}`} className="text-accent underline">
           Back to the Workspace
         </Link>
       </div>
@@ -54,17 +56,17 @@ export function ViewPage({
   return (
     <section aria-label="View">
       <header className="mb-3 flex items-center gap-2">
-        <h1 className="text-2xl font-semibold">{heading}</h1>
+        <h1 className="font-display text-2xl font-semibold text-fg">{heading}</h1>
         {location.data?.isPrivate && (
           <span role="img" aria-label="Private" title="Private">
             🔒
           </span>
         )}
-        {type && <span className="text-sm text-slate-500">{TYPE_NAME[type]}</span>}
+        {type && <span className="text-[13px] text-muted">{TYPE_NAME[type]}</span>}
         {location.data && type && scope.locationId && (
           <Link
             to={automationsPath(scope.workspaceId, scope.locationId)}
-            className="ml-auto rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-slate-100"
+            className="ml-auto rounded-md border border-line-strong bg-surface px-3 py-1.5 text-[13px] font-medium text-fg hover:bg-surface-2"
           >
             Automations
           </Link>
@@ -75,11 +77,7 @@ export function ViewPage({
           </Button>
         )}
       </header>
-      {views.isError && (
-        <p role="alert" className="text-red-700">
-          {messageOf(views.error)}
-        </p>
-      )}
+      {views.isError && <ErrorState message={messageOf(views.error)} />}
       {views.isSuccess && !current && <p>This view doesn&apos;t exist or you can&apos;t see it.</p>}
       {views.isSuccess && current && (
         <ViewBody
@@ -132,6 +130,16 @@ function ViewBody({
 }) {
   const base = current.config ?? EMPTY_BASE
   const state = useViewState(base)
+  // A new place or view: nothing stays selected, focused or open from the one before (not on first mount, so
+  // opening a task's panel over the List keeps the selection).
+  const where = `${scope.workspaceId}/${scope.locationId ?? ''}/${viewKey(current)}`
+  const lastWhere = useRef(where)
+  useEffect(() => {
+    if (lastWhere.current !== where) {
+      lastWhere.current = where
+      useViewStore.getState().resetTransient()
+    }
+  }, [where])
   const { config } = state
   return (
     <>
@@ -143,7 +151,7 @@ function ViewBody({
         dirty={state.dirty}
         clearParams={state.reset}
       />
-      <ViewToolbar
+      <ChipBar
         scope={scope}
         config={config}
         update={state.update}

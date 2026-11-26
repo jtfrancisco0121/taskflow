@@ -1,5 +1,5 @@
 import * as MenuPrimitive from '@radix-ui/react-dropdown-menu'
-import type { ReactElement, ReactNode } from 'react'
+import { useRef, type ReactElement, type ReactNode } from 'react'
 import { floatingClass, floatingProps, itemClass, keepFocusOrEnterDialog } from './floating'
 import { Kbd } from './Kbd'
 
@@ -55,9 +55,12 @@ export function DropdownMenu({
   header,
   onCloseAutoFocus,
 }: DropdownMenuProps) {
+  const triggerRef = useRef<HTMLButtonElement>(null)
   return (
     <MenuPrimitive.Root open={open} onOpenChange={onOpenChange}>
-      <MenuPrimitive.Trigger asChild>{trigger}</MenuPrimitive.Trigger>
+      <MenuPrimitive.Trigger asChild ref={triggerRef}>
+        {trigger}
+      </MenuPrimitive.Trigger>
       <MenuPrimitive.Portal>
         <MenuPrimitive.Content
           sideOffset={6}
@@ -66,7 +69,9 @@ export function DropdownMenu({
           // Radix names the menu by its trigger; an explicit label must win.
           ref={label ? dropLabelledBy : undefined}
           {...floatingProps}
-          onCloseAutoFocus={onCloseAutoFocus ?? keepFocusOrEnterDialog}
+          onCloseAutoFocus={
+            onCloseAutoFocus ?? ((event) => keepFocusOrEnterDialog(event, triggerRef.current))
+          }
           className={`${floatingClass} min-w-40 p-1`}
         >
           {header}

@@ -3,15 +3,18 @@ import { useEffect, useRef } from 'react'
 import { Link, useLocation, useMatch, useNavigate, type Location } from 'react-router'
 import { messageOf } from '../../api/errors'
 import type { FieldView, TaskView, ViewConfig } from '../../api/types'
-import { formatDay } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
+import { Checkbox } from '../../shared/ui/Checkbox'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { ErrorState } from '../../shared/ui/ErrorState'
+import { Skeleton } from '../../shared/ui/Skeleton'
 import { BlockedBadge } from '../dependencies'
 import { useLocationStatuses } from '../statuses'
-import { PRIORITIES, PRIORITY_LABEL, initialsOf } from '../tasks'
 import { useMembers } from '../workspace'
 import { BulkBar } from './BulkBar'
 import { ColumnsPicker } from './ColumnsPicker'
-import { DateCell, EditableText, MultiPickCell, SelectCell, TagsCell } from './cells'
+import { EditableText, TagsCell } from './cells'
+import { AssigneeEditor, DueEditor, PriorityEditor, StatusEditor } from './ListEditors'
 import { FieldCell } from './FieldCell'
 import { groupLabel } from './groupLabels'
 import { DroppedNotice, NoMatches, hasFilter } from './ResultNotices'
@@ -19,12 +22,12 @@ import type { Column, UrlState } from './urlState'
 import type { ViewScope } from './scope'
 import { observeRect } from './virtualRect'
 import { useScopeFields, customColumns } from './useScopeFields'
-import { useGuardedStatus } from './useGuardedStatus'
 import { useTaskActions } from './useTaskActions'
 import { useViewTasks } from './useViewTasks'
+import { useListKeys } from './useListKeys'
 import { useViewStore } from './viewStore'
 
-const ROW_HEIGHT = 40
+const ROW_HEIGHT = 36
 
 type Row =
   | { kind: 'header'; key: string; label: string; count: number | undefined }
@@ -43,6 +46,17 @@ export function ListRenderer({
   update?: (patch: Partial<UrlState>) => void
 }) {
   const query = useViewTasks(scope, config)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const onTaskRoute = useMatch('/t/:taskId') !== null
+  // The task panel opens over the place it was opened from.
+  const background = onTaskRoute
+    ? ((location.state as { backgroundLocation?: Location } | null)?.backgroundLocation ?? null)
+    : location
+  const linkState = background ? { backgroundLocation: background } : undefined
+  const openTask = (id: string) => void navigate(`/t/${id}`, { state: linkState })
+  const selectedIds = useViewStore((s) => s.selected)
+  const focusedTaskId = useViewStore((s) => s.focusedTaskId)
   const scopeFields = useScopeFields(scope)
   const custom = customColumns(config.columns, scopeFields.byId).map((c) => c.field)
   const template = `2rem 6rem minmax(12rem,1fr) 9rem 7rem 8rem 9rem 9rem${' 10rem'.repeat(custom.length)}`
@@ -86,22 +100,24 @@ export function ListRenderer({
     if (hasNextPage && !isFetchingNextPage && last >= rows.length - 10) void fetchNextPage()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, last, rows.length])
 
+  const loaded = query.items.flatMap((i) => (i.task ? [i.task] : []))
+  const taskRows = rows.flatMap((row, rowIndex) =>
+    row.kind === 'task' ? [{ rowIndex, task: row.task }] : [],
+  )
+  const onKeyDown = useListKeys({ scope, taskRows, loaded, virtualizer, openTask })
+  const firstTaskId = taskRows[0]?.task.id
+
   if (query.isPending) {
     return (
-      <div role="status" aria-label="Loading tasks" className="flex flex-col gap-2">
+      <div role="status" aria-label="Loading tasks" className="flex flex-col gap-px">
         {Array.from({ length: 6 }, (_, i) => (
-          <div key={i} className="h-7 animate-pulse rounded bg-slate-200" />
+          <Skeleton key={i} className="h-9 w-full" />
         ))}
       </div>
     )
   }
   if (query.isError) {
-    return (
-      <p role="alert" className="flex items-center gap-2 text-red-700">
-        {messageOf(query.error)}
-        <Button onClick={() => void query.refetch()}>Retry</Button>
-      </p>
-    )
+    return <ErrorState message={messageOf(query.error)} onRetry={() => void query.refetch()} />
   }
 
   return (
@@ -115,22 +131,14 @@ export function ListRenderer({
           onChange={(c) => update({ c })}
         />
       )}
-      <BulkBar
-        scope={scope}
-        tasks={query.items.flatMap((i) => (i.task ? [i.task] : []))}
-        members={members}
-      />
+      <BulkBar scope={scope} tasks={loaded} members={members} />
       {rows.length === 0 &&
-        (hasFilter(config) ? (
-          <NoMatches update={update} />
-        ) : (
-          <p className="mb-2 text-slate-600">{empty}</p>
-        ))}
+        (hasFilter(config) ? <NoMatches update={update} /> : <EmptyState title={empty} />)}
       {rows.length > 0 && (
-        <div role="table" aria-label="Tasks" aria-rowcount={rows.length}>
+        <div role="table" aria-label="Tasks" aria-rowcount={rows.length} onKeyDown={onKeyDown}>
           <div
             role="row"
-            className="grid border-b border-slate-200 px-2 py-1 text-xs text-slate-500 uppercase"
+            className="grid border-b border-line px-2 py-1 text-xs font-medium text-muted uppercase"
             style={{ gridTemplateColumns: template }}
           >
             <span />
@@ -155,6 +163,9 @@ export function ListRenderer({
                   <div
                     key={row.key}
                     role="row"
+                    aria-selected={
+                      row.kind === 'task' ? selectedIds.includes(row.task.id!) : undefined
+                    }
                     data-index={v.index}
                     style={{
                       position: 'absolute',
@@ -170,11 +181,11 @@ export function ListRenderer({
                         type="button"
                         aria-expanded={!collapsed[row.key]}
                         onClick={() => toggleGroup(row.key)}
-                        className="flex h-full w-full items-center gap-2 bg-slate-100 px-2 text-left text-sm font-semibold"
+                        className="flex h-full w-full items-center gap-2 bg-surface-2 px-2 text-left text-[13px] font-semibold text-fg"
                       >
                         <span aria-hidden>{collapsed[row.key] ? '▸' : '▾'}</span>
                         {row.label}
-                        <span className="font-normal text-slate-500">{row.count ?? ''}</span>
+                        <span className="font-normal text-muted">{row.count ?? ''}</span>
                       </button>
                     ) : (
                       <TaskLine
@@ -183,6 +194,12 @@ export function ListRenderer({
                         members={members}
                         custom={custom}
                         template={template}
+                        linkState={linkState}
+                        tabbable={
+                          row.task.id === focusedTaskId ||
+                          (!taskRows.some((r) => r.task.id === focusedTaskId) &&
+                            row.task.id === firstTaskId)
+                        }
                       />
                     )}
                   </div>
@@ -192,7 +209,7 @@ export function ListRenderer({
           </div>
         </div>
       )}
-      {isFetchingNextPage && <p className="mt-1 text-sm text-slate-500">Loading more…</p>}
+      {isFetchingNextPage && <p className="mt-1 text-[13px] text-muted">Loading more…</p>}
       {hasNextPage && (
         <Button className="mt-2" disabled={isFetchingNextPage} onClick={() => void fetchNextPage()}>
           Load more
@@ -208,7 +225,11 @@ function TaskLine({
   members,
   custom,
   template,
+  linkState,
+  tabbable,
 }: {
+  linkState: { backgroundLocation: Location } | undefined
+  tabbable: boolean
   task: TaskView
   names: Map<string, string>
   members: Array<{ userId?: string; displayName?: string; email?: string }>
@@ -216,44 +237,43 @@ function TaskLine({
   template: string
 }) {
   const actions = useTaskActions()
-  const guardedStatus = useGuardedStatus()
   const navigate = useNavigate()
-  const location = useLocation()
-  const onTaskRoute = useMatch('/t/:taskId') !== null
-  const background = onTaskRoute
-    ? ((location.state as { backgroundLocation?: Location } | null)?.backgroundLocation ?? null)
-    : location
-  const linkState = background ? { backgroundLocation: background } : undefined
   const open = useMatch('/t/:taskId')?.params.taskId === task.id
   const selected = useViewStore((s) => s.selected.includes(task.id!))
   const toggle = useViewStore((s) => s.toggleSelected)
   const statuses = useLocationStatuses(task.workspaceId, task.listId)
-  const options = (statuses.data?.statuses ?? []).map((s) => ({
-    value: s.id!,
-    label: s.name ?? '',
-  }))
-  const memberOptions = members.map((m) => ({
-    value: m.userId!,
-    label: m.displayName ?? m.email ?? '',
-  }))
-  const assignees = task.assigneeIds ?? []
-
+  const statusList = statuses.data?.statuses ?? []
+  const done = ['DONE', 'CLOSED'].includes(
+    statusList.find((st) => st.id === task.statusId)?.group ?? '',
+  )
+  const closeEditor = useViewStore((st) => st.setOpenEditor)
+  const setFocused = useViewStore((st) => st.setFocusedTaskId)
+  const id = task.id!
+  useEffect(
+    () => () => {
+      // The row went away (scrolled out, trashed, filtered): its editor must not stay "open".
+      if (useViewStore.getState().openEditor?.taskId === id) closeEditor(null)
+    },
+    [id, closeEditor],
+  )
   return (
     <div
       data-task-id={task.id}
+      tabIndex={tabbable ? 0 : -1}
+      onFocus={() => setFocused(id)}
       aria-current={open ? 'true' : undefined}
       onClick={() => void navigate(`/t/${task.id}`, { state: linkState })}
       style={{ gridTemplateColumns: template }}
-      className={`grid h-full cursor-pointer items-center border-b border-slate-100 px-2 text-sm hover:bg-slate-50 ${open ? 'bg-blue-50' : ''}`}
+      className={`grid h-full cursor-pointer items-center border-b border-line px-2 text-[13px] text-fg hover:bg-surface-2 focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus-ring focus-visible:bg-surface-2 focus-visible:shadow-[inset_3px_0_0_var(--tf-accent)] ${open || selected ? 'bg-accent-soft' : ''}`}
     >
-      <input
-        type="checkbox"
-        aria-label={`Select ${task.title}`}
-        checked={selected}
-        onClick={(e) => e.stopPropagation()}
-        onChange={() => toggle(task.id!)}
-      />
-      <span className="font-mono text-xs text-slate-500">{task.readableId}</span>
+      <span onClick={(e) => e.stopPropagation()}>
+        <Checkbox
+          aria-label={`Select ${task.title}`}
+          checked={selected}
+          onCheckedChange={() => toggle(task.id!)}
+        />
+      </span>
+      <span className="font-mono text-xs text-muted">{task.readableId}</span>
       <EditableText
         value={task.title ?? ''}
         label={`Title of ${task.readableId}`}
@@ -264,54 +284,16 @@ function TaskLine({
           to={`/t/${task.id}`}
           state={linkState}
           onClick={(e) => e.stopPropagation()}
-          className="truncate hover:underline focus:outline-2 focus:outline-blue-600"
+          className="truncate hover:underline focus-visible:outline-2 focus-visible:outline-focus-ring"
         >
           {task.title}
         </Link>
         <BlockedBadge blocked={task.blocked} count={task.blockerCount} />
       </EditableText>
-      <SelectCell
-        label={`Status of ${task.readableId}`}
-        value={task.statusId ?? ''}
-        options={options}
-        onChange={(statusId) =>
-          void guardedStatus.change(task, statusId, statuses.data?.statuses ?? [])
-        }
-      />
-      {guardedStatus.dialog}
-      <SelectCell
-        label={`Priority of ${task.readableId}`}
-        value={task.priority ?? 'NONE'}
-        options={PRIORITIES.map((p) => ({ value: p, label: PRIORITY_LABEL[p] }))}
-        onChange={(priority) =>
-          void actions.patch(task, { priority: priority as TaskView['priority'] })
-        }
-      />
-      <MultiPickCell
-        label={`Assignees of ${task.readableId}`}
-        options={memberOptions}
-        selected={assignees}
-        onChange={(assigneeIds) => void actions.patch(task, { assigneeIds })}
-        summary={
-          <span className="flex gap-1">
-            {assignees.length === 0 && <span className="text-slate-400">—</span>}
-            {assignees.map((id) => (
-              <span
-                key={id}
-                title={names.get(id) ?? 'Former member'}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-xs font-medium"
-              >
-                {initialsOf(names.get(id) ?? '?')}
-              </span>
-            ))}
-          </span>
-        }
-      />
-      <DateCell
-        label={`Due date of ${task.readableId}`}
-        value={task.dueDate}
-        onChange={(dueDate) => void actions.patch(task, { dueDate: dueDate as string })}
-      />
+      <StatusEditor task={task} statuses={statusList} />
+      <PriorityEditor task={task} />
+      <AssigneeEditor task={task} members={members} names={names} />
+      <DueEditor task={task} done={done} />
       <TagsCell
         label={`Tags of ${task.readableId}`}
         tags={task.tags ?? []}
@@ -320,7 +302,6 @@ function TaskLine({
       {custom.map((field) => (
         <FieldCell key={field.id} field={field} task={task} />
       ))}
-      <span className="sr-only">{formatDay(task.dueDate)}</span>
     </div>
   )
 }

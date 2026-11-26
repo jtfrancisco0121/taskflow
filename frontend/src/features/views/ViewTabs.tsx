@@ -4,6 +4,7 @@ import { messageOf } from '../../api/errors'
 import type { ViewConfig, ViewDto } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 import { Button } from '../../shared/ui/Button'
+import { Checkbox } from '../../shared/ui/Checkbox'
 import { Select } from '../../shared/ui/Select'
 import { useMembers } from '../workspace'
 import { viewPath, type ViewScope } from './scope'
@@ -81,7 +82,7 @@ export function ViewTabs({
       <div
         role="tablist"
         aria-label="Views"
-        className="flex flex-wrap items-center gap-1 border-b border-slate-200"
+        className="flex flex-wrap items-center gap-1 border-b border-line"
       >
         {views.map((view) => {
           const key = viewKey(view)
@@ -92,7 +93,7 @@ export function ViewTabs({
               to={viewPath(scope, key)}
               aria-selected={viewKey(current) === key}
               className={({ isActive }) =>
-                `rounded-t px-3 py-1.5 text-sm ${isActive || viewKey(current) === key ? 'border-b-2 border-blue-600 font-semibold' : 'text-slate-600 hover:bg-slate-100'}`
+                `rounded-t-md px-3 py-1.5 text-[13px] ${isActive || viewKey(current) === key ? 'border-b-2 border-accent font-semibold text-fg' : 'text-muted hover:bg-surface-2'}`
               }
             >
               {view.name}
@@ -103,25 +104,12 @@ export function ViewTabs({
         })}
         <button
           type="button"
-          className="ml-1 rounded px-2 py-1 text-sm text-blue-700 hover:bg-slate-100"
+          className="ml-1 rounded-md px-2 py-1 text-[13px] text-accent hover:bg-surface-2"
           onClick={() => setCreating(creating === 'new' ? null : 'new')}
         >
           + View
         </button>
         <span className="ml-auto flex gap-2 pb-1">
-          {dirty && (
-            <>
-              <Button
-                variant="primary"
-                disabled={save.isPending}
-                onClick={() => void saveCurrent()}
-              >
-                Save view
-              </Button>
-              <Button onClick={() => setCreating('copy')}>Save as new</Button>
-              <Button onClick={clearParams}>Discard</Button>
-            </>
-          )}
           {current.id && !current.defaultKind && (
             <Button
               onClick={() =>
@@ -136,6 +124,20 @@ export function ViewTabs({
           )}
         </span>
       </div>
+      {dirty && (
+        <div
+          role="group"
+          aria-label="Unsaved view changes"
+          className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-accent-line bg-accent-soft px-3 py-1.5 text-[13px] text-fg"
+        >
+          <span className="mr-auto font-medium">Unsaved view changes</span>
+          <Button variant="primary" disabled={save.isPending} onClick={() => void saveCurrent()}>
+            Save view
+          </Button>
+          <Button onClick={() => setCreating('copy')}>Save as new</Button>
+          <Button onClick={clearParams}>Discard</Button>
+        </div>
+      )}
       {creating && (
         <NewViewForm
           scope={scope}
@@ -178,7 +180,7 @@ function NewViewForm({
   return (
     <form
       aria-label="New view"
-      className="mt-2 flex flex-wrap items-end gap-3 rounded border border-slate-200 bg-white p-3 text-sm"
+      className="mt-2 flex flex-wrap items-end gap-3 rounded-lg border border-line bg-surface p-3 text-[13px] text-fg"
       onSubmit={(e) => {
         e.preventDefault()
         if (name.trim()) onSubmit({ name: name.trim(), type, visibility, shareWith })
@@ -189,7 +191,7 @@ function NewViewForm({
         <input
           autoFocus
           value={name}
-          className="rounded border border-slate-300 px-1"
+          className="h-8 rounded-md border border-line-strong bg-surface px-2 text-[13px] text-fg"
           onChange={(e) => setName(e.target.value)}
         />
       </label>
@@ -218,20 +220,16 @@ function NewViewForm({
         <fieldset className="flex flex-wrap gap-2">
           <legend>Share with</legend>
           {members.map((m) => (
-            <label key={m.userId} className="flex items-center gap-1">
-              <input
-                type="checkbox"
-                checked={shareWith.includes(m.userId!)}
-                onChange={(e) =>
-                  setShareWith(
-                    e.target.checked
-                      ? [...shareWith, m.userId!]
-                      : shareWith.filter((id) => id !== m.userId),
-                  )
-                }
-              />
-              {m.displayName ?? m.email}
-            </label>
+            <Checkbox
+              key={m.userId}
+              label={m.displayName ?? m.email ?? ''}
+              checked={shareWith.includes(m.userId!)}
+              onCheckedChange={(checked) =>
+                setShareWith(
+                  checked ? [...shareWith, m.userId!] : shareWith.filter((id) => id !== m.userId),
+                )
+              }
+            />
           ))}
         </fieldset>
       )}

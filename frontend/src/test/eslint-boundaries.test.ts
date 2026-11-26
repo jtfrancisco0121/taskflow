@@ -54,7 +54,7 @@ describe('the component library owns Radix and cmdk (slice 2, AD-4)', () => {
   const radix = "import * as S from '@radix-ui/react-select'\nexport const x = S\n"
 
   it('rejects a Radix import in a feature', async () => {
-    expect(await ruleIds(radix, 'src/features/views/ViewToolbar.tsx')).toContain(
+    expect(await ruleIds(radix, 'src/features/views/ChipBar.tsx')).toContain(
       'no-restricted-imports',
     )
   })
@@ -86,13 +86,17 @@ describe('no native <select> in product code (slice 2, AD-5)', () => {
     )
   })
 
-  it('allows it in the two named exceptions, test files and test helpers', async () => {
+  it('rejects it in FilterBuilder and FilterInput: the slice-2 exception is gone', async () => {
     for (const file of [
       'src/features/views/FilterBuilder.tsx',
       'src/features/fields/FilterInput.tsx',
-      'src/features/views/Anything.test.tsx',
-      'src/test/ui.test.tsx',
     ]) {
+      expect(await ruleIds(code, file), file).toContain('no-restricted-syntax')
+    }
+  })
+
+  it('allows it in test files and test helpers', async () => {
+    for (const file of ['src/features/views/Anything.test.tsx', 'src/test/ui.test.tsx']) {
       expect(await ruleIds(code, file), file).not.toContain('no-restricted-syntax')
     }
   })

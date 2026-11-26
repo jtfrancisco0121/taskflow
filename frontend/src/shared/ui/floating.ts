@@ -46,20 +46,30 @@ export function keepFocusIfMoved(event: Event) {
   }
 }
 
+const MODAL = '[role="dialog"][aria-modal="true"]'
+
 /**
  * `onCloseAutoFocus` for a menu whose pick can open a Dialog. A modal Radix menu traps focus while it is still
- * mounted, so a Dialog opened by a pick may have been pulled back to the body: give the focus to that Dialog
- * instead of the trigger. Only for such menus: a Select or popover inside a Dialog closes with focus on the
- * body too, and must give focus back to its own trigger, never to the Dialog's first field.
+ * mounted, so a Dialog opened by a pick may have been pulled back to the body: give the focus to the topmost
+ * Dialog instead of the trigger. Only for such menus: a Select or popover inside a Dialog closes with focus on
+ * the body too, and must give focus back to its own trigger, never to the Dialog's first field.
+ *
+ * `trigger` is the menu's own trigger. When it sits inside the topmost modal Dialog and focus fell to the body
+ * (or stayed in the menu), the pick opened nothing above it: Radix returns focus to the trigger, not to the
+ * Dialog's first field (slice-3 carry-over, AD-8).
  */
-export function keepFocusOrEnterDialog(event: Event) {
+export function keepFocusOrEnterDialog(event: Event, trigger?: Element | null) {
   const active = document.activeElement
-  if (!active || active === document.body) {
-    const dialog = document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]')
+  if (!active || active === document.body || active.closest('[data-tf-floating]')) {
+    const dialogs = document.querySelectorAll<HTMLElement>(MODAL)
+    const dialog = dialogs[dialogs.length - 1]
     if (dialog) {
-      event.preventDefault()
-      ;(dialog.querySelector<HTMLElement>(FOCUSABLE) ?? dialog).focus()
-      return
+      if (trigger && dialog.contains(trigger)) return
+      if (!active || active === document.body) {
+        event.preventDefault()
+        ;(dialog.querySelector<HTMLElement>(FOCUSABLE) ?? dialog).focus()
+        return
+      }
     }
   }
   keepFocusIfMoved(event)

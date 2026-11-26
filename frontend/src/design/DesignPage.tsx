@@ -13,6 +13,7 @@ import { ErrorState } from '../shared/ui/ErrorState'
 import { IconButton } from '../shared/ui/IconButton'
 import { Kbd } from '../shared/ui/Kbd'
 import { PageHeader } from '../shared/ui/PageHeader'
+import { Picker } from '../shared/ui/Picker'
 import { Popover } from '../shared/ui/Popover'
 import { PriorityBadge } from '../shared/ui/PriorityBadge'
 import { Select } from '../shared/ui/Select'
@@ -54,6 +55,9 @@ export function DesignPage() {
   const [checked, setChecked] = useState(true)
   const [on, setOn] = useState(true)
   const [dialog, setDialog] = useState(false)
+  const [confirm, setConfirm] = useState(false)
+  const [picked, setPicked] = useState('progress')
+  const [many, setMany] = useState<string[]>(['plan'])
   const showToast = useToastStore((state) => state.show)
 
   return (
@@ -213,6 +217,35 @@ export function DesignPage() {
         </div>
       </Section>
 
+      <Section title="Picker">
+        <Picker
+          trigger={
+            <Button>{STATUSES.find((o) => o.value === picked)?.label ?? 'Pick status'}</Button>
+          }
+          label="Pick a status"
+          mode="single"
+          items={STATUSES}
+          selected={[picked]}
+          onPick={setPicked}
+        />
+        <Picker
+          trigger={<Button>{`Tags (${many.length})`}</Button>}
+          label="Pick tags"
+          mode="multi"
+          items={[
+            { value: 'plan', label: 'Plan' },
+            { value: 'ship', label: 'Ship' },
+            { value: 'later', label: 'Later', hint: 'Mon' },
+          ]}
+          selected={many}
+          onPick={(value) =>
+            setMany((cur) =>
+              cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value],
+            )
+          }
+        />
+      </Section>
+
       <Section title="Badges">
         <StatusBadge name="To do" tone="todo" />
         <StatusBadge name="In progress" tone="progress" />
@@ -264,9 +297,27 @@ export function DesignPage() {
             onValueChange={setStatus}
             options={STATUSES}
           />
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex items-center justify-between">
+            <DropdownMenu
+              trigger={<Button>Dialog actions</Button>}
+              items={[
+                { label: 'Do nothing', onSelect: () => {} },
+                { label: 'Open confirmation', onSelect: () => setConfirm(true) },
+              ]}
+            />
             <Button variant="primary" onClick={() => setDialog(false)}>
               Done
+            </Button>
+          </div>
+        </Dialog>
+      )}
+      {confirm && (
+        <Dialog title="Confirm example" onClose={() => setConfirm(false)}>
+          <p className="mb-3 text-muted">A confirmation opened by a menu inside the dialog.</p>
+          <TextField label="Reason" />
+          <div className="mt-4 flex justify-end">
+            <Button variant="primary" onClick={() => setConfirm(false)}>
+              Confirm
             </Button>
           </div>
         </Dialog>

@@ -1,6 +1,11 @@
 import { create } from 'zustand'
 
-/** AD-19: Zustand holds only collapsed groups and the row selection; the URL holds everything else. */
+export type EditorField = 'status' | 'priority' | 'assignee' | 'due'
+
+/**
+ * AD-19, AD-3: Zustand holds the UI-only List state: collapsed groups, the row selection, the focused row and the
+ * one open popover editor. The URL holds everything else.
+ */
 type ViewUi = {
   collapsed: Record<string, boolean>
   toggleGroup: (key: string) => void
@@ -8,6 +13,12 @@ type ViewUi = {
   setSelected: (ids: string[]) => void
   toggleSelected: (id: string) => void
   clearSelection: () => void
+  focusedTaskId: string | null
+  setFocusedTaskId: (id: string | null) => void
+  openEditor: { taskId: string; field: EditorField } | null
+  setOpenEditor: (editor: { taskId: string; field: EditorField } | null) => void
+  /** The location scope or view changed: nothing selected, focused or open any more. */
+  resetTransient: () => void
 }
 
 export const useViewStore = create<ViewUi>((set) => ({
@@ -20,4 +31,9 @@ export const useViewStore = create<ViewUi>((set) => ({
       selected: s.selected.includes(id) ? s.selected.filter((x) => x !== id) : [...s.selected, id],
     })),
   clearSelection: () => set({ selected: [] }),
+  focusedTaskId: null,
+  setFocusedTaskId: (id) => set({ focusedTaskId: id }),
+  openEditor: null,
+  setOpenEditor: (editor) => set({ openEditor: editor }),
+  resetTransient: () => set({ selected: [], focusedTaskId: null, openEditor: null }),
 }))

@@ -1,5 +1,6 @@
 import type { ViewConfig } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
+import { EmptyState } from '../../shared/ui/EmptyState'
 import type { UrlState } from './urlState'
 import { withoutRefs } from './urlState'
 
@@ -23,7 +24,10 @@ export function DroppedNotice({
   if (dropped.length === 0) return null
   const names = dropped.map((d) => d.name ?? 'a deleted field').join(', ')
   return (
-    <p role="status" className="mb-2 flex flex-wrap items-center gap-2 text-sm text-amber-800">
+    <p
+      role="status"
+      className="mb-2 flex flex-wrap items-center gap-2 rounded-md bg-warn-soft px-3 py-1.5 text-[13px] text-fg"
+    >
       <span>Some filters were removed because a field was deleted: {names}.</span>
       {update && (
         <Button
@@ -46,11 +50,13 @@ export function DroppedNotice({
 /** The result of a filter that matches nothing, with the way out. */
 export function NoMatches({ update }: { update?: (patch: Partial<UrlState>) => void }) {
   return (
-    <p className="mb-2 flex flex-wrap items-center gap-2 text-slate-600">
-      <span>No tasks match these filters.</span>
-      {update && (
-        <Button onClick={() => update({ f: { op: 'AND', items: [] } })}>Clear filters</Button>
-      )}
-    </p>
+    <EmptyState
+      title="No tasks match these filters."
+      action={
+        update && (
+          <Button onClick={() => update({ f: { op: 'AND', items: [] } })}>Clear filters</Button>
+        )
+      }
+    />
   )
 }
