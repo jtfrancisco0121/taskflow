@@ -201,11 +201,8 @@ test('SM-2: a task, a List, a Theme and the Inbox are reachable from the palette
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
-  // data-theme is set before the bundle runs, so it proves nothing about the app: wait for the shell to
-  // have rendered its tree. A shortcut pressed while the app is still mounting can open a palette that
-  // is then remounted, and the picked Command never runs.
-  await expect(page.getByRole('treeitem', { name: 'Platform' })).toBeVisible()
-
+  // No wait for the shell here (AD-9): the shortcut pressed while the app is still booting is queued and the
+  // palette opens once the shell is ready, then the picked Command runs.
   await page.keyboard.press('ControlOrMeta+k')
   await paletteField(page).fill('Go to Inbox')
   await enterOn(page, /Inbox/)
@@ -218,6 +215,18 @@ test('SM-2: a task, a List, a Theme and the Inbox are reachable from the palette
   await paletteField(page).fill('service accounts')
   await enterOn(page, /service account/i)
   await expect(page).toHaveURL(/\/settings\/service-accounts$/)
+})
+
+test('AD-9: the shortcut pressed right after a reload opens the palette and its Command runs', async ({
+  page,
+}) => {
+  await setUp(page)
+  await page.reload()
+  await page.keyboard.press('ControlOrMeta+k')
+  await expect(palette(page)).toBeVisible()
+  await paletteField(page).fill('Go to Inbox')
+  await enterOn(page, /Inbox/)
+  await expect(page.getByRole('heading', { name: 'Inbox' })).toBeVisible()
 })
 
 test('FR-7: a Workspace jump lands on the other Workspace', async ({ page }) => {

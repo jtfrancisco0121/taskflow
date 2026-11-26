@@ -31,6 +31,12 @@ type UiState = {
   paletteOpen: boolean
   setPaletteOpen: (value: boolean) => void
   togglePalette: () => void
+  /** AppShell is mounted with a session: the palette can open and run Commands (AD-9). */
+  shellReady: boolean
+  setShellReady: (value: boolean) => void
+  /** Ctrl/Cmd+K pressed before the shell was ready: the palette opens once when it is. */
+  paletteRequested: boolean
+  setPaletteRequested: (value: boolean) => void
   /** Expanded tree node ids per Workspace; loaded lazily from localStorage. */
   expanded: Record<string, string[]>
   loadExpanded: (workspaceId: string) => void
@@ -47,6 +53,10 @@ export const useUiStore = create<UiState>((set, get) => ({
   paletteOpen: false,
   setPaletteOpen: (value) => set({ paletteOpen: value }),
   togglePalette: () => set((state) => ({ paletteOpen: !state.paletteOpen })),
+  shellReady: false,
+  setShellReady: (value) => set({ shellReady: value }),
+  paletteRequested: false,
+  setPaletteRequested: (value) => set({ paletteRequested: value }),
   expanded: {},
   loadExpanded: (workspaceId) =>
     set((state) => ({ expanded: { ...state.expanded, [workspaceId]: readExpanded(workspaceId) } })),
