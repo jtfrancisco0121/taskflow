@@ -24,6 +24,7 @@ import { observeRect } from './virtualRect'
 import { useScopeFields, customColumns } from './useScopeFields'
 import { useTaskActions } from './useTaskActions'
 import { useViewTasks } from './useViewTasks'
+import { useListKeys } from './useListKeys'
 import { useViewStore } from './viewStore'
 
 const ROW_HEIGHT = 36
@@ -45,6 +46,17 @@ export function ListRenderer({
   update?: (patch: Partial<UrlState>) => void
 }) {
   const query = useViewTasks(scope, config)
+  const navigate = useNavigate()
+  const location = useLocation()
+  const onTaskRoute = useMatch('/t/:taskId') !== null
+  // The task panel opens over the place it was opened from.
+  const background = onTaskRoute
+    ? ((location.state as { backgroundLocation?: Location } | null)?.backgroundLocation ?? null)
+    : location
+  const linkState = background ? { backgroundLocation: background } : undefined
+  const openTask = (id: string) => void navigate(`/t/${id}`, { state: linkState })
+  const selectedIds = useViewStore((s) => s.selected)
+  const focusedTaskId = useViewStore((s) => s.focusedTaskId)
   const scopeFields = useScopeFields(scope)
   const custom = customColumns(config.columns, scopeFields.byId).map((c) => c.field)
   const template = `2rem 6rem minmax(12rem,1fr) 9rem 7rem 8rem 9rem 9rem${' 10rem'.repeat(custom.length)}`
@@ -88,6 +100,13 @@ export function ListRenderer({
     if (hasNextPage && !isFetchingNextPage && last >= rows.length - 10) void fetchNextPage()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, last, rows.length])
 
+  const loaded = query.items.flatMap((i) => (i.task ? [i.task] : []))
+  const taskRows = rows.flatMap((row, rowIndex) =>
+    row.kind === 'task' ? [{ rowIndex, task: row.task }] : [],
+  )
+  const onKeyDown = useListKeys({ scope, taskRows, loaded, virtualizer, openTask })
+  const firstTaskId = taskRows[0]?.task.id
+
   if (query.isPending) {
     return (
       <div role="status" aria-label="Loading tasks" className="flex flex-col gap-px">
@@ -112,15 +131,11 @@ export function ListRenderer({
           onChange={(c) => update({ c })}
         />
       )}
-      <BulkBar
-        scope={scope}
-        tasks={query.items.flatMap((i) => (i.task ? [i.task] : []))}
-        members={members}
-      />
+      <BulkBar scope={scope} tasks={loaded} members={members} />
       {rows.length === 0 &&
         (hasFilter(config) ? <NoMatches update={update} /> : <EmptyState title={empty} />)}
       {rows.length > 0 && (
-        <div role="table" aria-label="Tasks" aria-rowcount={rows.length}>
+        <div role="table" aria-label="Tasks" aria-rowcount={rows.length} onKeyDown={onKeyDown}>
           <div
             role="row"
             className="grid border-b border-line px-2 py-1 text-xs font-medium text-muted uppercase"
@@ -148,6 +163,9 @@ export function ListRenderer({
                   <div
                     key={row.key}
                     role="row"
+                    aria-selected={
+                      row.kind === 'task' ? selectedIds.includes(row.task.id!) : undefined
+                    }
                     data-index={v.index}
                     style={{
                       position: 'absolute',
@@ -176,6 +194,12 @@ export function ListRenderer({
                         members={members}
                         custom={custom}
                         template={template}
+                        linkState={linkState}
+                        tabbable={
+                          row.task.id === focusedTaskId ||
+                          (!taskRows.some((r) => r.task.id === focusedTaskId) &&
+                            row.task.id === firstTaskId)
+                        }
                       />
                     )}
                   </div>
@@ -201,7 +225,11 @@ function TaskLine({
   members,
   custom,
   template,
+  linkState,
+  tabbable,
 }: {
+  linkState: { backgroundLocation: Location } | undefined
+  tabbable: boolean
   task: TaskView
   names: Map<string, string>
   members: Array<{ userId?: string; displayName?: string; email?: string }>
@@ -210,12 +238,6 @@ function TaskLine({
 }) {
   const actions = useTaskActions()
   const navigate = useNavigate()
-  const location = useLocation()
-  const onTaskRoute = useMatch('/t/:taskId') !== null
-  const background = onTaskRoute
-    ? ((location.state as { backgroundLocation?: Location } | null)?.backgroundLocation ?? null)
-    : location
-  const linkState = background ? { backgroundLocation: background } : undefined
   const open = useMatch('/t/:taskId')?.params.taskId === task.id
   const selected = useViewStore((s) => s.selected.includes(task.id!))
   const toggle = useViewStore((s) => s.toggleSelected)
@@ -225,6 +247,7 @@ function TaskLine({
     statusList.find((st) => st.id === task.statusId)?.group ?? '',
   )
   const closeEditor = useViewStore((st) => st.setOpenEditor)
+  const setFocused = useViewStore((st) => st.setFocusedTaskId)
   const id = task.id!
   useEffect(
     () => () => {
@@ -236,10 +259,12 @@ function TaskLine({
   return (
     <div
       data-task-id={task.id}
+      tabIndex={tabbable ? 0 : -1}
+      onFocus={() => setFocused(id)}
       aria-current={open ? 'true' : undefined}
       onClick={() => void navigate(`/t/${task.id}`, { state: linkState })}
       style={{ gridTemplateColumns: template }}
-      className={`grid h-full cursor-pointer items-center border-b border-line px-2 text-[13px] text-fg hover:bg-surface-2 ${open || selected ? 'bg-accent-soft' : ''}`}
+      className={`grid h-full cursor-pointer items-center border-b border-line px-2 text-[13px] text-fg hover:bg-surface-2 focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus-ring focus-visible:bg-surface-2 focus-visible:shadow-[inset_3px_0_0_var(--tf-accent)] ${open || selected ? 'bg-accent-soft' : ''}`}
     >
       <span onClick={(e) => e.stopPropagation()}>
         <Checkbox

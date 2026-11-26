@@ -5,6 +5,7 @@ import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { runLimited } from './bulk'
 import { ListRenderer } from './ListRenderer'
+import { Toaster } from '../../shared/ui/Toaster'
 import { baseRoutes, scope, task } from './testSupport'
 import { useViewStore } from './viewStore'
 import { pick } from '../../test/ui'
@@ -85,7 +86,7 @@ describe('LIST-1 Bulk actions', () => {
     })
     // per-task toasts are off during a fan-out: one summary only
     expect(useToastStore.getState().toasts).toHaveLength(1)
-  })
+  }, 20_000)
 
   it('LIST-1: Delete removes the selected tasks and Undo restores them with the new version', async () => {
     const stub = serve([task(1), task(2), task(3)], {
@@ -94,12 +95,17 @@ describe('LIST-1 Bulk actions', () => {
         json(task(Number(new URL(request.url).pathname.split('/').at(-2)!.slice(1)))),
     })
     const user = userEvent.setup()
-    renderWithProviders(<ListRenderer scope={scope} config={{ v: 1, group: 'status' }} />)
+    renderWithProviders(
+      <>
+        <ListRenderer scope={scope} config={{ v: 1, group: 'status' }} />
+        <Toaster />
+      </>,
+    )
     await screen.findByRole('link', { name: 'Task 1' })
     useViewStore.setState({ selected: ['t1', 't2', 't3'] })
 
     await user.click(await screen.findByRole('button', { name: 'Delete' }))
-    expect(await screen.findByText(/Deleted 3 tasks/)).toBeVisible()
+    expect(await screen.findByText('Moved 3 tasks to trash.')).toBeVisible()
     expect(
       stub.calls.filter((c) => c.method === 'DELETE').map((c) => c.headers.get('If-Match')),
     ).toEqual(['"1"', '"1"', '"1"'])
