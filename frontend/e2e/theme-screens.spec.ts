@@ -3,8 +3,10 @@ import {
   addTask,
   createList,
   createSpace,
+  createField,
   createView,
   liftToNextColumn,
+  openFields,
   signUpAndCreateWorkspace,
   taskDetail,
 } from './helpers'
@@ -223,6 +225,21 @@ for (const os of OS_SCHEMES)
       await expect(page.getByRole('heading', { name: 'Inbox' })).toBeVisible()
       await snap(page, testInfo, `inbox-${theme}${suffix}`)
       await expectNoContrastViolations(page, `inbox-${theme}${suffix}`)
+
+      // Slice 9a: the notification settings and the field manager.
+      await page.goto(`/w/${workspaceId}/settings/notifications`)
+      await expect(page.getByRole('heading', { name: 'Notification settings' })).toBeVisible()
+      await expect(page.getByRole('switch', { name: 'Assigned to me: In app' })).toBeVisible()
+      await snap(page, testInfo, `notification-settings-${theme}${suffix}`)
+      await expectNoContrastViolations(page, `notification-settings-${theme}${suffix}`)
+
+      const fieldsDialog = await openFields(page, 'Engineering')
+      await createField(fieldsDialog, 'Effort', 'Dropdown', ['Small', 'Large'])
+      await expect(fieldsDialog.getByText('Effort')).toBeVisible()
+      await snap(page, testInfo, `field-manager-${theme}${suffix}`)
+      await expectNoContrastViolations(page, `field-manager-${theme}${suffix}`)
+      await fieldsDialog.getByRole('button', { name: 'Close', exact: true }).click()
+      await expect(fieldsDialog).toHaveCount(0)
 
       await page.goto(`/w/${workspaceId}/settings/service-accounts`)
       await expect(page.getByText('No service accounts yet', { exact: false })).toBeVisible()
