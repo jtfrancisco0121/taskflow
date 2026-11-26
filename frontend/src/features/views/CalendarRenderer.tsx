@@ -309,8 +309,9 @@ function Chip({ task, status }: { task: TaskView; status?: ReturnType<StatusLook
       <Link
         to={`/t/${task.id}`}
         state={{ backgroundLocation: location }}
-        tabIndex={-1}
-        className="min-w-0 flex-1 truncate text-fg hover:underline"
+        // The link is its own tab stop: Enter opens the task; the chip's drag sensor must not take that key.
+        onKeyDown={(event) => event.stopPropagation()}
+        className="min-w-0 flex-1 truncate rounded-sm text-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring"
       >
         {task.title}
       </Link>

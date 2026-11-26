@@ -13,6 +13,7 @@ import {
   weekStart,
 } from './calendarGrid'
 import { CalendarRenderer } from './CalendarRenderer'
+import { useLocation } from 'react-router'
 import { baseRoutes, scope, task } from './testSupport'
 
 describe('CAL-1 calendar grid', () => {
@@ -384,5 +385,28 @@ describe('CAL-1 Calendar view', () => {
     expect(stub.calls.find((c) => c.method === 'PATCH')!.body).toEqual({
       dueDate: '2026-12-02T00:00:00Z',
     })
+  })
+
+  it('CAL-1: a keyboard user tabs from a chip to its title link and Enter opens /t/:id; no drag starts', async () => {
+    const Where = () => <output data-testid="where">{useLocation().pathname}</output>
+    const stub = serve([dated(1, '2026-11-25')], (_r, body) =>
+      json({ ...dated(1, '2026-11-26'), ...(body as object), version: 2 }),
+    )
+    renderWithProviders(
+      <>
+        <CalendarRenderer scope={scope} config={week} update={vi.fn()} />
+        <Where />
+      </>,
+      { route },
+    )
+    const user = userEvent.setup()
+    const link = await screen.findByRole('link', { name: 'Task 1' })
+    const chip = link.closest('li')!
+    chip.focus()
+    await user.tab()
+    expect(link).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByTestId('where')).toHaveTextContent('/t/t1')
+    expect(stub.calls.some((c) => c.method === 'PATCH')).toBe(false)
   })
 })
