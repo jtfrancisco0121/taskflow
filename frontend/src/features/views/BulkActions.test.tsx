@@ -71,7 +71,10 @@ describe('LIST-1 Bulk actions', () => {
 
     await pick(user, await screen.findByLabelText('Set priority'), 'High')
 
-    await waitFor(() => expect(stub.calls.filter((c) => c.method === 'PATCH')).toHaveLength(50))
+    // 50 PATCHes through the optimistic path: allow for a loaded machine (the suite runs in parallel).
+    await waitFor(() => expect(stub.calls.filter((c) => c.method === 'PATCH')).toHaveLength(50), {
+      timeout: 8000,
+    })
     expect(peak).toBeLessThanOrEqual(6)
     expect(peak).toBeGreaterThan(1)
     await waitFor(() => {

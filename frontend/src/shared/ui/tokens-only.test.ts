@@ -18,7 +18,8 @@ describe('the library, /design, the shell and the rebuilt feature files use toke
       '../../features/search/SearchBox.tsx',
       '../../features/serviceAccounts/ServiceAccountsLink.tsx',
       '../../features/tasks/{TaskPanelRoute,TaskPanel}.tsx',
-      '../../features/views/{FilterBuilder,ChipBar,ViewTabs}.tsx',
+      '../../features/views/{FilterBuilder,ChipBar,ViewTabs,ViewPage,ListRenderer,ListEditors,ColumnsPicker,ResultNotices}.tsx',
+      '../../features/tasks/QuickAdd.tsx',
       '../../features/fields/FilterInput.tsx',
     ],
     {

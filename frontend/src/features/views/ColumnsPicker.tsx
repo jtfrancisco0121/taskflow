@@ -17,14 +17,15 @@ export function ColumnsPicker({
 }) {
   if (!builtIn && fields.length === 0) return null
   return (
-    <details className="mb-2 text-sm">
-      <summary className="cursor-pointer">Columns</summary>
+    <details className="mb-2 text-[13px] text-fg">
+      <summary className="cursor-pointer text-muted">Columns</summary>
       {builtIn && (
         <div className="mt-1 flex flex-wrap gap-3">
           {COLUMN_FIELDS.map((field) => (
             <label key={field} className="flex items-center gap-1">
               <input
                 type="checkbox"
+                className="accent-accent"
                 checked={columns.some((c) => c.field === field)}
                 disabled={field === 'title'}
                 onChange={(e) => onChange(toggleColumn(columns, field, e.target.checked))}
@@ -36,7 +37,7 @@ export function ColumnsPicker({
       )}
       {fields.length > 0 && (
         <fieldset className="mt-1 border-0 p-0">
-          <legend className="text-xs font-medium text-slate-500">Custom fields</legend>
+          <legend className="text-xs font-medium text-muted">Custom fields</legend>
           <div className="flex flex-wrap gap-3">
             {fields.map((field) => {
               const ref = `cf:${field.id}`
@@ -44,14 +45,15 @@ export function ColumnsPicker({
                 <label key={field.id} className="flex items-center gap-1">
                   <input
                     type="checkbox"
+                    className="accent-accent"
                     checked={columns.some((c) => c.field === ref)}
                     onChange={(e) => onChange(toggleColumn(columns, ref, e.target.checked))}
                   />
-                  <span aria-hidden="true" className="font-mono text-xs text-slate-500">
+                  <span aria-hidden="true" className="font-mono text-xs text-muted">
                     {FIELD_TYPES[field.type ?? 'TEXT'].icon}
                   </span>
                   {field.name}
-                  <span className="text-xs text-slate-500">from {field.definedAtName}</span>
+                  <span className="text-xs text-muted">from {field.definedAtName}</span>
                 </label>
               )
             })}

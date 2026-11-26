@@ -79,3 +79,31 @@ test('chip bar: Save view hides the bar and the saved filter survives a reload',
   await expect(page.getByRole('group', { name: 'Unsaved view changes' })).toBeHidden()
   await expect(page.getByRole('link', { name: 'Beta' })).toBeHidden()
 })
+
+test('row editors: status, priority, assignee and due date are picked in popovers', async ({
+  page,
+  request,
+}) => {
+  await openList(page, request, [{ title: 'Alpha' }])
+  const alpha = page.getByRole('row').filter({ hasText: 'Alpha' })
+
+  await pick(alpha.getByLabel(/^Status of/), 'in progress')
+  await expect(alpha.getByLabel(/^Status of/)).toHaveText('in progress')
+  await pick(alpha.getByLabel(/^Priority of/), 'Urgent')
+  await expect(alpha.getByLabel(/^Priority of/)).toHaveText('Urgent')
+
+  await pick(alpha.getByLabel(/^Assignees of/), 'Lena List')
+  await expect(
+    alpha.getByLabel(/^Assignees of/).getByRole('img', { name: 'Lena List' }),
+  ).toBeVisible()
+  await pick(alpha.getByLabel(/^Assignees of/), 'Lena List')
+  await expect(alpha.getByLabel(/^Assignees of/).getByRole('img')).toHaveCount(0)
+
+  await pick(alpha.getByLabel(/^Due date of/), 'Tomorrow')
+  await expect(alpha.getByLabel(/^Due date of/)).not.toHaveText('—')
+  await page.reload()
+  await expect(alpha.getByLabel(/^Due date of/)).not.toHaveText('—')
+  await pick(alpha.getByLabel(/^Due date of/), 'No date')
+  await expect(alpha.getByLabel(/^Due date of/)).toHaveText('—')
+  await expect(alpha.getByLabel(/^Status of/)).toHaveText('in progress')
+})

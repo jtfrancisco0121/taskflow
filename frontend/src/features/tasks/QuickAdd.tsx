@@ -46,10 +46,10 @@ export function QuickAdd({
             submit()
           } else if (event.key === 'Escape') setTitle('')
         }}
-        className="w-full rounded border border-dashed border-slate-300 px-2 py-1.5 text-sm focus:outline-2 focus:outline-blue-600"
+        className="h-9 w-full rounded-md border border-dashed border-line-strong bg-surface px-2 text-[13px] text-fg placeholder:text-faint focus-visible:outline-2 focus-visible:outline-focus-ring"
       />
       {create.isError && (
-        <p role="alert" className="mt-1 text-sm text-red-700">
+        <p role="alert" className="mt-1 text-[13px] text-danger">
           {messageOf(create.error)}
         </p>
       )}
