@@ -32,7 +32,11 @@ export function FieldCell({ field, task }: { field: FieldView; task: TaskView })
       clearTimeout(timer.current)
       setSaving(false)
     }
-    if (!multi) button.current?.focus()
+    // The save may finish after the user has already moved on to another cell: only take the focus back when
+    // nothing else holds it, and never scroll (a late focus() scrolled the Table sideways under a click).
+    const active = document.activeElement
+    if (!multi && (!active || active === document.body))
+      button.current?.focus({ preventScroll: true })
   }
 
   if (field.type === 'CHECKBOX') {
@@ -94,13 +98,13 @@ export function FieldCell({ field, task }: { field: FieldView; task: TaskView })
           setEditing(true)
         }
       }}
-      className="flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-left text-sm hover:bg-slate-100 focus:outline-2 focus:outline-blue-600"
+      className="flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-left text-sm hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-focus-ring"
     >
       <ValueCell field={field} value={value} workspaceId={task.workspaceId} />
       {saving && (
         <span
           aria-hidden="true"
-          className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600"
+          className="h-3 w-3 animate-spin rounded-full border-2 border-line-strong border-t-muted"
         />
       )}
     </button>

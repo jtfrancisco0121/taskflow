@@ -197,6 +197,21 @@ for (const os of OS_SCHEMES)
           await expectNoContrastViolations(page, `board-drag-${theme}${suffix}`)
           await page.keyboard.press('Escape')
         }
+        if (type === 'Table') {
+          // the List's status Picker, open on the first Table row
+          await page
+            .locator('[data-task-id]')
+            .first()
+            .getByLabel(/^Status of/)
+            .click()
+          await expect(page.getByRole('option', { name: 'in progress', exact: true })).toBeVisible()
+          await snap(page, testInfo, `table-edit-${theme}${suffix}`)
+          await expectNoContrastViolations(page, `table-edit-${theme}${suffix}`)
+          await page.keyboard.press('Escape')
+          await expect(page.getByRole('option', { name: 'in progress', exact: true })).toHaveCount(
+            0,
+          )
+        }
       }
 
       await page.getByRole('link', { name: 'Automations' }).click()

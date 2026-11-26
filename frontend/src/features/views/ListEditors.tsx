@@ -155,29 +155,52 @@ export function AssigneeEditor({
 }
 
 export function DueEditor({ task, done }: { task: TaskView; done: boolean }) {
+  return <DayEditor task={task} field="dueDate" done={done} />
+}
+
+export function StartEditor({ task }: { task: TaskView }) {
+  return <DayEditor task={task} field="startDate" done={false} />
+}
+
+const DAY_FIELD = {
+  dueDate: { editor: 'due', word: 'due', Word: 'Due' },
+  startDate: { editor: 'start', word: 'start', Word: 'Start' },
+} as const
+
+/** One day editor for the due and the start date; only the due date can be overdue. */
+function DayEditor({
+  task,
+  field,
+  done,
+}: {
+  task: TaskView
+  field: 'dueDate' | 'startDate'
+  done: boolean
+}) {
   const actions = useTaskActions()
-  const editor = useEditorOpen(task.id!, 'due')
+  const { editor: key, word, Word } = DAY_FIELD[field]
+  const editor = useEditorOpen(task.id!, key)
   const days = quickDays()
-  const day = toInputDay(task.dueDate)
-  const overdue = !!day && day < days.today && !done
-  const save = (dueDate: string | null) => {
+  const day = toInputDay(task[field])
+  const overdue = field === 'dueDate' && !!day && day < days.today && !done
+  const save = (value: string | null) => {
     editor.onOpenChange(false)
-    void actions.patch(task, { dueDate: dueDate as string })
+    void actions.patch(task, { [field]: value as string })
   }
   return (
     <Picker
       mode="single"
-      label={`Set due date of ${task.readableId}`}
+      label={`Set ${word} date of ${task.readableId}`}
       {...editor}
       trigger={
         <button
           type="button"
-          aria-label={`Due date of ${task.readableId}`}
+          aria-label={`${Word} date of ${task.readableId}`}
           aria-describedby={overdue ? `overdue-${task.id}` : undefined}
           className={`${trigger} ${overdue ? 'text-danger' : ''}`}
           onClick={(e) => e.stopPropagation()}
         >
-          <DayValue iso={task.dueDate} />
+          <DayValue iso={task[field]} />
           {overdue && (
             <span id={`overdue-${task.id}`} className="sr-only">
               overdue
@@ -191,7 +214,7 @@ export function DueEditor({ task, done }: { task: TaskView; done: boolean }) {
       footer={
         <input
           type="date"
-          aria-label={`Due day of ${task.readableId}`}
+          aria-label={`${Word} day of ${task.readableId}`}
           value={day}
           className="h-8 w-full rounded-md border border-line-strong bg-surface px-2 text-[13px] text-fg"
           onChange={(e) => e.target.value && save(toApiDate(e.target.value))}
