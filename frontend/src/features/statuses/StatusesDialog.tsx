@@ -5,6 +5,8 @@ import { messageOf, unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
 import { Button } from '../../shared/ui/Button'
 import { Dialog } from '../../shared/ui/Dialog'
+import { ErrorState } from '../../shared/ui/ErrorState'
+import { Skeleton } from '../../shared/ui/Skeleton'
 import { StatusPill } from '../../shared/ui/StatusPill'
 import { GROUP_LABEL, type Group } from './statusTypes'
 import { ResetPanel } from './ResetPanel'
@@ -54,15 +56,19 @@ export function StatusesDialog({
 
   return (
     <Dialog title={`Statuses: ${location.name}`} onClose={onClose} restoreFocus={restoreFocus} wide>
-      {set.isPending && <p role="status">Loading…</p>}
+      {set.isPending && (
+        <div role="status" aria-label="Loading statuses" className="flex flex-col gap-2">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-6 w-full" />
+          ))}
+        </div>
+      )}
       {set.isError && (
-        <p role="alert" className="text-red-700">
-          {messageOf(set.error)}
-        </p>
+        <ErrorState message={messageOf(set.error)} onRetry={() => void set.refetch()} />
       )}
       {set.isSuccess && (
         <div className="flex flex-col gap-3">
-          <p className="rounded bg-slate-100 px-2 py-1 text-sm">
+          <p className="rounded-md bg-surface-2 px-2 py-1 text-sm text-muted">
             {inheriting ? `Inherited from ${sourceName ?? 'a parent location'}` : 'Defined here'}
           </p>
           {mode === 'view' && (
@@ -71,7 +77,7 @@ export function StatusesDialog({
                 {statuses.map((status) => (
                   <li key={status.id} className="flex items-center gap-2 text-sm">
                     <StatusPill name={status.name ?? ''} color={status.color} />
-                    <span className="text-slate-500">
+                    <span className="text-faint">
                       {GROUP_LABEL[(status.group ?? 'NOT_STARTED') as Group]}
                     </span>
                   </li>

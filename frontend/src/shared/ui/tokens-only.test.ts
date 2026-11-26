@@ -36,6 +36,9 @@ describe('the library, /design, the shell and the rebuilt feature files use toke
       // slice 9a: notifications and the field manager
       '../../features/notifications/{InboxPage,NotificationSettingsPage}.tsx',
       '../../features/fields/{FieldManagerDialog,FieldEditor,ValueCell}.tsx',
+      // slice 9b: automations and the status manager
+      '../../features/automations/{AutomationsPage,RuleCard,RuleBuilder,RunsSheet}.tsx',
+      '../../features/statuses/{StatusesDialog,StatusEditor,ResetPanel}.tsx',
     ],
     {
       query: '?raw',

@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { messageOf } from '../../api/errors'
 import type { StatusInfo } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
+import { ErrorState } from '../../shared/ui/ErrorState'
 import { Select } from '../../shared/ui/Select'
+import { Skeleton } from '../../shared/ui/Skeleton'
 import { resolveRemap } from './buildRemap'
 import { useLocationStatuses } from './useLocationStatuses'
 import { useResetStatuses } from './useStatusMutations'
@@ -36,24 +38,29 @@ export function ResetPanel({
   const resolution = resolveRemap(own, targets, choices)
   const ready = inherited.isSuccess && resolution.unresolved.length === 0
 
-  if (inherited.isPending) return <p role="status">Loading…</p>
+  if (inherited.isPending) {
+    return (
+      <div role="status" aria-label="Loading statuses" className="flex flex-col gap-2">
+        <Skeleton className="h-6 w-full" />
+        <Skeleton className="h-6 w-2/3" />
+      </div>
+    )
+  }
   if (inherited.isError) {
     return (
-      <p role="alert" className="text-sm text-red-700">
-        {messageOf(inherited.error)}
-      </p>
+      <ErrorState message={messageOf(inherited.error)} onRetry={() => void inherited.refetch()} />
     )
   }
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm">
+      <p className="text-sm text-fg">
         Reset to the inherited set? This location will use the statuses of its parent again.
       </p>
       {resolution.needsChoice.length > 0 && (
-        <fieldset className="rounded border border-amber-200 bg-amber-50 p-2">
-          <legend className="px-1 text-sm font-medium">Move its tasks to</legend>
+        <fieldset className="rounded-md border border-line bg-warn-soft p-2">
+          <legend className="px-1 text-sm font-medium text-fg">Move its tasks to</legend>
           {resolution.needsChoice.map((status) => (
-            <label key={status.id} className="mb-1 flex items-center gap-2 text-sm">
+            <label key={status.id} className="mb-1 flex items-center gap-2 text-sm text-fg">
               <span className="w-40 truncate">{status.name}</span>
               <Select
                 aria-label={`Move tasks from ${status.name} to`}
@@ -67,7 +74,7 @@ export function ResetPanel({
         </fieldset>
       )}
       {reset.isError && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           {messageOf(reset.error)}
         </p>
       )}
