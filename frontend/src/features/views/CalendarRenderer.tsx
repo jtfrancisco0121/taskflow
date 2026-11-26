@@ -22,7 +22,14 @@ import { IconButton } from '../../shared/ui/IconButton'
 import { Skeleton } from '../../shared/ui/Skeleton'
 import { useLocationStatuses } from '../statuses'
 import { PriorityValue } from '../tasks'
-import { calendarRange, dueDateFor, fromDay, shiftAnchor, todayUtc } from './calendarGrid'
+import {
+  calendarRange,
+  dayOfDue,
+  dueDateFor,
+  fromDay,
+  shiftAnchor,
+  todayLocal,
+} from './calendarGrid'
 import type { ViewScope } from './scope'
 import { parseUrlState, type UrlState } from './urlState'
 import { useTaskActions } from './useTaskActions'
@@ -53,7 +60,7 @@ const dayCoordinates: KeyboardCoordinateGetter = (event, { context }) => {
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const VISIBLE_CHIPS = 3
 
-/** CAL-1: month and week grids on UTC days; the range is a `dueDate between` condition. */
+/** CAL-1 (revised, slice 8): month and week grids on the viewer's local days; the range is a `dueDate between` condition. */
 export function CalendarRenderer({
   scope,
   config,
@@ -65,7 +72,7 @@ export function CalendarRenderer({
 }) {
   const [params] = useViewParams()
   const mode = config.mode === 'week' ? 'week' : 'month'
-  const anchor = parseUrlState(params).state.d ?? todayUtc()
+  const anchor = parseUrlState(params).state.d ?? todayLocal()
   const range = calendarRange(mode, anchor)
   const actions = useTaskActions()
   const [openDay, setOpenDay] = useState<string | null>(null)
@@ -100,7 +107,7 @@ export function CalendarRenderer({
   for (const item of query.items) {
     const task = item.task
     if (!task?.dueDate) continue
-    const day = task.dueDate.slice(0, 10)
+    const day = dayOfDue(task.dueDate)
     byDay.set(day, [...(byDay.get(day) ?? []), task])
   }
 
@@ -112,14 +119,13 @@ export function CalendarRenderer({
     if (!over) return
     const day = String(over.id).replace('day:', '')
     const task = query.items.find((i) => i.task?.id === String(active.id))?.task
-    if (!task || task.dueDate?.slice(0, 10) === day) return
+    if (!task || (task.dueDate ? dayOfDue(task.dueDate) : '') === day) return
     void actions.patch(task, { dueDate: dueDateFor(day) })
   }
 
   const title = new Intl.DateTimeFormat('en', {
     month: 'long',
     year: 'numeric',
-    timeZone: 'UTC',
   }).format(fromDay(anchor))
 
   const statuses = useLocationStatuses(scope.workspaceId, scope.locationId).data?.statuses
@@ -131,7 +137,7 @@ export function CalendarRenderer({
         <IconButton label="Previous" onClick={() => update({ d: shiftAnchor(mode, anchor, -1) })}>
           <Chevron d="M10 3l-5 5 5 5" />
         </IconButton>
-        <Button onClick={() => update({ d: todayUtc() })}>Today</Button>
+        <Button onClick={() => update({ d: todayLocal() })}>Today</Button>
         <IconButton label="Next" onClick={() => update({ d: shiftAnchor(mode, anchor, 1) })}>
           <Chevron d="M6 3l5 5-5 5" />
         </IconButton>
@@ -173,7 +179,7 @@ export function CalendarRenderer({
                   key={day}
                   day={day}
                   dim={mode === 'month' && !day.startsWith(range.anchorMonth)}
-                  today={day === todayUtc()}
+                  today={day === todayLocal()}
                   tasks={byDay.get(day) ?? []}
                   statusOf={statusOf}
                   expanded={openDay === day}

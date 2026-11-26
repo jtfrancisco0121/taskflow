@@ -3,12 +3,20 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
-import { addDays, calendarRange, dueDateFor, shiftAnchor, weekStart } from './calendarGrid'
+import {
+  addDays,
+  calendarRange,
+  dayOfDue,
+  dueDateFor,
+  shiftAnchor,
+  todayLocal,
+  weekStart,
+} from './calendarGrid'
 import { CalendarRenderer } from './CalendarRenderer'
 import { baseRoutes, scope, task } from './testSupport'
 
 describe('CAL-1 calendar grid', () => {
-  it('weeks start on Monday and a month shows whole weeks of UTC days', () => {
+  it('weeks start on Monday and a month shows whole weeks of local days', () => {
     expect(weekStart('2026-11-25')).toBe('2026-11-23')
     expect(weekStart('2026-11-29')).toBe('2026-11-23')
     const month = calendarRange('month', '2026-11-25')
@@ -27,12 +35,82 @@ describe('CAL-1 calendar grid', () => {
     ])
   })
 
-  it('previous and next move by a month or a week; a drop sends that day at 00:00 UTC', () => {
+  it('previous and next move by a month or a week; a drop sends that day at 00:00 UTC (the API date form)', () => {
     expect(shiftAnchor('month', '2026-01-31', 1)).toBe('2026-02-01')
     expect(shiftAnchor('month', '2026-01-15', -1)).toBe('2025-12-01')
     expect(shiftAnchor('week', '2026-11-25', 1)).toBe('2026-12-02')
     expect(addDays('2026-02-28', 1)).toBe('2026-03-01')
     expect(dueDateFor('2026-11-26')).toBe('2026-11-26T00:00:00Z')
+  })
+})
+
+const ZONES = ['UTC', 'America/New_York', 'Asia/Manila', 'Pacific/Auckland']
+
+describe.each(ZONES)('CAL-1 local days in %s', (zone) => {
+  const before = process.env.TZ
+  beforeEach(() => {
+    process.env.TZ = zone
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    if (before === undefined) delete process.env.TZ
+    else process.env.TZ = before
+  })
+  const localDay = (iso: string) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: zone }).format(new Date(iso))
+
+  it("today is the viewer's local day, not the UTC one", () => {
+    for (const now of ['2026-11-27T03:00:00Z', '2026-11-27T21:00:00Z', '2026-12-01T03:00:00Z']) {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date(now))
+      expect(todayLocal()).toBe(localDay(now))
+      vi.useRealTimers()
+    }
+  })
+
+  it('day arithmetic survives DST changes: consecutive days, 42 cells, Monday first', () => {
+    expect(addDays('2026-03-07', 1)).toBe('2026-03-08')
+    expect(addDays('2026-03-08', 1)).toBe('2026-03-09')
+    expect(addDays('2026-10-31', 2)).toBe('2026-11-02')
+    expect(addDays('2026-09-26', 1)).toBe('2026-09-27')
+    expect(addDays('2026-04-04', 1)).toBe('2026-04-05')
+    for (const anchor of ['2026-03-15', '2026-11-15', '2026-09-15', '2026-04-15', '2026-10-15']) {
+      const { days } = calendarRange('month', anchor)
+      expect(new Set(days).size).toBe(days.length)
+      expect(days.length % 7).toBe(0)
+      days.slice(1).forEach((d, i) => expect(d).toBe(addDays(days[i], 1)))
+      expect(weekStart(days[0])).toBe(days[0])
+    }
+    expect(shiftAnchor('month', '2026-03-31', 1)).toBe('2026-04-01')
+    expect(shiftAnchor('week', '2026-03-04', 1)).toBe('2026-03-11')
+    expect(weekStart('2026-03-08')).toBe('2026-03-02')
+  })
+
+  it('a stored day (midnight UTC) names its own day; another instant sits on its local day', () => {
+    expect(dayOfDue('2026-11-25T00:00:00Z')).toBe('2026-11-25')
+    expect(dayOfDue('2026-11-25T00:00:00.000Z')).toBe('2026-11-25')
+    expect(dayOfDue('2026-11-25T23:30:00Z')).toBe(localDay('2026-11-25T23:30:00Z'))
+    expect(dayOfDue('2026-11-25T03:00:00Z')).toBe(localDay('2026-11-25T03:00:00Z'))
+    expect(dueDateFor('2026-11-25')).toBe('2026-11-25T00:00:00Z')
+  })
+
+  it('with no d in the URL the Calendar opens on the local month and marks the local today', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-12-01T03:00:00Z'))
+    const today = localDay('2026-12-01T03:00:00Z')
+    serve([dated(1, today)], () => json({}))
+    renderWithProviders(
+      <CalendarRenderer scope={scope} config={{ v: 1, mode: 'month' }} update={vi.fn()} />,
+      {
+        route: '/w/w1/l/l1/v/cal',
+      },
+    )
+    const month = today.startsWith('2026-12') ? 'December 2026' : 'November 2026'
+    expect(await screen.findByRole('heading', { name: month })).toBeVisible()
+    const cell = await screen.findByRole('gridcell', { name: today })
+    expect(cell.querySelector('[aria-current="date"]')).not.toBeNull()
+    expect(document.querySelectorAll('[aria-current="date"]')).toHaveLength(1)
+    expect(await within(cell).findByRole('link', { name: 'Task 1' })).toBeVisible()
   })
 })
 
@@ -87,7 +165,7 @@ describe('CAL-1 Calendar view', () => {
   const week = { v: 1, mode: 'week' }
   const route = '/w/w1/l/l1/v/cal?m=week&d=2026-11-25'
 
-  it('CAL-1: a task sits on its UTC day, the range is a dueDate condition and undated tasks are counted', async () => {
+  it('CAL-1: a task sits on its day, the range is a dueDate condition and undated tasks are counted', async () => {
     const stub = serve([dated(1, '2026-11-25'), dated(2, '2026-11-23')], () => json({}))
     renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
       route,
