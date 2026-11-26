@@ -7,7 +7,6 @@
  * this file is deleted when none remain. contrast.test.ts checks every bridged pair.
  */
 :root {
-  --color-slate-50: var(--tf-surface-2);
   --color-slate-100: var(--tf-surface-2);
   --color-slate-200: var(--tf-surface-3);
   --color-slate-300: var(--tf-line-strong);
@@ -33,7 +32,6 @@
 
   --color-blue-50: var(--tf-blue-soft);
   --color-blue-100: var(--tf-blue-soft);
-  --color-blue-400: var(--tf-accent-line);
   --color-blue-600: var(--tf-accent);
   --color-blue-700: var(--tf-accent);
   --color-blue-900: var(--tf-fg);
