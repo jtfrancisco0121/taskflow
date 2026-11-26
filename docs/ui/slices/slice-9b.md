@@ -39,4 +39,5 @@ Existing tests keep covering the builder payloads, optimistic toggle, run histor
 card, run history, status manager and status editor in both themes (axe contrast on each).
 
 ## Bundle size
-See the slice report: the figure is brought to JT Francisco before any change to `bundle-budget.json`.
+After `npm run build`, `bash scripts/bundle-size.sh --check`: **447.9 KiB** against the 448.3 KiB cap (slice 9a ended
+at 447.8, +0.1). No change to `bundle-budget.json`.
