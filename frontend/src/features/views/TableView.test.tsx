@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useToastStore } from '../../shared/toast-store'
@@ -500,5 +500,44 @@ describe('CAP-6 Table states (S5)', () => {
     release()
     expect(await screen.findByRole('link', { name: 'Task 2' })).toBeVisible()
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull())
+  })
+})
+
+describe('TABLE-1 pointer columns (S6)', () => {
+  const widthOf = (update: ReturnType<typeof vi.fn>, field: string) =>
+    update.mock.lastCall![0].c.find((c: { field: string }) => c.field === field).width
+
+  it('a pointer drag on the resize handle writes a clamped width to c on release', async () => {
+    serve([task(1)])
+    const update = vi.fn()
+    renderWithProviders(<TableRenderer scope={scope} config={config} update={update} />)
+    await screen.findByRole('link', { name: 'Task 1' })
+    const handle = screen.getByRole('separator', { name: 'Resize Status' })
+    const drag = (to: number) => {
+      fireEvent.pointerDown(handle, { clientX: 100 })
+      fireEvent(window, new MouseEvent('pointermove', { clientX: to }))
+      fireEvent(window, new MouseEvent('pointerup', { clientX: to }))
+    }
+    drag(140) // status is 150 wide: +40
+    expect(widthOf(update, 'status')).toBe(190)
+    drag(100 + 5000) // far past the limit
+    expect(widthOf(update, 'status')).toBe(800)
+    drag(-5000)
+    expect(widthOf(update, 'status')).toBe(60)
+  })
+
+  it('a header dropped on itself leaves the column order unchanged', async () => {
+    serve([task(1)])
+    const update = vi.fn()
+    renderWithProviders(<TableRenderer scope={scope} config={config} update={update} />)
+    await screen.findByRole('link', { name: 'Task 1' })
+    const drop = (from: string, onto: string) => {
+      const target = screen.getByRole('button', { name: new RegExp(`^${onto} column`) })
+      const event = createEvent.drop(target.closest('[role="columnheader"]')!)
+      Object.defineProperty(event, 'dataTransfer', { value: { getData: () => from } })
+      fireEvent(target.closest('[role="columnheader"]')!, event)
+    }
+    drop('title', 'Title')
+    expect(update).toHaveBeenLastCalledWith({ c: config.columns })
   })
 })

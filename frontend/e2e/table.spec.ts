@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
-import { api, apiSignUp, createView, signInThroughTheUi } from './helpers'
+import { api, apiSignUp, createView, row, signInThroughTheUi } from './helpers'
+import { pick } from './ui'
 
 // Slice 7: the Table. A scene is set through the API, then the UI is driven like a user.
 
@@ -86,4 +87,65 @@ test('layout: the sticky header stays on top, the first and last rows are reacha
       return !!hit && el.contains(hit)
     }),
   ).toBe(true)
+})
+
+test('TABLE-1: Pickers edit a row, keyboard width and order survive a reload, and Escape on the detail focuses the row', async ({
+  page,
+  request,
+}) => {
+  await openTable(page, request, 2)
+
+  // Add the Start column (it is not a default one), then edit through the Pickers.
+  await page.getByText('Columns', { exact: true }).click()
+  await page.getByRole('checkbox', { name: 'Start date' }).click()
+  await page.keyboard.press('Escape')
+  const alpha = row(page, 'Task 1')
+  await pick(alpha.getByLabel(/^Status of/), 'in progress')
+  await expect(alpha.getByLabel(/^Status of/)).toHaveText(/in progress/)
+  await pick(alpha.getByLabel(/^Due date of/), 'Tomorrow')
+  await expect(alpha.getByLabel(/^Due date of/)).not.toHaveText('—')
+  await pick(alpha.getByLabel(/^Start date of/), 'Today')
+  await expect(alpha.getByLabel(/^Start date of/)).not.toHaveText('—')
+
+  // Header keys: widen Title by 20px, then move it one place right.
+  const title = page.getByRole('button', { name: /^Title column, width/ })
+  const before = Number(/width (\d+)/.exec((await title.getAttribute('aria-label'))!)![1])
+  await title.focus()
+  await page.keyboard.press('Alt+Shift+ArrowRight')
+  await expect(title).toHaveAttribute('aria-label', `Title column, width ${before + 20}`)
+  await page.keyboard.press('Alt+ArrowRight')
+  const order = async () =>
+    page
+      .getByRole('columnheader')
+      .evaluateAll((els) =>
+        els.map(
+          (el) => el.querySelector('button')?.getAttribute('aria-label')?.split(' column')[0],
+        ),
+      )
+  await expect.poll(async () => (await order()).indexOf('Title')).toBe(2)
+  const moved = await order()
+
+  await page.reload()
+  await expect(
+    page.getByRole('button', { name: `Title column, width ${before + 20}` }),
+  ).toBeVisible()
+  expect(await order()).toEqual(moved)
+  await expect(row(page, 'Task 1').getByLabel(/^Status of/)).toHaveText(/in progress/)
+  await expect(row(page, 'Task 1').getByLabel(/^Due date of/)).not.toHaveText('—')
+  await expect(row(page, 'Task 1').getByLabel(/^Start date of/)).not.toHaveText('—')
+
+  // Open a task from its title, Escape closes the detail, and the focus is on that task's row.
+  await page.getByRole('link', { name: 'Task 2', exact: true }).click()
+  await expect(
+    page
+      .getByRole('dialog', { name: /^Task / })
+      .or(page.getByRole('complementary', { name: /^Task / })),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.activeElement?.closest('[data-task-id]')?.textContent ?? ''),
+    )
+    .toContain('Task 2')
+  await expect(page.locator('[data-task-id]:focus')).toHaveCount(1)
 })
