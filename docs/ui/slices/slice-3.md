@@ -59,7 +59,7 @@ shell fills the window, so nothing extends past the sidebar and the top bar.
 
 | Screen | Light | Dark (Aurora) | Before (slice 2) |
 |---|---|---|---|
-| Shell (sidebar open) | ![Shell (sidebar open) light](slice-3/shell-light.png) | ![Shell (sidebar open) dark](slice-3/shell-dark.png) | [before](slice-2/list-light.png) / [before dark](slice-2/list-dark.png) (the slice-2 shell around the List) |
+| Shell (sidebar open, workspace switcher open) | ![Shell (sidebar open) light](slice-3/shell-light.png) | ![Shell (sidebar open) dark](slice-3/shell-dark.png) | [before](slice-2/list-light.png) / [before dark](slice-2/list-dark.png) (the slice-2 shell around the List) |
 | List view | ![List view light](slice-3/list-light.png) | ![List view dark](slice-3/list-dark.png) | [before](slice-2/list-light.png) / [before dark](slice-2/list-dark.png) |
 | Open command palette | ![Open command palette light](slice-3/palette-light.png) | ![Open command palette dark](slice-3/palette-dark.png) | new in slice 3 |
 | Task panel | ![Task panel light](slice-3/task-panel-light.png) | ![Task panel dark](slice-3/task-panel-dark.png) | [before](slice-2/task-panel-light.png) / [before dark](slice-2/task-panel-dark.png) |
@@ -70,6 +70,10 @@ shell fills the window, so nothing extends past the sidebar and the top bar.
 | Inbox | ![Inbox light](slice-3/inbox-light.png) | ![Inbox dark](slice-3/inbox-dark.png) | [before](slice-2/inbox-light.png) / [before dark](slice-2/inbox-dark.png) |
 | Service accounts | ![Service accounts light](slice-3/service-accounts-light.png) | ![Service accounts dark](slice-3/service-accounts-dark.png) | [before](slice-2/service-accounts-light.png) / [before dark](slice-2/service-accounts-dark.png) |
 | /design | ![/design light](slice-3/design-light.png) | ![/design dark](slice-3/design-dark.png) | [before](slice-2/design-light.png) / [before dark](slice-2/design-dark.png) |
+
+The two Shell shots were recaptured in slice 4: the originals were byte-identical to the List shots (the shot ran right
+after the List shot with no state change). They now show the shell with the workspace switcher open, and
+`e2e/theme-screens.spec.ts` asserts that each shell shot differs from the List shot. The List inside them is the slice-4 List.
 
 ## Slice-2 carry-overs
 | Carry-over | Status |
