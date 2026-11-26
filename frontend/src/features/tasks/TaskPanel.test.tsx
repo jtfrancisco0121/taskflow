@@ -7,14 +7,7 @@ import { useUiStore } from '../../shared/ui-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { LocationViewRoute, ViewBackground } from '../views'
 import { TaskPanelRoute } from './TaskPanelRoute'
-import {
-  expectValue,
-  findOption,
-  findTaskDetail,
-  optionsOf,
-  pick,
-  queryTaskDetail,
-} from '../../test/ui'
+import { expectValue, findOption, findTaskDetail, pick, queryTaskDetail } from '../../test/ui'
 
 const base = {
   id: 't1',
@@ -115,6 +108,17 @@ function renderPanel(
 const patches = (stub: ReturnType<typeof serve>['stub']) =>
   stub.calls.filter((c) => c.method === 'PATCH')
 
+/** Opens a date field's Picker and types a day into its footer field. */
+async function pickDay(
+  user: ReturnType<typeof userEvent.setup>,
+  trigger: HTMLElement,
+  day: string,
+) {
+  await user.click(trigger)
+  const input = await screen.findByLabelText(/ day$/)
+  fireEvent.change(input, { target: { value: day } })
+}
+
 describe('TaskPanel', () => {
   it('FR-16: opened directly, /t/<id> shows every field over the List view of the task', async () => {
     serve({ tags: ['launch'], assigneeIds: ['u1'] })
@@ -127,7 +131,11 @@ describe('TaskPanel', () => {
     expect(within(panel).getByLabelText('Start date')).toBeVisible()
     expect(within(panel).getByLabelText('Due date')).toBeVisible()
     expect(within(panel).getByText('launch')).toBeVisible()
-    expect(await within(panel).findByRole('checkbox', { name: 'Maya Lopez' })).toBeChecked()
+    expect(
+      await within(within(panel).getByLabelText('Assignees')).findByRole('img', {
+        name: 'Maya Lopez',
+      }),
+    ).toBeVisible()
     expect(within(panel).getByRole('textbox', { name: 'Description' })).toBeVisible()
     // the List view of the task's home List is behind the panel
     expect(await screen.findByRole('heading', { name: 'Launch' })).toBeVisible()
@@ -208,7 +216,7 @@ describe('TaskPanel', () => {
 
     const select = await screen.findByLabelText('Status')
     await findOption(user, select, 'In progress')
-    expect(await optionsOf(user, select)).toEqual(['To do', 'In progress', 'Done'])
+    for (const name of ['To do', 'In progress', 'Done']) await findOption(user, select, name)
     await pick(user, select, 'In progress')
 
     await screen.findByText('Saved')
@@ -228,12 +236,12 @@ describe('TaskPanel', () => {
     renderPanel()
 
     const due = await screen.findByLabelText('Due date')
-    await user.type(due, '2025-03-04')
+    await pickDay(user, due, '2025-03-04')
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       "Couldn't save the due date: dates must start before they end",
     )
-    expect(due).toHaveValue('')
+    expectValue(due, '—')
   })
 
   it('FR-17: a due date is sent as UTC midnight and shows the same calendar day', async () => {
@@ -242,11 +250,30 @@ describe('TaskPanel', () => {
     renderPanel()
 
     const due = await screen.findByLabelText('Due date')
-    await user.type(due, '2025-03-04')
+    await pickDay(user, due, '2025-03-04')
 
     await screen.findByText('Saved')
     expect(patches(stub)[0].body).toEqual({ dueDate: '2025-03-04T00:00:00Z' })
-    expect(due).toHaveValue('2025-03-04')
+    expectValue(due, 'Mar 4, 2025')
+  })
+
+  it('FR-17: the quick days of a date field are Today, Tomorrow, Next week and No date', async () => {
+    const { stub } = serve({ dueDate: '2025-03-04T00:00:00Z' })
+    const user = userEvent.setup()
+    renderPanel()
+
+    const due = await screen.findByLabelText('Due date')
+    for (const name of ['Today', 'Tomorrow', 'Next week', 'No date']) {
+      await findOption(user, due, name)
+    }
+    await pick(user, due, 'Tomorrow')
+    await screen.findByText('Saved')
+    expect(patches(stub)[0].body).toEqual({
+      dueDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T00:00:00Z$/),
+    })
+    await pick(user, due, 'No date')
+    await waitFor(() => expect(patches(stub)).toHaveLength(2))
+    expect(patches(stub)[1].body).toEqual({ dueDate: null })
   })
 
   it('FR-17: tags and assignees save as lists', async () => {
@@ -259,7 +286,7 @@ describe('TaskPanel', () => {
     await waitFor(() => expect(patches(stub)).toHaveLength(1))
     expect(patches(stub)[0].body).toEqual({ tags: ['a', 'b'] })
 
-    await user.click(await screen.findByRole('checkbox', { name: 'Omar Haddad' }))
+    await pick(user, await screen.findByLabelText('Assignees'), 'Omar Haddad')
     await waitFor(() => expect(patches(stub)).toHaveLength(2))
     expect(patches(stub)[1].body).toEqual({ assigneeIds: ['u2'] })
     expect(patches(stub)[1].headers.get('If-Match')).toBe('"4"') // version moved on after the first save
@@ -287,13 +314,13 @@ describe('TaskPanel', () => {
     const user = userEvent.setup()
     renderPanel()
 
-    await user.type(await screen.findByLabelText('Due date'), '2025-12-03')
+    await pickDay(user, await screen.findByLabelText('Due date'), '2025-12-03')
 
     const banner = await screen.findByRole('alert')
     expect(banner).toHaveTextContent('Someone else changed this task. Their version is shown.')
     expect(banner).toHaveTextContent('Your change: Dec 3, 2025')
     expect(screen.getByLabelText('Title')).toHaveValue("Maya's new title")
-    expect(screen.getByLabelText('Due date')).toHaveValue('')
+    expectValue(screen.getByLabelText('Due date'), '—')
     // never retried automatically
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(patches(stub)).toHaveLength(1)
@@ -304,7 +331,7 @@ describe('TaskPanel', () => {
     expect(patches(stub)[1].headers.get('If-Match')).toBe('"7"')
     expect(patches(stub)[1].body).toEqual({ dueDate: '2025-12-03T00:00:00Z' })
     await waitFor(() => expect(screen.queryByText(/Someone else changed/)).not.toBeInTheDocument())
-    expect(screen.getByLabelText('Due date')).toHaveValue('2025-12-03')
+    expectValue(screen.getByLabelText('Due date'), 'Dec 3, 2025')
   })
 
   it('FR-18: Discard drops the attempted change without sending it', async () => {

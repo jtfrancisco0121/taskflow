@@ -1,10 +1,27 @@
-import { useId, useState } from 'react'
-import { formatDay, toApiDate, toInputDay } from '../../shared/dates'
-import { StatusPill } from '../../shared/ui/StatusPill'
-import { Select } from '../../shared/ui/Select'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from 'react'
 import type { StatusInfo, TaskView } from '../../api/types'
+import { toInputDay } from '../../shared/dates'
+import { Picker } from '../../shared/ui/Picker'
+import {
+  AssigneesValue,
+  DayValue,
+  PriorityValue,
+  StatusValue,
+  assigneeItems,
+  dayItems,
+  dayOfItem,
+  priorityItems,
+  quickDays,
+  statusItems,
+} from './editorItems'
 import { FieldShell, type Hint } from './FieldShell'
-import { PRIORITIES, PRIORITY_LABEL } from './labels'
 import type { TaskPatch } from './useUpdateTask'
 
 type Save = (field: string, label: string, patch: TaskPatch) => Promise<boolean>
@@ -16,7 +33,23 @@ type CommonProps = {
 }
 
 const inputClass =
-  'rounded border border-slate-300 bg-white px-2 py-1.5 text-sm focus:outline-2 focus:outline-blue-600'
+  'rounded-md border border-line-strong bg-surface px-2 py-1.5 text-sm text-fg focus:outline-2 focus:outline-focus-ring'
+const triggerClass =
+  'inline-flex h-8 w-full items-center gap-1 rounded-md border border-line-strong bg-surface px-2 text-sm text-fg hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-focus-ring'
+
+/** A Picker field: the trigger is named by the field's label and shows the current value (AD-3). */
+function PickerTrigger({
+  label,
+  children,
+  ...rest
+}: { label: string; children: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>) {
+  // The popover passes its open/close props through `rest`.
+  return (
+    <button {...rest} type="button" aria-label={label} className={triggerClass}>
+      {children}
+    </button>
+  )
+}
 
 export function TitleField({
   task,
@@ -66,41 +99,48 @@ export function StatusField({
   statuses,
   loading,
 }: CommonProps & { statuses: StatusInfo[]; loading?: boolean }) {
-  const id = useId()
   const current = statuses.find((s) => s.id === task.statusId)
   return (
-    <FieldShell label="Status" htmlFor={id} hint={hints.status}>
-      <div className="flex items-center gap-2">
-        {current && <StatusPill name={current.name ?? ''} color={current.color} />}
-        <Select
-          id={id}
-          value={task.statusId ?? ''}
-          onValueChange={(next) => void save('status', 'status', { statusId: next })}
-          options={statuses.map((status) => ({ value: status.id ?? '', label: status.name ?? '' }))}
-          placeholder={loading ? 'Loading…' : 'Unknown status'}
-          className="flex-1"
-        />
-      </div>
+    <FieldShell label="Status" hint={hints.status}>
+      <Picker
+        mode="single"
+        label="Set status"
+        loading={loading ? 'Loading…' : undefined}
+        trigger={
+          <PickerTrigger label="Status">
+            <StatusValue status={current} />
+          </PickerTrigger>
+        }
+        items={statusItems(statuses)}
+        selected={task.statusId ? [task.statusId] : []}
+        onPick={(statusId) => {
+          if (statusId !== task.statusId) void save('status', 'status', { statusId })
+        }}
+      />
     </FieldShell>
   )
 }
 
 export function PriorityField({ task, hints, save }: CommonProps) {
-  const id = useId()
+  const priority = task.priority ?? 'NONE'
   return (
-    <FieldShell label="Priority" htmlFor={id} hint={hints.priority}>
-      <Select
-        id={id}
-        value={task.priority ?? 'NONE'}
-        onValueChange={(next) =>
-          void save('priority', 'priority', {
-            priority: next as NonNullable<TaskPatch['priority']>,
-          })
+    <FieldShell label="Priority" hint={hints.priority}>
+      <Picker
+        mode="single"
+        label="Set priority"
+        trigger={
+          <PickerTrigger label="Priority">
+            <PriorityValue priority={priority} />
+          </PickerTrigger>
         }
-        options={PRIORITIES.map((priority) => ({
-          value: priority,
-          label: PRIORITY_LABEL[priority] === '—' ? 'None' : PRIORITY_LABEL[priority],
-        }))}
+        items={priorityItems()}
+        selected={[priority]}
+        onPick={(next) => {
+          if (next !== priority)
+            void save('priority', 'priority', {
+              priority: next as NonNullable<TaskPatch['priority']>,
+            })
+        }}
       />
     </FieldShell>
   )
@@ -113,20 +153,39 @@ export function DateField({
   field,
   label,
 }: CommonProps & { field: 'startDate' | 'dueDate'; label: string }) {
-  const id = useId()
-  const server = toInputDay(task[field])
+  const [open, setOpen] = useState(false)
+  const days = quickDays()
+  const send = (day: string | null) => {
+    setOpen(false)
+    void save(field, label.toLowerCase(), { [field]: day })
+  }
   return (
-    <FieldShell label={label} htmlFor={id} hint={hints[field]}>
-      <input
-        id={id}
-        type="date"
-        value={server}
-        title={server ? formatDay(task[field]) : undefined}
-        onChange={(event) => {
-          const day = event.target.value
-          void save(field, label.toLowerCase(), { [field]: day ? toApiDate(day) : null })
-        }}
-        className={inputClass}
+    <FieldShell label={label} hint={hints[field]}>
+      <Picker
+        mode="single"
+        label={`Set ${label.toLowerCase()}`}
+        open={open}
+        onOpenChange={setOpen}
+        trigger={
+          <PickerTrigger label={label}>
+            <DayValue iso={task[field]} />
+          </PickerTrigger>
+        }
+        items={dayItems(days)}
+        selected={[]}
+        onPick={(value) => send(dayOfItem(value, days))}
+        footer={
+          <input
+            type="date"
+            aria-label={`${label} day`}
+            value={toInputDay(task[field])}
+            className={`${inputClass} w-full`}
+            onChange={(event) => {
+              const day = event.target.value
+              if (day) send(`${day}T00:00:00Z`)
+            }}
+          />
+        }
       />
     </FieldShell>
   )
@@ -139,9 +198,9 @@ export function TagsField({ task, hints, save }: CommonProps) {
 
   return (
     <FieldShell label="Tags" htmlFor={id} hint={hints.tags}>
-      <div className="flex flex-wrap items-center gap-1 rounded border border-slate-300 bg-white p-1">
+      <div className="flex flex-wrap items-center gap-1 rounded-md border border-line-strong bg-surface p-1">
         {tags.map((tag) => (
-          <span key={tag} className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
+          <span key={tag} className="rounded bg-surface-3 px-1.5 py-0.5 text-xs text-fg">
             {tag}
           </span>
         ))}
@@ -158,9 +217,12 @@ export function TagsField({ task, hints, save }: CommonProps) {
               setText('')
             } else if (event.key === 'Backspace' && text === '' && tags.length > 0) {
               void save('tags', 'tags', { tags: tags.slice(0, -1) })
+            } else if (event.key === 'Escape' && text !== '') {
+              event.stopPropagation()
+              setText('')
             }
           }}
-          className="min-w-20 flex-1 px-1 py-0.5 text-sm outline-none"
+          className="min-w-20 flex-1 bg-transparent px-1 py-0.5 text-sm text-fg outline-none"
         />
       </div>
     </FieldShell>
@@ -173,42 +235,42 @@ export function AssigneesField({
   save,
   members,
 }: CommonProps & { members: { id: string; name: string }[] }) {
-  const selected = task.assigneeIds ?? []
+  const assignees = task.assigneeIds ?? []
+  // Several toggles can follow one another before the first save returns, so each one builds on the selection
+  // the previous one produced, never on the task as it was rendered.
+  const pending = useRef(assignees)
+  const inFlight = useRef(0)
+  useEffect(() => {
+    if (inFlight.current === 0) pending.current = assignees
+  })
+  const names = new Map(members.map((m) => [m.id, m.name]))
+
+  function toggle(userId: string) {
+    const next = pending.current.includes(userId)
+      ? pending.current.filter((id) => id !== userId)
+      : [...pending.current, userId]
+    pending.current = next
+    inFlight.current += 1
+    void save('assignees', 'assignees', { assigneeIds: next }).finally(() => {
+      inFlight.current -= 1
+      if (inFlight.current === 0) setTimeout(() => (pending.current = assignees), 0)
+    })
+  }
+
   return (
-    <fieldset className="flex flex-col gap-1">
-      <div className="flex items-center justify-between">
-        <legend className="text-xs font-medium text-slate-600">Assignees</legend>
-        <span aria-live="polite" className="text-xs text-slate-500">
-          {hints.assignees?.state === 'saving'
-            ? 'Saving…'
-            : hints.assignees?.state === 'saved'
-              ? 'Saved'
-              : ''}
-        </span>
-      </div>
-      <div className="flex max-h-28 flex-col gap-0.5 overflow-auto rounded border border-slate-300 bg-white p-1">
-        {members.map((member) => (
-          <label key={member.id} className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={selected.includes(member.id)}
-              onChange={(event) =>
-                void save('assignees', 'assignees', {
-                  assigneeIds: event.target.checked
-                    ? [...selected, member.id]
-                    : selected.filter((id) => id !== member.id),
-                })
-              }
-            />
-            {member.name}
-          </label>
-        ))}
-      </div>
-      {hints.assignees?.state === 'error' && (
-        <p role="alert" className="text-xs text-red-700">
-          {hints.assignees.message}
-        </p>
-      )}
-    </fieldset>
+    <FieldShell label="Assignees" hint={hints.assignees}>
+      <Picker
+        mode="multi"
+        label="Set assignees"
+        trigger={
+          <PickerTrigger label="Assignees">
+            <AssigneesValue ids={assignees} names={names} />
+          </PickerTrigger>
+        }
+        items={assigneeItems(members.map((m) => ({ userId: m.id, displayName: m.name })))}
+        selected={assignees}
+        onPick={toggle}
+      />
+    </FieldShell>
   )
 }

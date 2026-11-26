@@ -21,7 +21,7 @@ export type ValueEditorProps = {
 }
 
 const inputClass =
-  'w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm focus:outline-2 focus:outline-blue-600'
+  'w-full rounded border border-line-strong bg-surface px-2 py-1.5 text-sm text-fg focus:outline-2 focus:outline-focus-ring'
 
 /**
  * One draft-then-commit text control for the typed-in types. Enter or blur commits, Escape cancels.
@@ -143,7 +143,7 @@ export function ValueEditor(props: ValueEditorProps) {
         <div
           role="group"
           aria-label={label}
-          className="flex max-h-28 flex-col gap-0.5 overflow-auto rounded border border-slate-300 bg-white p-1"
+          className="flex max-h-28 flex-col gap-0.5 overflow-auto rounded border border-line-strong bg-surface p-1"
         >
           {field.options?.map((option) => (
             <label key={option.id} className="flex items-center gap-2 text-sm">
@@ -200,7 +200,7 @@ export function ValueEditor(props: ValueEditorProps) {
               aria-pressed={star <= current}
               // Clicking the current value clears it.
               onClick={() => onCommit(star === current ? null : star)}
-              className={`px-0.5 text-lg ${star <= current ? 'text-amber-500' : 'text-slate-300'}`}
+              className={`px-0.5 text-lg ${star <= current ? 'text-status-review' : 'text-line-strong'}`}
             >
               ★
             </button>
@@ -209,6 +209,6 @@ export function ValueEditor(props: ValueEditorProps) {
       )
     }
     default:
-      return <span className="text-sm text-slate-500">This type can't be edited here yet.</span>
+      return <span className="text-sm text-muted">This type can't be edited here yet.</span>
   }
 }
