@@ -213,7 +213,7 @@ describe('TABLE-1 Table view', () => {
   })
 
   it('TABLE-1: read-only cells (ID, created) open nothing', async () => {
-    serve([task(1, { createdAt: '2026-01-02T03:04:00Z' })])
+    serve([task(1, { createdAt: '2026-01-02T12:00:00Z' })])
     const user = userEvent.setup()
     renderWithProviders(<TableRenderer scope={scope} config={config} update={vi.fn()} />)
     const row = (await screen.findByRole('link', { name: 'Task 1' })).closest(
