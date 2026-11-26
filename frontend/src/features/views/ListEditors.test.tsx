@@ -90,6 +90,19 @@ describe('List popover editors (CAP-2)', () => {
     expect(quickDays(new Date('2026-11-29T10:00:00Z')).nextWeek).toBe('2026-11-30')
   })
 
+  it('Enter in the due day field does not pick the highlighted quick pick', async () => {
+    const stub = serve([task(1)])
+    const user = userEvent.setup()
+    renderWithProviders(<ListRenderer scope={scope} config={{ v: 1 }} />)
+    await user.click(await screen.findByLabelText('Due date of ACME-1'))
+    const day = await screen.findByLabelText('Due day of ACME-1')
+    day.focus()
+    await user.keyboard('{Enter}')
+    await new Promise((r) => setTimeout(r, 50))
+    expect(patches(stub)).toEqual([])
+    expect(day).toBeVisible()
+  })
+
   it('the due editor has a day field that sends the picked day', async () => {
     const stub = serve([task(1)])
     const user = userEvent.setup()

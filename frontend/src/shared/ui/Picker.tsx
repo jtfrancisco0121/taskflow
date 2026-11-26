@@ -100,7 +100,17 @@ export function Picker({
             )
           })}
         </CommandPrimitive.List>
-        {footer && <div className="mt-2 border-t border-line pt-2">{footer}</div>}
+        {footer && (
+          <div
+            className="mt-2 border-t border-line pt-2"
+            // cmdk handles Enter and arrows for everything inside its root; keep them for the footer.
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape' && e.key !== 'Tab') e.stopPropagation()
+            }}
+          >
+            {footer}
+          </div>
+        )}
       </CommandPrimitive>
     </Popover>
   )
