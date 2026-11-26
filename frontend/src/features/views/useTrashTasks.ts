@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { queryKeys } from '../../api/queryKeys'
 import type { TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
+import { invalidateSubtaskScans } from '../tasks'
 import { runLimited } from './bulk'
 import type { ViewScope } from './scope'
 import { useViewStore } from './viewStore'
@@ -58,6 +59,7 @@ async function restoreAll(items: Trashed[]): Promise<number> {
 
 function refresh(queryClient: QueryClient, workspaceId: string) {
   void queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(workspaceId) })
+  invalidateSubtaskScans(queryClient) // a trashed or restored task leaves or joins a parent's subtasks
 }
 
 /**

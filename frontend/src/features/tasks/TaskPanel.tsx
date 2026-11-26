@@ -36,6 +36,7 @@ import {
   TitleField,
 } from './TaskFields'
 import { useFieldHints } from './useFieldHints'
+import { ParentLink, SubtasksSection } from './SubtasksSection'
 import { useTask } from './useTask'
 import { useUpdateTask, type TaskPatch } from './useUpdateTask'
 
@@ -314,6 +315,7 @@ function TaskDetailBody({
           }}
         />
       )}
+      <ParentLink task={task} />
       <TitleField {...common} titleRef={titleRef} />
       <StatusField {...common} statuses={statusList} loading={statuses.isPending} />
       <PriorityField {...common} />
@@ -324,6 +326,7 @@ function TaskDetailBody({
       <TagsField {...common} />
       <AssigneesField {...common} members={memberList} />
       <DescriptionField {...common} members={memberList} />
+      <SubtasksSection task={task} statuses={statusList} />
       <CustomFieldsGroup {...common} />
       <DependenciesSection task={task} />
     </div>

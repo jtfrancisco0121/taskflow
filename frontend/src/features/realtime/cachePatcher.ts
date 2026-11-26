@@ -1,7 +1,12 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { queryKeys } from '../../api/queryKeys'
-import { cachedVersion, taskMutationGate, writeTaskToCaches } from '../tasks'
+import {
+  cachedVersion,
+  invalidateSubtaskScans,
+  taskMutationGate,
+  writeTaskToCaches,
+} from '../tasks'
 import type { LiveEvent } from './stompClient'
 
 export type PatchResult = 'own' | 'stale' | 'held' | 'applied' | 'invalidated'
@@ -27,6 +32,19 @@ export function createCachePatcher(
       setTimeout(() => {
         timers.delete(workspaceId)
         void queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(workspaceId) })
+      }, debounceMs),
+    )
+  }
+
+  /** A task this tab has never seen changed in a List (a subtask added by someone else): rescan that List once per burst. */
+  function invalidateSubtaskScanSoon(listId: string) {
+    const key = `subtasks:${listId}`
+    clearTimeout(timers.get(key))
+    timers.set(
+      key,
+      setTimeout(() => {
+        timers.delete(key)
+        invalidateSubtaskScans(queryClient, listId)
       }, debounceMs),
     )
   }
@@ -123,7 +141,11 @@ export function createCachePatcher(
       return 'held'
     }
     invalidateViewsSoon(workspaceId)
-    if (cached == null) return 'invalidated'
+    if (cached == null) {
+      if (event.listId && !event.type.startsWith('comment.'))
+        invalidateSubtaskScanSoon(event.listId)
+      return 'invalidated'
+    }
     const { data } = await api.GET('/api/v1/tasks/{id}', {
       params: { path: { id: event.entityId } },
     })

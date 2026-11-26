@@ -40,6 +40,9 @@ export const queryKeys = {
   notificationPreferences: (wsId: string) => ['ws', wsId, 'notification-preferences'] as const,
   task: (taskId: string) => ['task', taskId] as const,
   taskAll: () => ['task'] as const,
+  /** One scan of a List's tasks for the subtasks of the open detail; its own prefix, outside ['task']. */
+  subtaskScan: (listId: string) => ['subtasks', listId] as const,
+  subtaskScanAll: () => ['subtasks'] as const,
   comments: (taskId: string) => ['task', taskId, 'comments'] as const,
   activity: (taskId: string) => ['task', taskId, 'activity'] as const,
   /** DEP: a task's relationships, under ['task', id] so a task refresh reaches them too. */

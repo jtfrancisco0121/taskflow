@@ -95,3 +95,24 @@ for (const mode of ['modal', 'docked'] as const) {
     await expect(rowEl(page, 'Alpha')).toBeFocused()
   })
 }
+
+test('subtasks: add one, see it in the section and the List behind, open it and follow the parent link', async ({
+  page,
+}) => {
+  await setUp(page, ['Parent task'])
+  await openByEnter(page, 'Parent task')
+  const detail = taskDetail(page)
+  const field = detail.getByRole('textbox', { name: 'Add a subtask' })
+  await field.fill('Write the migration note')
+  await page.keyboard.press('Enter')
+  await expect(field).toHaveValue('')
+  const section = detail.getByRole('region', { name: 'Subtasks' })
+  await expect(section.getByRole('link', { name: 'Write the migration note' })).toBeVisible()
+  // the List behind the detail shows it too, without a reload
+  await expect(page.getByRole('row').filter({ hasText: 'Write the migration note' })).toBeVisible()
+
+  await section.getByRole('link', { name: 'Write the migration note' }).click()
+  await expect(detail.getByLabel('Title')).toHaveValue('Write the migration note')
+  await detail.getByRole('link', { name: /Parent task/ }).click()
+  await expect(detail.getByLabel('Title')).toHaveValue('Parent task')
+})

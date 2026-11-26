@@ -7,7 +7,13 @@ export {
   type TaskJob,
   type TaskOutcome,
 } from './useOptimisticTaskMutation'
-export { cachedVersion, mapTaskInViews, patchTaskInCaches, writeTaskToCaches } from './taskCaches'
+export {
+  cachedVersion,
+  invalidateSubtaskScans,
+  mapTaskInViews,
+  patchTaskInCaches,
+  writeTaskToCaches,
+} from './taskCaches'
 export { PRIORITIES, PRIORITY_LABEL, initialsOf } from './labels'
 export { useCreateTask } from './useCreateTask'
 export { QuickAdd } from './QuickAdd'
