@@ -33,6 +33,9 @@ describe('the library, /design, the shell and the rebuilt feature files use toke
       '../../features/views/{BoardRenderer,BoardColumn,BoardCard}.tsx',
       // slice 7: the Table (cells and FieldCell are shared with the List)
       '../../features/views/{TableRenderer,cells,FieldCell}.tsx',
+      // slice 9a: notifications and the field manager
+      '../../features/notifications/{InboxPage,NotificationSettingsPage}.tsx',
+      '../../features/fields/{FieldManagerDialog,FieldEditor,ValueCell}.tsx',
     ],
     {
       query: '?raw',

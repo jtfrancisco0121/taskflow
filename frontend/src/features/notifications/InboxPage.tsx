@@ -3,6 +3,10 @@ import { Link, useParams } from 'react-router'
 import { messageOf } from '../../api/errors'
 import { formatDateTime, relativeTime } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { ErrorState } from '../../shared/ui/ErrorState'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { Skeleton } from '../../shared/ui/Skeleton'
 import { notificationText } from './notificationText'
 import { useInbox, useMarkAllRead, useSetRead } from './useNotifications'
 
@@ -17,16 +21,11 @@ export function InboxPage() {
 
   return (
     <section aria-label="Inbox">
-      <header className="mb-3 flex items-center gap-2">
-        <h1 className="text-2xl font-semibold">Inbox</h1>
-        <Button
-          className="ml-auto"
-          disabled={markAll.isPending}
-          onClick={() => markAll.mutate(undefined)}
-        >
+      <PageHeader title="Inbox">
+        <Button disabled={markAll.isPending} onClick={() => markAll.mutate(undefined)}>
           Mark all read
         </Button>
-      </header>
+      </PageHeader>
       <div role="tablist" aria-label="Inbox filter" className="mb-3 flex gap-2">
         {(['unread', 'all'] as const).map((t) => (
           <button
@@ -35,42 +34,58 @@ export function InboxPage() {
             type="button"
             aria-selected={tab === t}
             onClick={() => setTab(t)}
-            className={`rounded px-3 py-1 text-sm ${tab === t ? 'bg-blue-600 text-white' : 'border border-slate-300 bg-white hover:bg-slate-100'}`}
+            className={`rounded-md border px-3 py-1 text-[13px] font-medium transition-colors duration-(--tf-dur-fast) ${tab === t ? 'border-transparent bg-linear-to-br from-primary-from to-primary-to text-primary-fg' : 'border-line-strong bg-surface text-fg hover:bg-surface-2'}`}
           >
             {t === 'unread' ? 'Unread' : 'All'}
           </button>
         ))}
       </div>
-      {inbox.isPending && <p role="status">Loading…</p>}
+      {inbox.isPending && (
+        <div role="status" aria-label="Loading the inbox" className="flex flex-col gap-1">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
+      )}
       {inbox.isError && (
-        <p role="alert" className="text-red-700">
-          {messageOf(inbox.error)}
-        </p>
+        <ErrorState message={messageOf(inbox.error)} onRetry={() => void inbox.refetch()} />
       )}
       {inbox.isSuccess && items.length === 0 && (
-        <p className="text-slate-600">
-          {tab === 'unread' ? "You're all caught up." : 'No notifications yet.'}
-        </p>
+        <EmptyState
+          title={tab === 'unread' ? "You're all caught up." : 'No notifications yet.'}
+          description={
+            tab === 'unread'
+              ? 'New mentions, assignments and comments show up here.'
+              : 'Activity on tasks you follow shows up here.'
+          }
+        />
       )}
       <ul className="m-0 flex list-none flex-col gap-1 p-0">
         {items.map((n) => (
           <li
             key={n.id}
-            className="flex items-center gap-2 rounded border border-slate-200 bg-white px-3 py-2 text-sm"
+            className="flex items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 text-[13px]"
           >
+            {!n.read && (
+              <span
+                role="img"
+                aria-label="Unread"
+                className="h-2 w-2 shrink-0 rounded-full bg-accent"
+              />
+            )}
             <Link
               to={`/t/${n.taskId}`}
               onClick={() => {
                 if (!n.read) setRead.mutate({ id: n.id!, read: true })
               }}
-              className={`flex-1 hover:underline ${n.read ? 'text-slate-600' : 'font-medium'}`}
+              className={`flex-1 hover:underline ${n.read ? 'text-muted' : 'font-medium text-fg'}`}
             >
               {notificationText(n)}
             </Link>
             <time
               dateTime={n.createdAt}
               title={formatDateTime(n.createdAt)}
-              className="text-xs text-slate-500"
+              className="text-xs text-faint"
             >
               {relativeTime(n.createdAt)}
             </time>

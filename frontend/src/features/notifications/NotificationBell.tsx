@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { formatDateTime, relativeTime } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
+import { ErrorState } from '../../shared/ui/ErrorState'
 import { Popover } from '../../shared/ui/Popover'
+import { Skeleton } from '../../shared/ui/Skeleton'
 import { useUserTopic } from '../realtime'
 import { inboxPath, notificationSettingsPath } from './routes'
 import { notificationText } from './notificationText'
@@ -52,7 +54,18 @@ export function NotificationBell({ workspaceId }: { workspaceId: string }) {
             aria-label={unread > 0 ? `Notifications, ${label} unread` : 'Notifications'}
             className="relative rounded-md border border-line-strong bg-surface px-2 py-1 text-[13px] text-fg hover:bg-surface-2"
           >
-            <span aria-hidden="true">🔔</span>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 16 16"
+              className="inline-block h-4 w-4 align-text-bottom"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M4 11V7a4 4 0 018 0v4l1 1.5H3zM6.5 14a1.5 1.5 0 003 0" />
+            </svg>
             {unread > 0 && (
               <span
                 data-testid="unread-badge"
@@ -93,14 +106,14 @@ function NotificationList({ workspaceId, onClose }: { workspaceId: string; onClo
         </Button>
       </div>
       {inbox.isPending && (
-        <p role="status" className="p-2 text-sm">
-          Loading…
-        </p>
+        <div role="status" aria-label="Loading notifications" className="flex flex-col gap-1 p-1">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-8 w-full" />
+          ))}
+        </div>
       )}
       {inbox.isError && (
-        <p role="alert" className="p-2 text-sm text-danger">
-          Couldn&apos;t load notifications.
-        </p>
+        <ErrorState message="Couldn't load notifications." onRetry={() => void inbox.refetch()} />
       )}
       {inbox.isSuccess && items.length === 0 && (
         <p className="p-2 text-sm text-muted">No notifications yet.</p>
