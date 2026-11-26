@@ -201,6 +201,10 @@ test('SM-2: a task, a List, a Theme and the Inbox are reachable from the palette
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  // data-theme is set before the bundle runs, so it proves nothing about the app: wait for the shell to
+  // have rendered its tree. A shortcut pressed while the app is still mounting can open a palette that
+  // is then remounted, and the picked Command never runs.
+  await expect(page.getByRole('treeitem', { name: 'Platform' })).toBeVisible()
 
   await page.keyboard.press('ControlOrMeta+k')
   await paletteField(page).fill('Go to Inbox')
