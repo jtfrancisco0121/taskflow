@@ -1,6 +1,7 @@
 import { createEvent, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { formatDateTime } from '../../shared/dates'
 import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { baseRoutes, customFieldIds, fieldRoutes, scope, task } from './testSupport'
@@ -220,7 +221,7 @@ describe('TABLE-1 Table view', () => {
       '[role="row"]',
     ) as HTMLElement
     await user.click(within(row).getByText('ACME-1'))
-    await user.dblClick(within(row).getByText(/Jan 2, 2026/))
+    await user.dblClick(within(row).getByText(formatDateTime('2026-01-02T12:00:00Z')))
     expect(within(row).queryByLabelText(/created|ID of/i)).not.toBeInTheDocument()
     expect(within(row).queryAllByRole('textbox')).toHaveLength(0)
   })
