@@ -11,7 +11,9 @@ import { messageOf } from '../../api/errors'
 import type { FieldView, StatusInfo, TaskView, ViewConfig } from '../../api/types'
 import { formatDateTime } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
+import { EmptyState } from '../../shared/ui/EmptyState'
 import { ErrorState } from '../../shared/ui/ErrorState'
+import { Skeleton } from '../../shared/ui/Skeleton'
 import { BlockedBadge } from '../dependencies'
 import { useLocationInfo } from '../locations'
 import { useLocationStatuses } from '../statuses'
@@ -199,6 +201,18 @@ export function TableRenderer({
                 )
               })}
             </div>
+            {query.isPending && (
+              <div
+                role="status"
+                aria-label="Loading the Table"
+                className="flex flex-col gap-px"
+                style={{ width: totalWidth, minWidth: '100%' }}
+              >
+                {Array.from({ length: 8 }, (_, i) => (
+                  <Skeleton key={i} className="h-9 w-full" />
+                ))}
+              </div>
+            )}
             <div
               style={{
                 height: virtualizer.getTotalSize(),
@@ -241,9 +255,20 @@ export function TableRenderer({
           </div>
         </div>
       </div>
-      {query.isSuccess && rows.length === 0 && hasFilter(config) && <NoMatches update={update} />}
+      {query.isSuccess &&
+        rows.length === 0 &&
+        (hasFilter(config) ? (
+          <NoMatches update={update} />
+        ) : (
+          <EmptyState title="No tasks in this view." />
+        ))}
       {hasNextPage && (
-        <Button className="mt-2" disabled={isFetchingNextPage} onClick={() => void fetchNextPage()}>
+        <Button
+          variant="ghost"
+          className="mt-2"
+          disabled={isFetchingNextPage}
+          onClick={() => void fetchNextPage()}
+        >
           Load more
         </Button>
       )}

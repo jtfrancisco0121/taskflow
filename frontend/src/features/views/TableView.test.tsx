@@ -419,3 +419,86 @@ describe('TABLE-1 layout structure (S4)', () => {
     )
   })
 })
+
+describe('CAP-6 Table states (S5)', () => {
+  const queries = (stub: ReturnType<typeof installFetch>) =>
+    stub.calls.filter((c) => c.method === 'POST' && c.url.pathname.includes('/views/query')).length
+
+  it('a cold load shows the header and the Loading the Table status', async () => {
+    installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': () => new Promise<Response>(() => {}),
+    } as never)
+    renderWithProviders(<TableRenderer scope={scope} config={config} update={vi.fn()} />)
+    expect(await screen.findByRole('status', { name: 'Loading the Table' })).toBeVisible()
+    expect(screen.getByRole('button', { name: /^Title column/ })).toBeVisible()
+  })
+
+  it('a 500 shows the server message and Retry asks again and shows the rows', async () => {
+    let failing = true
+    const stub = installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': () =>
+        failing
+          ? problem(500, 'server.error', 'The Table is down')
+          : json({ items: [{ task: task(1) }] }),
+    } as never)
+    const user = userEvent.setup()
+    renderWithProviders(<TableRenderer scope={scope} config={config} update={vi.fn()} />)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('The Table is down')
+    const before = queries(stub)
+    failing = false
+    await user.click(within(alert).getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByRole('link', { name: 'Task 1' })).toBeVisible()
+    expect(queries(stub)).toBe(before + 1)
+  })
+
+  it('an empty view shows No tasks in this view. under the header', async () => {
+    serve([])
+    renderWithProviders(<TableRenderer scope={scope} config={config} update={vi.fn()} />)
+    expect(await screen.findByText('No tasks in this view.')).toBeVisible()
+    expect(screen.getByRole('button', { name: /^Title column/ })).toBeVisible()
+  })
+
+  it('a filter with no matches shows the clear-filter notice', async () => {
+    serve([])
+    const update = vi.fn()
+    const filtered = {
+      ...config,
+      filter: { op: 'AND', items: [{ field: 'priority', op: 'eq', value: 'URGENT' }] },
+    } as never
+    const user = userEvent.setup()
+    renderWithProviders(<TableRenderer scope={scope} config={filtered} update={update} />)
+    expect(await screen.findByText('No tasks match these filters.')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(update).toHaveBeenCalledWith({ f: { op: 'AND', items: [] } })
+  })
+
+  it('Load more shows while a next page exists and is disabled while it is fetching', async () => {
+    let release: () => void = () => {}
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': async (_r: Request, body: unknown) => {
+        if ((body as { cursor?: string }).cursor) {
+          await gate
+          return json({ items: [{ task: task(2) }] })
+        }
+        return json({ items: [{ task: task(1) }], nextCursor: 'c1' })
+      },
+    } as never)
+    const user = userEvent.setup()
+    renderWithProviders(<TableRenderer scope={scope} config={config} update={vi.fn()} />)
+    const more = await screen.findByRole('button', { name: 'Load more' })
+    expect(screen.getByRole('table', { name: 'Tasks table' })).toHaveAttribute(
+      'aria-rowcount',
+      '-1',
+    )
+    await user.click(more)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Load more' })).toBeDisabled())
+    release()
+    expect(await screen.findByRole('link', { name: 'Task 2' })).toBeVisible()
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull())
+  })
+})
