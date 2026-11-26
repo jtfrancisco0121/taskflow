@@ -1,5 +1,5 @@
 export type Shortcut = {
-  group: 'Global' | 'List'
+  group: 'Global' | 'List' | 'Task'
   /** What the sheet shows, one chip per entry. */
   keys: string[]
   /** The `KeyboardEvent.key` values the handler reacts to (the consistency test compares them with the code). */
@@ -28,6 +28,18 @@ export const SHORTCUTS: Shortcut[] = [
   },
   { group: 'List', keys: ['j', '↓'], handles: ['j', 'ArrowDown'], description: 'Next task' },
   { group: 'List', keys: ['k', '↑'], handles: ['k', 'ArrowUp'], description: 'Previous task' },
+  {
+    group: 'Task',
+    keys: ['j', '↓'],
+    handles: ['j', 'ArrowDown'],
+    description: 'Next task of the List',
+  },
+  {
+    group: 'Task',
+    keys: ['k', '↑'],
+    handles: ['k', 'ArrowUp'],
+    description: 'Previous task of the List',
+  },
   { group: 'List', keys: ['x'], handles: ['x'], description: 'Select or unselect the task' },
   { group: 'List', keys: ['Enter'], handles: ['Enter'], description: 'Open the task' },
   { group: 'List', keys: ['s'], handles: ['s'], description: 'Set the status' },

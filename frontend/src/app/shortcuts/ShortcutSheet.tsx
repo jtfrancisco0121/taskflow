@@ -5,7 +5,7 @@ import { Dialog } from '../../shared/ui/Dialog'
 import { Kbd } from '../../shared/ui/Kbd'
 import { isShortcutBlocked } from '../../shared/ui/shortcutGuard'
 
-const GROUPS: Shortcut['group'][] = ['Global', 'List']
+const GROUPS: Shortcut['group'][] = ['Global', 'List', 'Task']
 
 /** The `?` sheet (AD-9): every shortcut from SHORTCUTS. It never opens in a text field, under a modal or a layer. */
 export function ShortcutSheet() {

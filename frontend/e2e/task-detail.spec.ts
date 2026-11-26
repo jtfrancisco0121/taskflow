@@ -181,3 +181,41 @@ for (const mode of ['modal', 'docked'] as const) {
     ).toHaveText('Urgent')
   })
 }
+
+for (const mode of ['modal', 'docked'] as const) {
+  test(`SM-2 (${mode}): j and k walk three tasks of the List without history entries, and the mode survives a reload`, async ({
+    page,
+  }) => {
+    await setUp(page, ['Alpha', 'Beta', 'Gamma'])
+    await openByEnter(page, 'Alpha')
+    if (mode === 'docked') await taskDetail(page).getByRole('button', { name: 'Docked' }).click()
+    const detail = taskDetail(page)
+    const title = detail.getByLabel('Title')
+    await expect(title).toHaveValue('Alpha')
+    // focus is in the detail but not in a text field
+    await detail.getByRole('button', { name: 'Close task panel' }).focus()
+    const entries = await page.evaluate(() => history.length)
+    await page.keyboard.press('j')
+    await expect(title).toHaveValue('Beta')
+    await page.keyboard.press('j')
+    await expect(title).toHaveValue('Gamma')
+    await page.keyboard.press('j') // the end: nothing happens
+    await expect(title).toHaveValue('Gamma')
+    await page.keyboard.press('k')
+    await expect(title).toHaveValue('Beta')
+    await page.keyboard.press('ArrowUp')
+    await expect(title).toHaveValue('Alpha')
+    expect(await page.evaluate(() => history.length)).toBe(entries)
+    // in a text field j is a letter
+    await title.focus()
+    await page.keyboard.press('j')
+    await expect(title).toHaveValue('Alphaj')
+    await page.keyboard.press('Escape')
+    await page.reload()
+    await expect(
+      mode === 'docked'
+        ? page.getByRole('complementary', { name: /^Task / })
+        : page.getByRole('dialog', { name: /^Task / }),
+    ).toBeVisible()
+  })
+}

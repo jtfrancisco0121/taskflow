@@ -2,12 +2,13 @@
 import { describe, expect, it } from 'vitest'
 import { SHORTCUTS } from '../../shared/shortcuts'
 
-// AD-9: a key handled by the List, the palette shortcut or the search box must be in SHORTCUTS.
+// AD-9: a key handled by the List, the task detail, the palette shortcut or the search box must be in SHORTCUTS.
 const sources = import.meta.glob(
   [
     '../../features/views/useListKeys.ts',
     './../palette/useShortcut.ts',
     '../../features/search/SearchBox.tsx',
+    '../../features/tasks/TaskPanel.tsx',
   ],
   { query: '?raw', import: 'default', eager: true },
 ) as Record<string, string>
@@ -25,8 +26,8 @@ function keysIn(source: string): string[] {
 }
 
 describe('SHORTCUTS lists every handled key', () => {
-  it('scans the three handlers', () => {
-    expect(Object.keys(sources)).toHaveLength(3)
+  it('scans the four handlers', () => {
+    expect(Object.keys(sources)).toHaveLength(4)
   })
 
   for (const [file, source] of Object.entries(sources)) {

@@ -11,7 +11,10 @@ import type { StatusInfo, TaskView } from '../../api/types'
 import { formatDay } from '../../shared/dates'
 import { RichTextEditor, isEmptyDoc, type RichDoc } from '../../shared/richtext'
 import { Button } from '../../shared/ui/Button'
+import { useNavigate, useLocation } from 'react-router'
+import { useTaskOrder } from '../../shared/task-order'
 import { Dialog } from '../../shared/ui/Dialog'
+import { isShortcutBlocked } from '../../shared/ui/shortcutGuard'
 import { readTaskDetailMode, useUiStore } from '../../shared/ui-store'
 import {
   BlockedBadge,
@@ -95,16 +98,42 @@ export function TaskPanel({ taskId, onClose, children }: TaskPanelProps) {
   const shown = useRef<string | null>(null)
   const toggled = useRef(false)
   useEffect(() => {
-    shown.current = task?.id ?? null
+    if (task) shown.current = task.id ?? null
+    // The next task is loading and the old body is gone: keep focus in the frame, so j/k go on working.
+    else if (shown.current && document.activeElement === document.body) frameRef.current?.focus()
   })
+  // StrictMode runs a mount effect twice: the answer for one body must not change between the two runs.
+  const decided = useRef<{ id: string | undefined; target: 'title' | 'frame' | 'toggle' } | null>(
+    null,
+  )
   const takeFocusTarget = (id: string | undefined): 'title' | 'frame' | 'toggle' => {
+    if (decided.current && decided.current.id === id && !toggled.current)
+      return decided.current.target
     const target = toggled.current
       ? 'toggle'
       : shown.current && shown.current !== id
         ? 'frame'
         : 'title'
     toggled.current = false
+    decided.current = { id, target }
     return target
+  }
+
+  const navigate = useNavigate()
+  const location = useLocation()
+  // AD-6: j/ArrowDown and k/ArrowUp open the next/previous task of the List behind, in the same frame and with no
+  // history entry per step. The shared guard ignores this frame's own dialog and keeps every other layer busy.
+  function onFrameKeyDown(event: KeyboardEvent<HTMLElement>) {
+    const key = event.key
+    const step = key === 'j' || key === 'ArrowDown' ? 1 : key === 'k' || key === 'ArrowUp' ? -1 : 0
+    if (!step || event.defaultPrevented) return
+    if (isShortcutBlocked(event.nativeEvent, { host: event.currentTarget })) return
+    const ids = useTaskOrder.getState().ids
+    const at = ids.indexOf(taskId)
+    const next = at < 0 ? undefined : ids[at + step]
+    if (!next) return
+    event.preventDefault()
+    void navigate(`/t/${next}`, { replace: true, state: location.state })
   }
 
   const name = `Task ${task?.readableId ?? ''}`.trim()
@@ -153,6 +182,7 @@ export function TaskPanel({ taskId, onClose, children }: TaskPanelProps) {
         <div
           ref={frameRef as RefObject<HTMLDivElement>}
           tabIndex={-1}
+          onKeyDown={onFrameKeyDown}
           className="flex min-h-0 flex-1 flex-col outline-none"
         >
           {content}
@@ -166,7 +196,8 @@ export function TaskPanel({ taskId, onClose, children }: TaskPanelProps) {
       role="complementary"
       aria-label={name}
       tabIndex={-1}
-      onKeyDown={(event: KeyboardEvent) => {
+      onKeyDown={(event: KeyboardEvent<HTMLElement>) => {
+        onFrameKeyDown(event)
         if (event.key !== 'Escape' || event.defaultPrevented || !escapeClosesDetail(event)) return
         event.stopPropagation()
         onClose()

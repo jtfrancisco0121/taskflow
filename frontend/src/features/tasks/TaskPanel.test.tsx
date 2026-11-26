@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { fireEvent } from '@testing-library/react'
 import { Route, Routes, useLocation } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
+import { useTaskOrder } from '../../shared/task-order'
 import { useUiStore } from '../../shared/ui-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { LocationViewRoute, ViewBackground } from '../views'
@@ -655,6 +656,96 @@ describe('TaskPanel', () => {
       renderPanel()
       const dialog = await screen.findByRole('dialog', { name: 'Task' })
       expect(dialog.querySelector('[aria-busy="true"]')).not.toBeNull()
+    })
+  })
+
+  describe('j/k between the tasks of the List behind (AD-6)', () => {
+    const path = () => screen.getByTestId('where').textContent
+    const order = ['t0', 't1', 't2']
+
+    // the List behind shows three tasks and publishes their order, like the real view does
+    const listOf = (ids: string[]) => ({
+      'GET /api/v1/tasks': () =>
+        json({ items: ids.map((id, n) => ({ ...base, id, readableId: `ACME-${n + 1}` })) }),
+      'POST /api/v1/views/query': () =>
+        json({
+          items: ids.map((id, n) => ({
+            group: 'x',
+            task: { ...base, id, readableId: `ACME-${n + 1}`, title: `Task ${id}` },
+          })),
+        }),
+      'GET /api/v1/tasks/:id': (request: Request) =>
+        json({ ...base, id: new URL(request.url).pathname.split('/').at(-1) }),
+    })
+
+    async function open() {
+      renderPanel('/t/t1', { backgroundLocation: { pathname: '/w/w1/l/l1' } })
+      const detail = await findTaskDetail('Task ACME-1')
+      await waitFor(() => expect(useTaskOrder.getState().ids).toEqual(order))
+      const close = within(detail).getByRole('button', { name: 'Close task panel' })
+      close.focus()
+      return { detail, close }
+    }
+
+    it.each(['modal', 'docked'] as const)(
+      'j and k open the next and previous task in the %s frame, stopping at the ends',
+      async (mode) => {
+        useUiStore.setState({ taskDetailMode: mode })
+        serve({}, listOf(order) as never)
+        const user = userEvent.setup()
+        await open()
+        await user.keyboard('j')
+        await waitFor(() => expect(path()).toBe('/t/t2'))
+        await user.keyboard('j')
+        expect(path()).toBe('/t/t2')
+        await user.keyboard('{ArrowUp}')
+        await waitFor(() => expect(path()).toBe('/t/t1'))
+        await user.keyboard('k')
+        await waitFor(() => expect(path()).toBe('/t/t0'))
+        await user.keyboard('k')
+        expect(path()).toBe('/t/t0')
+      },
+    )
+
+    it('does nothing in a text field, with a Picker open, or when the task is not in the List order', async () => {
+      serve({}, listOf(order) as never)
+      const user = userEvent.setup()
+      const { detail } = await open()
+      await user.click(within(detail).getByLabelText('Title'))
+      await user.keyboard('j')
+      expect(path()).toBe('/t/t1')
+
+      await user.click(within(detail).getByLabelText('Status'))
+      await screen.findByRole('option', { name: 'Done' })
+      await user.keyboard('j')
+      expect(path()).toBe('/t/t1')
+      await user.keyboard('{Escape}')
+    })
+
+    it('does nothing without a List behind, and under the Complete anyway dialog', async () => {
+      useTaskOrder.setState({ ids: [] })
+      serve({ blocked: true, blockerCount: 1 }, {
+        'GET /api/v1/tasks/:id/dependencies': () =>
+          json({
+            ...noDependencies,
+            waitingOn: [
+              { task: { id: 'b1', readableId: 'ACME-2', title: 'Other' }, relation: 'WAITING_ON' },
+            ],
+          }),
+      } as never)
+      const user = userEvent.setup()
+      renderPanel('/t/t1', { backgroundLocation: { pathname: '/w/w1/l/l1' } })
+      const detail = await findTaskDetail('Task ACME-1')
+      within(detail).getByRole('button', { name: 'Close task panel' }).focus()
+      await user.keyboard('j')
+      expect(path()).toBe('/t/t1')
+
+      useTaskOrder.setState({ ids: order })
+      await pick(user, within(detail).getByLabelText('Status'), 'Done')
+      const dialog = await screen.findByRole('dialog', { name: /is waiting on/ })
+      within(dialog).getByRole('button', { name: 'Cancel' }).focus()
+      await user.keyboard('j')
+      expect(path()).toBe('/t/t1')
     })
   })
 })
