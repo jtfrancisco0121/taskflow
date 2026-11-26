@@ -11,8 +11,7 @@ import { expect } from 'vitest'
  * a placeholder never counts, and a disabled option never counts. On a native <select> a placeholder is the
  * option with value=""; on the library Select (Radix) it is shown on the trigger and is never an item, while a
  * real "" choice such as "Any status" is an item and is listed. A native select with a real "" choice is not
- * supported: the lint rule bans new native selects, and the two that remain (FilterBuilder, FilterInput) use
- * "" only as a placeholder.
+ * supported: the lint rule bans native selects everywhere.
  * ESLint keeps tests from calling `selectOptions`, `toHaveDisplayValue` or casting to
  * HTMLSelectElement; `toHaveValue` and option queries on a select are kept out by review.
  */
@@ -28,9 +27,13 @@ const textOf = (el: Element) => (el.textContent ?? '').trim()
 const realOptions = (select: HTMLSelectElement) =>
   Array.from(select.options).filter((o) => o.value !== '' && !o.disabled)
 
-/** Opens a trigger and returns the floating listbox or menu it controls. */
+/**
+ * Opens a trigger and returns the floating listbox, menu or popover it controls. A trigger that is already
+ * open (`aria-expanded="true"`, for example a multi-mode Picker after a pick) is not clicked again: a second
+ * click would close it, so two picks in a row on a multi Picker both land.
+ */
 export async function open(user: UserEvent, trigger: HTMLElement): Promise<HTMLElement> {
-  await user.click(trigger)
+  if (trigger.getAttribute('aria-expanded') !== 'true') await user.click(trigger)
   // The popup is portalled and wired by aria-controls, which is set only while it is open.
   let popup: HTMLElement | null = null
   await waitFor(() => {

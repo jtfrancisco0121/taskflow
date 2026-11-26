@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { hasOpenFloatingLayer } from '../../shared/ui/floating'
+import { isShortcutBlocked } from '../../shared/ui/shortcutGuard'
 
 /**
  * AD-5: Cmd+K / Ctrl+K toggles the palette, also inside inputs and the editor. It does nothing (no toggle, no
@@ -11,9 +11,7 @@ export function useShortcut(toggle: () => void) {
     function onKey(event: KeyboardEvent) {
       if (event.key?.toLowerCase() !== 'k' || !(event.metaKey || event.ctrlKey)) return
       if (event.altKey || event.shiftKey) return
-      if (document.querySelector('[role="dialog"][aria-modal="true"]:not([data-tf-palette])'))
-        return
-      if (hasOpenFloatingLayer()) return
+      if (isShortcutBlocked(event, { allowInTextFields: true, singleKey: false })) return
       event.preventDefault()
       toggle()
     }

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { expectNoContrastViolations, tokenOf, watchFontRequests } from './a11y'
 import { snap } from './screenshots'
+import { pick } from './ui'
 
 // CAP-7, CAP-2, CAP-3 (slice 2): /design shows every library component, the Light / Aurora / System toggle
 // switches the theme at once, and both themes (and System-dark) pass the axe color-contrast rule.
@@ -76,3 +77,15 @@ for (const theme of THEMES) {
     await expectNoContrastViolations(page, `toasts ${theme.file}`, '[aria-live="polite"]')
   })
 }
+
+test('/design: two pick() calls in a row on an open multi Picker select both items', async ({
+  page,
+}) => {
+  await page.goto('/design')
+  const trigger = page.getByRole('button', { name: /^Tags/ })
+  await pick(trigger, 'Ship')
+  await pick(trigger, 'Later')
+  await expect(page.getByRole('option', { name: 'Ship' })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByRole('option', { name: 'Later' })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByRole('option', { name: 'Plan' })).toHaveAttribute('aria-checked', 'true')
+})

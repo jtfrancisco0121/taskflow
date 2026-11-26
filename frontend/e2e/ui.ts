@@ -9,8 +9,7 @@ import { expect, type Locator } from '@playwright/test'
  * placeholder never counts, and a disabled option never counts. On a native <select> a placeholder is the
  * option with value=""; on the library Select (Radix) it is shown on the trigger and is never an item, while a
  * real "" choice such as "Any status" is an item and is listed. A native select with a real "" choice is not
- * supported: the lint rule bans new native selects, and the two that remain (FilterBuilder, FilterInput) use
- * "" only as a placeholder.
+ * supported: the lint rule bans native selects everywhere.
  * ESLint keeps specs from calling `selectOption` or reading `option:checked` directly.
  */
 export type Option = string | { index: number }
@@ -20,12 +19,16 @@ async function isNativeSelect(control: Locator) {
   return (await control.evaluate((el) => el.tagName)) === 'SELECT'
 }
 
-/** Opens a trigger and returns the floating listbox or menu it controls. */
+/**
+ * Opens a trigger and returns the floating listbox, menu or popover it controls. A trigger that is already
+ * open (`aria-expanded="true"`, for example a multi-mode Picker after a pick) is not clicked again: a second
+ * click would close it, so two picks in a row on a multi Picker both land.
+ */
 export async function open(trigger: Locator): Promise<Locator> {
   // Hold the element itself: while a Radix listbox is open the page behind it is aria-hidden, so a locator
   // that finds the trigger by its <label> (getByLabel) no longer resolves until the popup closes.
   const element = await trigger.elementHandle()
-  await trigger.click()
+  if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click()
   // The popup is portalled and wired by aria-controls, which is set only while it is open.
   const controls = await trigger
     .page()

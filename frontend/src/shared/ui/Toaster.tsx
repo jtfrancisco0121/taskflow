@@ -1,4 +1,29 @@
-import { useToastStore } from '../toast-store'
+import { useState } from 'react'
+import { useToastStore, type Toast } from '../toast-store'
+
+function ActionButton({ toast }: { toast: Toast }) {
+  const dismiss = useToastStore((state) => state.dismiss)
+  const [busy, setBusy] = useState(false)
+  const action = toast.action
+  if (!action) return null
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true)
+        try {
+          await action.onAction()
+        } finally {
+          dismiss(toast.id)
+        }
+      }}
+      className="rounded px-1 font-medium text-accent hover:bg-surface-2 disabled:opacity-50"
+    >
+      {action.label}
+    </button>
+  )
+}
 
 export function Toaster() {
   const toasts = useToastStore((state) => state.toasts)
@@ -14,6 +39,7 @@ export function Toaster() {
           }`}
         >
           <span>{toast.message}</span>
+          <ActionButton toast={toast} />
           <button
             type="button"
             aria-label="Dismiss"

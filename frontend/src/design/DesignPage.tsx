@@ -13,6 +13,7 @@ import { ErrorState } from '../shared/ui/ErrorState'
 import { IconButton } from '../shared/ui/IconButton'
 import { Kbd } from '../shared/ui/Kbd'
 import { PageHeader } from '../shared/ui/PageHeader'
+import { Picker } from '../shared/ui/Picker'
 import { Popover } from '../shared/ui/Popover'
 import { PriorityBadge } from '../shared/ui/PriorityBadge'
 import { Select } from '../shared/ui/Select'
@@ -54,6 +55,8 @@ export function DesignPage() {
   const [checked, setChecked] = useState(true)
   const [on, setOn] = useState(true)
   const [dialog, setDialog] = useState(false)
+  const [picked, setPicked] = useState('progress')
+  const [many, setMany] = useState<string[]>(['plan'])
   const showToast = useToastStore((state) => state.show)
 
   return (
@@ -211,6 +214,35 @@ export function DesignPage() {
             ]}
           />
         </div>
+      </Section>
+
+      <Section title="Picker">
+        <Picker
+          trigger={
+            <Button>{STATUSES.find((o) => o.value === picked)?.label ?? 'Pick status'}</Button>
+          }
+          label="Pick a status"
+          mode="single"
+          items={STATUSES}
+          selected={[picked]}
+          onPick={setPicked}
+        />
+        <Picker
+          trigger={<Button>{`Tags (${many.length})`}</Button>}
+          label="Pick tags"
+          mode="multi"
+          items={[
+            { value: 'plan', label: 'Plan' },
+            { value: 'ship', label: 'Ship' },
+            { value: 'later', label: 'Later', hint: 'Mon' },
+          ]}
+          selected={many}
+          onPick={(value) =>
+            setMany((cur) =>
+              cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value],
+            )
+          }
+        />
       </Section>
 
       <Section title="Badges">
