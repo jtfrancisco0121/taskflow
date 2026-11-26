@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
-import { addTask, createList, createSpace, signUpAndCreateWorkspace } from './helpers'
+import {
+  addTask,
+  liftToNextColumn,
+  createList,
+  createSpace,
+  signUpAndCreateWorkspace,
+} from './helpers'
 
 /** dnd-kit's pointer sensor needs real movement: press, move in steps, release. */
 async function dragTo(
@@ -79,8 +85,7 @@ test('keyboard: Space lifts, ArrowRight, Space drops, survives a reload', async 
   const move = page.waitForResponse(
     (r) => /\/api\/v1\/tasks\/[^/]+\/move$/.test(r.url()) && r.request().method() === 'POST',
   )
-  await page.keyboard.press('Space')
-  await page.keyboard.press('ArrowRight')
+  await liftToNextColumn(page, 'to do')
   await expect(page.getByRole('region', { name: 'in progress' })).toHaveAttribute(
     'data-over',
     'true',

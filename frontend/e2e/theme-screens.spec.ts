@@ -4,6 +4,7 @@ import {
   createList,
   createSpace,
   createView,
+  liftToNextColumn,
   signUpAndCreateWorkspace,
   taskDetail,
 } from './helpers'
@@ -184,6 +185,18 @@ for (const os of OS_SCHEMES)
         await createView(page, `${type} view`, type)
         await snap(page, testInfo, `${type.toLowerCase()}-${theme}${suffix}`)
         await expectNoContrastViolations(page, `${type.toLowerCase()}-${theme}${suffix}`)
+        if (type === 'Board') {
+          // a keyboard drag in progress: the card lifted, the next column highlighted as the drop target
+          await expect(
+            page.getByRole('region', { name: 'in progress' }).getByText('No tasks'),
+          ).toBeVisible()
+          await page.locator('[data-task-id]').first().focus()
+          await liftToNextColumn(page, 'to do')
+          await expect(page.locator('section[data-over="true"]')).toHaveCount(1)
+          await snap(page, testInfo, `board-drag-${theme}${suffix}`)
+          await expectNoContrastViolations(page, `board-drag-${theme}${suffix}`)
+          await page.keyboard.press('Escape')
+        }
       }
 
       await page.getByRole('link', { name: 'Automations' }).click()

@@ -161,3 +161,18 @@ export const taskDetail = (page: Page): Locator =>
   page
     .getByRole('dialog', { name: /^Task / })
     .or(page.getByRole('complementary', { name: /^Task / }))
+
+/**
+ * Lifts the focused Board card with Space and moves it one column right with ArrowRight. dnd-kit's keyboard
+ * sensor can miss a key pressed right after the lift (it listens one tick later), so the arrow is pressed again
+ * until the column the card started in is no longer the drop target. Leaves the card lifted.
+ */
+export async function liftToNextColumn(page: Page, fromColumn: string) {
+  const from = page.getByRole('region', { name: fromColumn })
+  await page.keyboard.press('Space')
+  await expect(page.getByText(/ is over /)).toBeAttached()
+  await expect(async () => {
+    if ((await from.getAttribute('data-over')) === 'true') await page.keyboard.press('ArrowRight')
+    await expect(from).not.toHaveAttribute('data-over', 'true', { timeout: 1000 })
+  }).toPass({ timeout: 10_000 })
+}
