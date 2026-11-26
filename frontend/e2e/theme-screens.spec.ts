@@ -11,6 +11,7 @@ import {
   taskDetail,
 } from './helpers'
 import { expectNoContrastViolations, tokenOf, watchFontRequests } from './a11y'
+import { pick } from './ui'
 import { snap } from './screenshots'
 
 // FR-20, AD-10: the evidence every UI-overhaul slice report needs, the same screens in both themes
@@ -44,6 +45,8 @@ for (const os of OS_SCHEMES)
   for (const theme of THEMES) {
     const suffix = os === 'light' ? '' : '-osdark'
     test(`screens in the ${theme} theme under an OS ${os} scheme`, async ({ page }, testInfo) => {
+      // the screens grew past the 30 s default: every slice adds some
+      test.setTimeout(120_000)
       const fonts = watchFontRequests(page)
       await page.emulateMedia({ colorScheme: os })
       await setTheme(page, theme)
@@ -220,6 +223,39 @@ for (const os of OS_SCHEMES)
       await expect(page.getByRole('heading', { name: 'Automations' })).toBeVisible()
       await snap(page, testInfo, `automations-${theme}${suffix}`)
       await expectNoContrastViolations(page, `automations-${theme}${suffix}`)
+
+      // Slice 9b: a rule card with its history, and the status manager.
+      await page.getByRole('button', { name: 'New rule' }).click()
+      const builder = page.getByRole('dialog', { name: 'New rule' })
+      await builder.getByLabel('Rule name').fill('Done notes')
+      await pick(builder.getByLabel('To status (optional)'), 'complete')
+      await builder.getByLabel('Comment text').fill('Shipped, thanks')
+      await snap(page, testInfo, `rule-builder-${theme}${suffix}`)
+      await expectNoContrastViolations(page, `rule-builder-${theme}${suffix}`)
+      await builder.getByRole('button', { name: 'Create rule' }).click()
+      await expect(page.getByRole('article', { name: 'Done notes' })).toBeVisible()
+      await snap(page, testInfo, `rule-card-${theme}${suffix}`)
+      await expectNoContrastViolations(page, `rule-card-${theme}${suffix}`)
+      await page.getByRole('button', { name: 'History' }).click()
+      const history = page.getByRole('dialog', { name: /Run history/ })
+      await expect(history.getByRole('heading', { name: 'No runs yet' })).toBeVisible()
+      await snap(page, testInfo, `run-history-${theme}${suffix}`)
+      await expectNoContrastViolations(page, `run-history-${theme}${suffix}`)
+      await page.keyboard.press('Escape')
+      await expect(history).toHaveCount(0)
+      await page.getByRole('link', { name: /^Back to / }).click()
+      await page.getByRole('button', { name: 'Statuses' }).click()
+      const statuses = page.getByRole('dialog', { name: /Statuses/ })
+      await expect(statuses.getByText('Inherited from Engineering')).toBeVisible()
+      await snap(page, testInfo, `status-manager-${theme}${suffix}`)
+      await expectNoContrastViolations(page, `status-manager-${theme}${suffix}`)
+      await statuses.getByRole('button', { name: 'Customize for this List' }).click()
+      await expect(statuses.getByRole('textbox', { name: 'Status 1 name' })).toBeVisible()
+      await snap(page, testInfo, `status-editor-${theme}${suffix}`)
+      await expectNoContrastViolations(page, `status-editor-${theme}${suffix}`)
+      await statuses.getByRole('button', { name: 'Cancel' }).click()
+      await statuses.getByRole('button', { name: 'Close' }).click()
+      await expect(statuses).toHaveCount(0)
 
       await page.goto(`/w/${workspaceId}/inbox`)
       await expect(page.getByRole('heading', { name: 'Inbox' })).toBeVisible()
