@@ -7,6 +7,7 @@ import { baseRoutes, customFieldIds, fieldRoutes, scope, task } from './testSupp
 import { clampWidth, dropColumn, moveColumn, toggleColumn, withWidth } from './tableColumns'
 import { TableRenderer } from './TableRenderer'
 import { expectValue, open, pick } from '../../test/ui'
+import { useViewStore } from './viewStore'
 
 describe('TABLE-1 column model', () => {
   const columns = [
@@ -129,7 +130,8 @@ describe('TABLE-1 Table view', () => {
     await pick(user, await screen.findByLabelText('Status of ACME-1'), 'In progress')
     await user.click(screen.getByRole('button', { name: 'Edit Tags of ACME-1' }))
     await user.type(screen.getByRole('textbox', { name: 'Tags of ACME-1' }), 'a, b{Enter}')
-    await user.type(screen.getByLabelText('Due date of ACME-1'), '2026-12-24')
+    await user.click(screen.getByLabelText('Due date of ACME-1'))
+    await user.type(await screen.findByLabelText('Due day of ACME-1'), '2026-12-24')
     await user.click(screen.getByRole('button', { name: 'Edit Title of ACME-1' }))
     await user.type(screen.getByRole('textbox', { name: 'Title of ACME-1' }), 'nope{Escape}')
 
@@ -145,6 +147,69 @@ describe('TABLE-1 Table view', () => {
       stub.calls.filter((c) => c.method === 'PATCH').every((c) => c.headers.get('If-Match')),
     ).toBe(true)
     expect(bodies.some((b) => 'title' in (b as object))).toBe(false)
+  })
+
+  it('TABLE-1: the start day is picked with the List day editor and sent with If-Match', async () => {
+    const stub = serve([task(1, { version: 3 })])
+    const user = userEvent.setup()
+    const withStart = {
+      ...config,
+      columns: [...config.columns, { field: 'startDate', width: 150 }],
+    }
+    renderWithProviders(<TableRenderer scope={scope} config={withStart} update={vi.fn()} />)
+    await user.click(await screen.findByLabelText('Start date of ACME-1'))
+    await user.type(await screen.findByLabelText('Start day of ACME-1'), '2026-12-01')
+    await waitFor(() =>
+      expect(stub.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([
+        { startDate: '2026-12-01T00:00:00Z' },
+      ]),
+    )
+    expect(stub.calls.find((c) => c.method === 'PATCH')!.headers.get('If-Match')).toBe('"3"')
+  })
+
+  it('TABLE-1: the assignee Picker toggles two members and sends both', async () => {
+    const rows = [task(1, { version: 3 })]
+    const stub = serve(rows, (_r, body) => {
+      Object.assign(rows[0], body, { version: rows[0].version + 1 })
+      return json(rows[0])
+    })
+    const user = userEvent.setup()
+    const withPeople = {
+      ...config,
+      columns: [...config.columns, { field: 'assignees', width: 160 }],
+    }
+    renderWithProviders(<TableRenderer scope={scope} config={withPeople} update={vi.fn()} />)
+    const trigger = await screen.findByLabelText('Assignees of ACME-1')
+    await pick(user, trigger, 'Maya Lopez')
+    await pick(user, trigger, 'Omar Haddad')
+    await waitFor(() =>
+      expect(stub.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([
+        { assigneeIds: ['u1'] },
+        { assigneeIds: ['u1', 'u2'] },
+      ]),
+    )
+    expect(
+      stub.calls.filter((c) => c.method === 'PATCH').every((c) => c.headers.get('If-Match')),
+    ).toBe(true)
+  })
+
+  it('TABLE-1: opening one cell Picker closes another (one open editor)', async () => {
+    serve([task(1), task(2)])
+    const user = userEvent.setup()
+    renderWithProviders(<TableRenderer scope={scope} config={config} update={vi.fn()} />)
+    const first = await screen.findByLabelText('Priority of ACME-1')
+    await open(user, first)
+    const second = screen.getByLabelText('Status of ACME-2')
+    // A click outside the open Picker only closes it; the second trigger then opens on its own click.
+    await user.click(second)
+    await waitFor(() => expect(first).toHaveAttribute('aria-expanded', 'false'))
+    await user.click(second)
+    await waitFor(() => expect(second).toHaveAttribute('aria-expanded', 'true'))
+    expect(first).toHaveAttribute('aria-expanded', 'false')
+    expect(useViewStore.getState().openEditor).toEqual({
+      taskId: second.closest('[data-task-id]')!.getAttribute('data-task-id'),
+      field: 'status',
+    })
   })
 
   it('TABLE-1: read-only cells (ID, created) open nothing', async () => {

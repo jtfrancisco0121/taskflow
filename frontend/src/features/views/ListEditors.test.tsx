@@ -5,8 +5,17 @@ import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { pick } from '../../test/ui'
 import { ListRenderer } from './ListRenderer'
+import { TableRenderer } from './TableRenderer'
 import { baseRoutes, scope, task } from './testSupport'
 import { useViewStore } from './viewStore'
+
+const startConfig = {
+  v: 1,
+  columns: [
+    { field: 'title', width: 300 },
+    { field: 'startDate', width: 150 },
+  ],
+}
 
 type Patch = Record<string, unknown>
 
@@ -98,6 +107,16 @@ describe('List popover editors (CAP-2)', () => {
     await user.click(await screen.findByLabelText('Due date of ACME-1'))
     await user.type(await screen.findByLabelText('Due day of ACME-1'), '2026-12-24')
     await waitFor(() => expect(patches(stub)).toEqual([{ dueDate: '2026-12-24T00:00:00Z' }]))
+  })
+
+  it('the start form uses the Start names and sends startDate', async () => {
+    const stub = serve([task(1)])
+    const user = userEvent.setup()
+    renderWithProviders(<TableRenderer scope={scope} config={startConfig} update={vi.fn()} />)
+    await user.click(await screen.findByLabelText('Start date of ACME-1'))
+    expect(screen.getByRole('dialog', { name: 'Set start date of ACME-1' })).toBeVisible()
+    await user.type(await screen.findByLabelText('Start day of ACME-1'), '2026-12-01')
+    await waitFor(() => expect(patches(stub)).toEqual([{ startDate: '2026-12-01T00:00:00Z' }]))
   })
 
   it('three quick assignee toggles with the first patch still pending all persist, in order', async () => {

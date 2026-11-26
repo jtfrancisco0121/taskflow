@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type EditorField = 'status' | 'priority' | 'assignee' | 'due'
+export type EditorField = 'status' | 'priority' | 'assignee' | 'due' | 'start'
 
 /**
  * AD-19, AD-3: Zustand holds the UI-only List state: collapsed groups, the row selection, the focused row and the

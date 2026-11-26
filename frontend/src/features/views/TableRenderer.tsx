@@ -8,17 +8,17 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { messageOf } from '../../api/errors'
-import type { FieldView, TaskView, ViewConfig } from '../../api/types'
+import type { FieldView, StatusInfo, TaskView, ViewConfig } from '../../api/types'
 import { formatDateTime } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
 import { BlockedBadge } from '../dependencies'
 import { useLocationInfo } from '../locations'
 import { useLocationStatuses } from '../statuses'
-import { PRIORITIES, PRIORITY_LABEL, initialsOf } from '../tasks'
+import type { Member } from '../tasks'
 import { useMembers } from '../workspace'
 import { ColumnsPicker } from './ColumnsPicker'
 import { DroppedNotice, NoMatches, hasFilter } from './ResultNotices'
-import { DateCell, EditableText, MultiPickCell, SelectCell, TagsCell } from './cells'
+import { EditableText, TagsCell } from './cells'
 import { FieldCell } from './FieldCell'
 import { useScopeFields } from './useScopeFields'
 import type { ViewScope } from './scope'
@@ -33,9 +33,10 @@ import {
   withWidth,
 } from './tableColumns'
 import { isCustomRef, type Column, type UrlState } from './urlState'
-import { useGuardedStatus } from './useGuardedStatus'
 import { useTaskActions } from './useTaskActions'
 import { useViewTasks } from './useViewTasks'
+import { AssigneeEditor, DueEditor, PriorityEditor, StartEditor, StatusEditor } from './ListEditors'
+import { useViewStore } from './viewStore'
 
 const ROW_HEIGHT = 40
 const helper = createColumnHelper<TaskView>()
@@ -209,16 +210,12 @@ export function TableRenderer({
                     transform: `translateY(${v.start}px)`,
                   }}
                 >
-                  {headers.map((h) => (
-                    <div key={h.id} role="gridcell" className="truncate px-2">
-                      <Cell
-                        field={h.id}
-                        task={row.original}
-                        scope={scope}
-                        custom={byId.get(h.id.slice(3))}
-                      />
-                    </div>
-                  ))}
+                  <TableRow
+                    task={row.original}
+                    scope={scope}
+                    fields={headers.map((h) => h.id)}
+                    byId={byId}
+                  />
                 </div>
               )
             })}
@@ -235,24 +232,76 @@ export function TableRenderer({
   )
 }
 
+/** The cells of one row; statuses, members and the done flag are computed once per row, not once per cell. */
+function TableRow({
+  task,
+  scope,
+  fields,
+  byId,
+}: {
+  task: TaskView
+  scope: ViewScope
+  fields: string[]
+  byId: Map<string, FieldView>
+}) {
+  const statuses = useLocationStatuses(task.workspaceId, task.listId)
+  const statusList = statuses.data?.statuses ?? []
+  const done = ['DONE', 'CLOSED'].includes(
+    statusList.find((st) => st.id === task.statusId)?.group ?? '',
+  )
+  const { members } = useMembers(scope.workspaceId)
+  const names = useMemo(
+    () => new Map(members.map((m) => [m.userId!, m.displayName ?? m.email ?? ''])),
+    [members],
+  )
+  const closeEditor = useViewStore((st) => st.setOpenEditor)
+  const id = task.id!
+  useEffect(
+    () => () => {
+      // The row went away (scrolled out, trashed, filtered): its editor must not stay "open".
+      if (useViewStore.getState().openEditor?.taskId === id) closeEditor(null)
+    },
+    [id, closeEditor],
+  )
+  return (
+    <>
+      {fields.map((field) => (
+        <div key={field} role="gridcell" className="truncate px-2">
+          <Cell
+            field={field}
+            task={task}
+            statusList={statusList}
+            done={done}
+            members={members}
+            names={names}
+            custom={byId.get(field.slice(3))}
+          />
+        </div>
+      ))}
+    </>
+  )
+}
+
 function Cell({
   field,
   task,
-  scope,
+  statusList,
+  done,
+  members,
+  names,
   custom,
 }: {
   field: string
   task: TaskView
-  scope: ViewScope
+  statusList: StatusInfo[]
+  done: boolean
+  members: Member[]
+  names: Map<string, string>
   custom?: FieldView
 }) {
   const actions = useTaskActions()
-  const guardedStatus = useGuardedStatus()
   const location = useLocation()
-  const statuses = useLocationStatuses(task.workspaceId, task.listId)
-  const { members } = useMembers(scope.workspaceId)
   const list = useLocationInfo(field === 'list' ? task.listId : undefined)
-  const names = new Map(members.map((m) => [m.userId!, m.displayName ?? m.email ?? '']))
   const id = task.readableId
   if (isCustomRef(field)) return custom ? <FieldCell field={custom} task={task} /> : null
   switch (field) {
@@ -277,59 +326,15 @@ function Cell({
         </EditableText>
       )
     case 'status':
-      return (
-        <>
-          <SelectCell
-            label={`Status of ${id}`}
-            value={task.statusId ?? ''}
-            options={(statuses.data?.statuses ?? []).map((s) => ({
-              value: s.id!,
-              label: s.name ?? '',
-            }))}
-            onChange={(statusId) =>
-              void guardedStatus.change(task, statusId, statuses.data?.statuses ?? [])
-            }
-          />
-          {guardedStatus.dialog}
-        </>
-      )
+      return <StatusEditor task={task} statuses={statusList} />
     case 'priority':
-      return (
-        <SelectCell
-          label={`Priority of ${id}`}
-          value={task.priority ?? 'NONE'}
-          options={PRIORITIES.map((p) => ({ value: p, label: PRIORITY_LABEL[p] }))}
-          onChange={(priority) =>
-            void actions.patch(task, { priority: priority as TaskView['priority'] })
-          }
-        />
-      )
+      return <PriorityEditor task={task} />
     case 'assignees':
-      return (
-        <MultiPickCell
-          label={`Assignees of ${id}`}
-          options={members.map((m) => ({
-            value: m.userId!,
-            label: m.displayName ?? m.email ?? '',
-          }))}
-          selected={task.assigneeIds ?? []}
-          onChange={(assigneeIds) => void actions.patch(task, { assigneeIds })}
-          summary={
-            (task.assigneeIds ?? []).length
-              ? (task.assigneeIds ?? []).map((a) => initialsOf(names.get(a) ?? '?')).join(' ')
-              : '—'
-          }
-        />
-      )
+      return <AssigneeEditor task={task} members={members} names={names} />
     case 'dueDate':
+      return <DueEditor task={task} done={done} />
     case 'startDate':
-      return (
-        <DateCell
-          label={`${field === 'dueDate' ? 'Due' : 'Start'} date of ${id}`}
-          value={task[field]}
-          onChange={(day) => void actions.patch(task, { [field]: day as string })}
-        />
-      )
+      return <StartEditor task={task} />
     case 'tags':
       return (
         <TagsCell
