@@ -3,6 +3,8 @@
 # Starts the infrastructure, reuses a backend already answering on :8080 (else starts the dev profile and
 # stops it again on exit), and saves screenshots into the git-ignored artifacts/screenshots
 # (E2E_SCREENSHOTS_DIR); to refresh the committed docs/screenshots on purpose, set E2E_SCREENSHOTS_DIR=docs/screenshots.
+# Every failed attempt (also a test that passed on a retry) keeps its trace and screenshot in
+# artifacts/e2e-failures/<run>/ (scripts/e2e-failures.mjs --self-test checks the parser).
 # Extra arguments go to Playwright, for example: bash scripts/e2e-local.sh e2e/fields-manager.spec.ts
 set -euo pipefail
 
@@ -59,4 +61,17 @@ npx playwright install chromium
 export E2E_MAILPIT_URL="${E2E_MAILPIT_URL:-http://localhost:8025}"
 export E2E_SCREENSHOTS_DIR="${E2E_SCREENSHOTS_DIR:-$root/artifacts/screenshots}"
 mkdir -p "$E2E_SCREENSHOTS_DIR"
+
+# Playwright empties frontend/test-results at the start of every run, so a rerun erased the trace of a failed
+# attempt. The JSON report names every attempt: copy the trace and screenshot of each failed or flaky test
+# to artifacts/e2e-failures/<run timestamp>/ and list them, then exit with Playwright's own code.
+results="$root/artifacts/e2e-results.json"
+mkdir -p "$root/artifacts"
+rm -f "$results"
+set +e
 npm run test:e2e -- "$@"
+code=$?
+set -e
+node "$root/scripts/e2e-failures.mjs" "$results" "$root/artifacts/e2e-failures/$(date +%Y%m%d-%H%M%S)" \
+  || echo "e2e-local: could not list the failed attempts"
+exit "$code"
