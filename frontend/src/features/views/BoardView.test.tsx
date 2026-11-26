@@ -1,7 +1,8 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { TaskView } from '../../api/types'
+import { formatDay } from '../../shared/dates'
 import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { BoardRenderer } from './BoardRenderer'
@@ -266,5 +267,38 @@ describe('FIELD-3 Board card chips (3A S4)', () => {
     expect(screen.getByLabelText('Field 2: v2')).toBeVisible()
     expect(screen.queryByLabelText('Field 3: v3')).not.toBeInTheDocument()
     expect(screen.getByText('+2')).toBeVisible()
+  })
+})
+
+describe('Board cards and column headers (slice 6)', () => {
+  it('a card shows the priority label, the due day and the assignees by member name', async () => {
+    serve(
+      {
+        'to do': [
+          t(1, { priority: 'URGENT', dueDate: '2026-05-04', assigneeIds: ['u1', 'u2'] }) as never,
+          t(2, { priority: 'NONE' }) as never,
+        ],
+      },
+      () => json(task(1)),
+    )
+    renderWithProviders(<BoardRenderer scope={scope} config={config} />)
+    const card = (await screen.findByText('Task 1')).closest('li')!
+    expect(within(card).getByText('Urgent')).toBeVisible()
+    expect(within(card).getByText(formatDay('2026-05-04'))).toBeVisible()
+    expect(within(card).getByRole('img', { name: 'Maya Lopez' })).toBeVisible()
+    expect(within(card).getByRole('img', { name: 'Omar Haddad' })).toBeVisible()
+    // no priority badge for NONE, no avatars without assignees
+    const plain = screen.getByText('Task 2').closest('li')!
+    expect(within(plain).queryByText('None')).toBeNull()
+    expect(within(plain).queryByRole('img')).toBeNull()
+  })
+
+  it('a status column header names the status and its count', async () => {
+    serve({ 'to do': [t(1) as never, t(2) as never], 'in progress': [] }, () => json(task(1)))
+    renderWithProviders(<BoardRenderer scope={scope} config={config} />)
+    await screen.findByText('Task 1')
+    const header = within(screen.getByRole('region', { name: 'To do' })).getByRole('heading')
+    expect(header).toHaveTextContent('To do')
+    expect(header).toHaveTextContent('2')
   })
 })

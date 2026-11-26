@@ -30,6 +30,7 @@ describe('the library, /design, the shell and the rebuilt feature files use toke
       '../../features/fields/FilterInput.tsx',
       // slice 6: the Board
       '../../features/fields/{ValueChip,OptionChip}.tsx',
+      '../../features/views/{BoardRenderer,BoardColumn,BoardCard}.tsx',
     ],
     {
       query: '?raw',
