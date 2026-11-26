@@ -49,6 +49,7 @@ function serve(initial: Record<string, unknown> = {}, extra: Record<string, neve
   const stub = installFetch({
     'GET /api/v1/tasks/:id': () => json(task),
     'GET /api/v1/tasks/:id/dependencies': () => json(noDependencies),
+    'GET /api/v1/tasks/:id/checklists': () => json([]),
     'GET /api/v1/tasks': () => json({ items: [task] }),
     'GET /api/v1/locations/:id/views': {
       items: [

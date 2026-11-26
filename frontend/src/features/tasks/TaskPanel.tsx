@@ -36,6 +36,7 @@ import {
   TitleField,
 } from './TaskFields'
 import { useFieldHints } from './useFieldHints'
+import { ChecklistsSection } from './ChecklistsSection'
 import { ParentLink, SubtasksSection } from './SubtasksSection'
 import { useTask } from './useTask'
 import { useUpdateTask, type TaskPatch } from './useUpdateTask'
@@ -327,6 +328,7 @@ function TaskDetailBody({
       <AssigneesField {...common} members={memberList} />
       <DescriptionField {...common} members={memberList} />
       <SubtasksSection task={task} statuses={statusList} />
+      <ChecklistsSection taskId={task.id!} workspaceId={task.workspaceId} />
       <CustomFieldsGroup {...common} />
       <DependenciesSection task={task} />
     </div>

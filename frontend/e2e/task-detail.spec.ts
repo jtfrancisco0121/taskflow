@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { pick } from './ui'
 import { addTask, createList, createSpace, signUpAndCreateWorkspace, taskDetail } from './helpers'
 
 // Slice 5: the task detail, one body in two frames (a modal and a docked panel).
@@ -116,3 +117,67 @@ test('subtasks: add one, see it in the section and the List behind, open it and 
   await detail.getByRole('link', { name: /Parent task/ }).click()
   await expect(detail.getByLabel('Title')).toHaveValue('Parent task')
 })
+
+async function addChecklist(page: Page, name: string, items: string[]) {
+  const detail = taskDetail(page)
+  await detail.getByRole('button', { name: 'Add checklist' }).click()
+  const field = detail.getByRole('textbox', { name: 'Checklist name' })
+  await expect(field).toBeFocused()
+  await field.fill(name)
+  await page.keyboard.press('Enter')
+  for (const text of items) {
+    const add = detail.getByRole('textbox', { name: `Add an item to ${name}` })
+    await add.fill(text)
+    await page.keyboard.press('Enter')
+    await expect(detail.getByRole('checkbox', { name: text })).toBeVisible()
+  }
+}
+
+test('checklists: create Release with two items, check one, 1/2 survives a reload', async ({
+  page,
+}) => {
+  await setUp(page, ['Alpha'])
+  await openByEnter(page, 'Alpha')
+  await addChecklist(page, 'Release', ['Write notes', 'Tag the build'])
+  const detail = taskDetail(page)
+  await detail.getByRole('checkbox', { name: 'Write notes' }).click()
+  await expect(detail.getByText('1/2')).toBeVisible()
+  await page.reload()
+  await expect(taskDetail(page).getByText('1/2')).toBeVisible()
+  await expect(taskDetail(page).getByRole('checkbox', { name: 'Write notes' })).toBeChecked()
+  // rename and delete an item, then the checklist
+  const reloaded = taskDetail(page)
+  await reloaded.getByRole('button', { name: 'Delete item Tag the build' }).click()
+  await expect(reloaded.getByText('1/1')).toBeVisible()
+  await reloaded.getByRole('button', { name: 'Delete checklist Release' }).click()
+  await expect(reloaded.getByText('No checklists yet.')).toBeVisible()
+})
+
+for (const mode of ['modal', 'docked'] as const) {
+  test(`SM-1 (${mode}): Enter, Picker edits, a subtask, a checklist item and Escape back to the row`, async ({
+    page,
+  }) => {
+    await setUp(page, ['Alpha'])
+    await openByEnter(page, 'Alpha')
+    if (mode === 'docked') await taskDetail(page).getByRole('button', { name: 'Docked' }).click()
+    const detail = taskDetail(page)
+    await pick(detail.getByLabel('Status', { exact: true }), 'in progress')
+    await expect(detail.getByLabel('Status', { exact: true })).toHaveText('in progress')
+    await pick(detail.getByLabel('Priority', { exact: true }), 'Urgent')
+    await expect(detail.getByLabel('Priority', { exact: true })).toHaveText('Urgent')
+    await detail.getByRole('textbox', { name: 'Add a subtask' }).fill('First step')
+    await page.keyboard.press('Enter')
+    await expect(detail.getByRole('link', { name: 'First step' })).toBeVisible()
+    await addChecklist(page, 'Steps', ['Do it'])
+    await detail.getByRole('button', { name: 'Close task panel' }).focus()
+    await page.keyboard.press('Escape')
+    await expect(detail).toHaveCount(0)
+    await expect(rowEl(page, 'Alpha')).toBeFocused()
+    await expect(
+      page
+        .getByRole('row')
+        .filter({ hasText: 'Alpha' })
+        .getByLabel(/^Priority of/),
+    ).toHaveText('Urgent')
+  })
+}
