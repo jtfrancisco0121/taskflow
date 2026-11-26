@@ -193,4 +193,98 @@ describe('CAL-1 Calendar view', () => {
       }),
     ).toBeVisible()
   })
+
+  it('CAL-1: a chip shows its status colour and name, its priority and the Blocked badge', async () => {
+    serve(
+      [
+        dated(1, '2026-11-25', {
+          statusId: 'st-doing',
+          priority: 'URGENT',
+          blocked: true,
+          blockerCount: 2,
+        }),
+      ],
+      () => json({}),
+    )
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
+      route,
+    })
+    const chip = (await screen.findByRole('link', { name: 'Task 1' })).closest('li')!
+    const dot = await within(chip).findByRole('img', { name: 'In progress' })
+    expect(dot).toHaveStyle({ backgroundColor: '#3b82f6' })
+    expect(within(chip).getByText('Urgent')).toBeVisible()
+    expect(within(chip).getByRole('img', { name: 'Blocked by 2 tasks' })).toBeVisible()
+  })
+
+  it('CAL-1: Previous and Next are icon buttons, the month title names the anchor, Today goes to today', async () => {
+    serve([], () => json({}))
+    const update = vi.fn()
+    const user = userEvent.setup()
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={update} />, { route })
+    expect(await screen.findByRole('heading', { name: 'November 2026' })).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(update).toHaveBeenLastCalledWith({ d: '2026-11-18' })
+    await user.click(screen.getByRole('button', { name: 'Today' }))
+    expect(update.mock.lastCall![0].d).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(screen.getByRole('button', { name: 'Week' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('CAL-1: more than three tasks on a day collapse into a "+N more" toggle', async () => {
+    serve(
+      [1, 2, 3, 4, 5].map((n) => dated(n, '2026-11-25')),
+      () => json({}),
+    )
+    const user = userEvent.setup()
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
+      route,
+    })
+    const wed = await screen.findByRole('gridcell', { name: '2026-11-25' })
+    await within(wed).findByRole('link', { name: 'Task 1' })
+    expect(within(wed).queryByRole('link', { name: 'Task 4' })).toBeNull()
+    await user.click(within(wed).getByRole('button', { name: '+2 more' }))
+    expect(within(wed).getByRole('link', { name: 'Task 5' })).toBeVisible()
+    await user.click(within(wed).getByRole('button', { name: 'Show less' }))
+    expect(within(wed).queryByRole('link', { name: 'Task 5' })).toBeNull()
+  })
+
+  it('CAL-1: loading shows a status with skeletons; the toolbar is already there', async () => {
+    installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': () => new Promise<Response>(() => {}),
+    } as never)
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
+      route,
+    })
+    expect(await screen.findByRole('status', { name: 'Loading the Calendar' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Today' })).toBeVisible()
+  })
+
+  it('CAL-1: a failed load shows the ErrorState and Retry reloads', async () => {
+    let calls = 0
+    installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': () => {
+        calls += 1
+        return calls <= 2
+          ? problem(500, 'server.error', 'Boom')
+          : json({ items: [{ task: dated(1, '2026-11-25') }] })
+      },
+    } as never)
+    const user = userEvent.setup()
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
+      route,
+    })
+    expect(await screen.findByRole('alert')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByRole('link', { name: 'Task 1' })).toBeVisible()
+  })
+
+  it('CAL-1: an empty range says so and still shows the grid', async () => {
+    serve([], () => json({}))
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
+      route,
+    })
+    expect(await screen.findByText('No tasks due in this range.')).toBeVisible()
+    expect(screen.getByRole('grid', { name: 'Calendar' })).toBeVisible()
+  })
 })

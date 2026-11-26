@@ -14,8 +14,15 @@ import { Link, useLocation } from 'react-router'
 import { BlockedBadge } from '../dependencies'
 import { useViewParams } from './viewParams'
 import type { TaskView, ViewConfig, ViewFilter } from '../../api/types'
+import { messageOf } from '../../api/errors'
 import { Button } from '../../shared/ui/Button'
-import { addDays, calendarRange, dueDateFor, fromDay, shiftAnchor, todayUtc } from './calendarGrid'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { ErrorState } from '../../shared/ui/ErrorState'
+import { IconButton } from '../../shared/ui/IconButton'
+import { Skeleton } from '../../shared/ui/Skeleton'
+import { useLocationStatuses } from '../statuses'
+import { PriorityValue } from '../tasks'
+import { calendarRange, dueDateFor, fromDay, shiftAnchor, todayUtc } from './calendarGrid'
 import type { ViewScope } from './scope'
 import { parseUrlState, type UrlState } from './urlState'
 import { useTaskActions } from './useTaskActions'
@@ -115,68 +122,122 @@ export function CalendarRenderer({
     timeZone: 'UTC',
   }).format(fromDay(anchor))
 
+  const statuses = useLocationStatuses(scope.workspaceId, scope.locationId).data?.statuses
+  const statusOf = (id: string | undefined) => statuses?.find((s) => s.id === id)
+
   return (
     <div>
-      <div className="mb-2 flex items-center gap-2 text-sm">
-        <Button aria-label="Previous" onClick={() => update({ d: shiftAnchor(mode, anchor, -1) })}>
-          ‹
-        </Button>
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+        <IconButton label="Previous" onClick={() => update({ d: shiftAnchor(mode, anchor, -1) })}>
+          <Chevron d="M10 3l-5 5 5 5" />
+        </IconButton>
         <Button onClick={() => update({ d: todayUtc() })}>Today</Button>
-        <Button aria-label="Next" onClick={() => update({ d: shiftAnchor(mode, anchor, 1) })}>
-          ›
-        </Button>
-        <h2 className="mx-2 text-lg font-semibold">{title}</h2>
-        <Button aria-pressed={mode === 'month'} onClick={() => update({ m: 'month', d: anchor })}>
-          Month
-        </Button>
-        <Button aria-pressed={mode === 'week'} onClick={() => update({ m: 'week', d: anchor })}>
-          Week
-        </Button>
-      </div>
-      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-        <div role="grid" aria-label="Calendar" className="grid grid-cols-7 gap-px bg-slate-200">
-          {WEEKDAYS.map((d) => (
-            <div
-              key={d}
-              role="columnheader"
-              className="bg-slate-50 px-1 py-0.5 text-xs text-slate-500"
+        <IconButton label="Next" onClick={() => update({ d: shiftAnchor(mode, anchor, 1) })}>
+          <Chevron d="M6 3l5 5-5 5" />
+        </IconButton>
+        <h2 className="mx-2 font-display text-lg font-semibold text-fg">{title}</h2>
+        <div className="ml-auto flex gap-1">
+          {(['month', 'week'] as const).map((m) => (
+            <Button
+              key={m}
+              variant={mode === m ? 'primary' : 'secondary'}
+              aria-pressed={mode === m}
+              onClick={() => update({ m, d: anchor })}
             >
-              {d}
-            </div>
-          ))}
-          {range.days.map((day) => (
-            <DayCell
-              key={day}
-              day={day}
-              dim={mode === 'month' && !day.startsWith(range.anchorMonth)}
-              tasks={byDay.get(day) ?? []}
-              expanded={openDay === day}
-              onToggle={() => setOpenDay(openDay === day ? null : day)}
-            />
+              {m === 'month' ? 'Month' : 'Week'}
+            </Button>
           ))}
         </div>
-      </DndContext>
+      </div>
+      {query.isError ? (
+        <ErrorState message={messageOf(query.error)} onRetry={() => void query.refetch()} />
+      ) : (
+        <>
+          <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+            <div
+              role="grid"
+              aria-label="Calendar"
+              className="grid grid-cols-7 gap-px overflow-hidden rounded-md border border-line bg-line"
+            >
+              {WEEKDAYS.map((d) => (
+                <div
+                  key={d}
+                  role="columnheader"
+                  className="bg-surface-2 px-2 py-1 text-xs font-medium text-muted"
+                >
+                  {d}
+                </div>
+              ))}
+              {range.days.map((day) => (
+                <DayCell
+                  key={day}
+                  day={day}
+                  dim={mode === 'month' && !day.startsWith(range.anchorMonth)}
+                  today={day === todayUtc()}
+                  tasks={byDay.get(day) ?? []}
+                  statusOf={statusOf}
+                  expanded={openDay === day}
+                  onToggle={() => setOpenDay(openDay === day ? null : day)}
+                />
+              ))}
+            </div>
+          </DndContext>
+          {query.isPending && (
+            <div
+              role="status"
+              aria-label="Loading the Calendar"
+              className="mt-2 flex flex-col gap-1"
+            >
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-4 w-1/4" />
+            </div>
+          )}
+          {query.isSuccess && query.items.length === 0 && (
+            <EmptyState title="No tasks due in this range." />
+          )}
+        </>
+      )}
       {undated != null && undated > 0 && (
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-[13px] text-muted">
           {undated} {undated === 1 ? 'task has' : 'tasks have'} no due date and{' '}
           {undated === 1 ? 'is' : 'are'} not shown.
         </p>
       )}
-      <span className="sr-only">{addDays(range.start, 0)}</span>
     </div>
   )
 }
 
+const Chevron = ({ d }: { d: string }) => (
+  <svg
+    aria-hidden="true"
+    viewBox="0 0 16 16"
+    className="h-4 w-4"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d={d} />
+  </svg>
+)
+
+type StatusLookup = (id: string | undefined) => { name?: string; color?: string | null } | undefined
+
 function DayCell({
   day,
   dim,
+  today,
   tasks,
+  statusOf,
   expanded,
   onToggle,
 }: {
   day: string
   dim: boolean
+  today: boolean
   tasks: TaskView[]
+  statusOf: StatusLookup
   expanded: boolean
   onToggle: () => void
 }) {
@@ -189,16 +250,27 @@ function DayCell({
       aria-label={day}
       data-day={day}
       // Days outside the month sit on a quieter ground, not at half opacity: opacity cannot meet 4.5:1 (slice 2).
-      className={`min-h-24 p-1 text-xs ${dim ? 'bg-slate-50' : 'bg-white'} ${isOver ? 'ring-2 ring-blue-400' : ''}`}
+      className={`min-h-24 p-1 text-xs ${dim ? 'bg-surface-2' : 'bg-surface'} ${isOver ? 'ring-2 ring-inset ring-accent-line' : ''}`}
     >
-      <div className="mb-1 text-slate-500">{Number(day.slice(8))}</div>
+      <div className="mb-1 text-muted">
+        <span
+          className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 ${today ? 'bg-accent font-semibold text-accent-fg' : ''}`}
+          aria-current={today ? 'date' : undefined}
+        >
+          {Number(day.slice(8))}
+        </span>
+      </div>
       <ul className="flex flex-col gap-1">
         {shown.map((task) => (
-          <Chip key={task.id} task={task} />
+          <Chip key={task.id} task={task} status={statusOf(task.statusId)} />
         ))}
       </ul>
       {tasks.length > VISIBLE_CHIPS && (
-        <button type="button" className="mt-1 text-blue-700" onClick={onToggle}>
+        <button
+          type="button"
+          className="mt-1 rounded text-accent hover:underline focus-visible:outline-2 focus-visible:outline-focus-ring"
+          onClick={onToggle}
+        >
           {expanded ? 'Show less' : `+${tasks.length - VISIBLE_CHIPS} more`}
         </button>
       )}
@@ -206,8 +278,10 @@ function DayCell({
   )
 }
 
-function Chip({ task }: { task: TaskView }) {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: task.id! })
+function Chip({ task, status }: { task: TaskView; status?: ReturnType<StatusLookup> }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: task.id!,
+  })
   const location = useLocation()
   return (
     <li
@@ -218,15 +292,23 @@ function Chip({ task }: { task: TaskView }) {
       style={{
         transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
       }}
-      className="cursor-grab truncate rounded bg-blue-50 px-1 py-0.5"
+      className={`flex cursor-grab items-center gap-1 rounded border bg-surface-2 px-1 py-0.5 ${isDragging ? 'z-10 border-accent-line shadow-float' : 'border-line hover:border-line-strong'} focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring`}
     >
+      <span
+        role="img"
+        aria-label={status?.name ?? 'Status'}
+        className={`h-2 w-2 shrink-0 rounded-full ${status?.color ? '' : 'bg-status-todo'}`}
+        style={status?.color ? { backgroundColor: status.color } : undefined}
+      />
       <Link
         to={`/t/${task.id}`}
         state={{ backgroundLocation: location }}
-        className="hover:underline"
+        tabIndex={-1}
+        className="min-w-0 flex-1 truncate text-fg hover:underline"
       >
         {task.title}
-      </Link>{' '}
+      </Link>
+      {task.priority && task.priority !== 'NONE' && <PriorityValue priority={task.priority} />}
       <BlockedBadge blocked={task.blocked} count={task.blockerCount} iconOnly />
     </li>
   )
