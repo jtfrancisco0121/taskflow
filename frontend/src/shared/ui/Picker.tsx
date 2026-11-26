@@ -9,6 +9,15 @@ export type PickerItem = {
   hint?: string
   /** Replaces the label text in the row (an avatar and a name, a badge). The accessible name stays `label`. */
   render?: ReactNode
+  /** Extra words the search also matches (never the raw `value`, which can be an id). */
+  keywords?: string[]
+}
+
+/** Matches the label and keywords only: `value` is often a UUID, and typing hex must not find it. */
+function matchLabel(_value: string, search: string, keywords?: string[]): number {
+  const needle = search.trim().toLowerCase()
+  if (!needle) return 1
+  return (keywords ?? []).some((word) => word.toLowerCase().includes(needle)) ? 1 : 0
 }
 
 type PickerProps = {
@@ -56,7 +65,7 @@ export function Picker({
   }
   return (
     <Popover trigger={trigger} label={label} open={isOpen} onOpenChange={setOpen}>
-      <CommandPrimitive label={label} className="flex w-60 flex-col text-[13px] text-fg">
+      <CommandPrimitive label={label} filter={matchLabel} className="flex w-60 flex-col text-[13px] text-fg">
         <CommandPrimitive.Input
           placeholder={placeholder}
           aria-label={label}
@@ -77,9 +86,9 @@ export function Picker({
               <CommandPrimitive.Item
                 key={item.value}
                 value={item.value}
-                keywords={[item.label]}
+                keywords={[item.label, ...(item.keywords ?? [])]}
                 aria-label={item.label}
-                aria-checked={mode === 'multi' ? checked : undefined}
+                aria-checked={checked}
                 data-checked={checked ? '' : undefined}
                 onSelect={() => {
                   onPick(item.value)
