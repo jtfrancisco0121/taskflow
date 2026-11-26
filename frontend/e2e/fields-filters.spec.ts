@@ -40,16 +40,21 @@ test('UJ-2: filter, sort and group by Customer tier and Story points; the URL re
   ]
   for (const [title, tier, points] of values) {
     await row(page, title).getByRole('button', { name: 'Customer tier: empty' }).click()
+    await expect(page.getByLabel(/^Customer tier for /)).toBeVisible()
     await pick(page.getByLabel(/^Customer tier for /), tier)
     await expect(
       row(page, title).getByRole('button', { name: `Customer tier: ${tier}` }),
     ).toBeVisible()
     await row(page, title).getByRole('button', { name: 'Story points: empty' }).click()
-    await page.getByRole('textbox', { name: /^Story points for / }).fill(points)
+    const editor = page.getByRole('textbox', { name: /^Story points for / })
+    await expect(editor).toBeVisible()
+    await editor.fill(points)
     await page.keyboard.press('Enter')
+    await expect(editor).toHaveCount(0)
     await expect(
       row(page, title).getByRole('button', { name: `Story points: ${points}` }),
     ).toBeVisible()
+    await expect(page.getByLabel(/^Customer tier for /)).toHaveCount(0)
   }
 
   // Filter: Customer tier is any of Enterprise.

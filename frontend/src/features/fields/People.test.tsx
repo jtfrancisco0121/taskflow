@@ -94,4 +94,24 @@ describe('People field (3A S8)', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Omar Haddad' }))
     expect(onChange).toHaveBeenLastCalledWith(['me', 'u2'])
   })
+
+  it('two quick picks before the parent re-renders both land (the next list comes from the latest one)', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    renderWithProviders(
+      <FilterInput
+        field={reviewer}
+        op="any_of"
+        value={[]}
+        onChange={onChange}
+        people={[
+          { value: 'me', label: 'Me' },
+          { value: 'u2', label: 'Omar Haddad' },
+        ]}
+      />,
+    )
+    await user.click(screen.getByRole('checkbox', { name: 'Me' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Omar Haddad' }))
+    expect(onChange).toHaveBeenLastCalledWith(['me', 'u2'])
+  })
 })
