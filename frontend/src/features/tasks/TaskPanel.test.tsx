@@ -1,11 +1,14 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { fireEvent } from '@testing-library/react'
 import { Route, Routes, useLocation } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { useTaskOrder } from '../../shared/task-order'
+import { useUiStore } from '../../shared/ui-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { LocationViewRoute, ViewBackground } from '../views'
 import { TaskPanelRoute } from './TaskPanelRoute'
-import { expectValue, findOption, optionsOf, pick } from '../../test/ui'
+import { expectValue, findOption, findTaskDetail, pick, queryTaskDetail } from '../../test/ui'
 
 const base = {
   id: 't1',
@@ -47,6 +50,7 @@ function serve(initial: Record<string, unknown> = {}, extra: Record<string, neve
   const stub = installFetch({
     'GET /api/v1/tasks/:id': () => json(task),
     'GET /api/v1/tasks/:id/dependencies': () => json(noDependencies),
+    'GET /api/v1/tasks/:id/checklists': () => json([]),
     'GET /api/v1/tasks': () => json({ items: [task] }),
     'GET /api/v1/locations/:id/views': {
       items: [
@@ -78,14 +82,21 @@ function serve(initial: Record<string, unknown> = {}, extra: Record<string, neve
   return { stub, task }
 }
 
-function renderPanel(route = '/t/t1', state?: object) {
+function renderPanel(
+  route = '/t/t1',
+  state?: object,
+  tabs?: React.ComponentProps<typeof TaskPanelRoute>['tabs'],
+) {
   return renderWithProviders(
     <>
       <Routes>
         <Route
           path="/t/:taskId"
           element={
-            <TaskPanelRoute background={(location) => <ViewBackground location={location} />} />
+            <TaskPanelRoute
+              tabs={tabs}
+              background={(location) => <ViewBackground location={location} />}
+            />
           }
         />
         <Route path="/w/:workspaceId/l/:locationId" element={<LocationViewRoute />} />
@@ -99,19 +110,34 @@ function renderPanel(route = '/t/t1', state?: object) {
 const patches = (stub: ReturnType<typeof serve>['stub']) =>
   stub.calls.filter((c) => c.method === 'PATCH')
 
+/** Opens a date field's Picker and types a day into its footer field. */
+async function pickDay(
+  user: ReturnType<typeof userEvent.setup>,
+  trigger: HTMLElement,
+  day: string,
+) {
+  await user.click(trigger)
+  const input = await screen.findByLabelText(/ day$/)
+  fireEvent.change(input, { target: { value: day } })
+}
+
 describe('TaskPanel', () => {
   it('FR-16: opened directly, /t/<id> shows every field over the List view of the task', async () => {
     serve({ tags: ['launch'], assigneeIds: ['u1'] })
     renderPanel()
 
-    const panel = await screen.findByRole('complementary', { name: 'Task ACME-1' })
+    const panel = await findTaskDetail('Task ACME-1')
     expect(within(panel).getByLabelText('Title')).toHaveValue('Draft launch post')
     await waitFor(() => expectValue(within(panel).getByLabelText('Status'), 'To do'))
     expectValue(within(panel).getByLabelText('Priority'), 'Normal')
     expect(within(panel).getByLabelText('Start date')).toBeVisible()
     expect(within(panel).getByLabelText('Due date')).toBeVisible()
     expect(within(panel).getByText('launch')).toBeVisible()
-    expect(await within(panel).findByRole('checkbox', { name: 'Maya Lopez' })).toBeChecked()
+    expect(
+      await within(within(panel).getByLabelText('Assignees')).findByRole('img', {
+        name: 'Maya Lopez',
+      }),
+    ).toBeVisible()
     expect(within(panel).getByRole('textbox', { name: 'Description' })).toBeVisible()
     // the List view of the task's home List is behind the panel
     expect(await screen.findByRole('heading', { name: 'Launch' })).toBeVisible()
@@ -123,15 +149,14 @@ describe('TaskPanel', () => {
     const user = userEvent.setup()
     renderPanel('/t/t1', { backgroundLocation: { pathname: '/w/w1/l/l1' } })
 
-    await screen.findByRole('complementary', { name: 'Task ACME-1' })
+    await findTaskDetail('Task ACME-1')
     await screen.findByRole('link', { name: 'Draft launch post' })
     await user.keyboard('{Escape}')
 
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/w/w1/l/l1'))
-    expect(screen.queryByRole('complementary', { name: 'Task ACME-1' })).not.toBeInTheDocument()
-    await waitFor(() =>
-      expect(screen.getByRole('link', { name: 'Draft launch post' })).toHaveFocus(),
-    )
+    expect(queryTaskDetail('Task ACME-1')).not.toBeInTheDocument()
+    // focus goes back to the row of the task last shown
+    await waitFor(() => expect(document.querySelector('[data-task-id="t1"]')).toHaveFocus())
   })
 
   it('FR-16: a row clicked behind an open panel keeps the List as background, so Escape returns to the List', async () => {
@@ -139,18 +164,18 @@ describe('TaskPanel', () => {
     const user = userEvent.setup()
     renderPanel('/t/t0', { backgroundLocation: { pathname: '/w/w1/l/l1' } })
 
-    await screen.findByRole('complementary', { name: 'Task ACME-1' })
+    await findTaskDetail('Task ACME-1')
     await user.click(await screen.findByRole('link', { name: 'Draft launch post' }))
     await user.keyboard('{Escape}')
 
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/w/w1/l/l1'))
   })
 
-  it('FR-16: a task that does not exist shows "Task not found."', async () => {
+  it('FR-16: a task that does not exist says it is gone, with a Close button', async () => {
     serve({}, { 'GET /api/v1/tasks/:id': problem(404, 'task.not_found', 'No such task') } as never)
     renderPanel('/t/nope')
 
-    expect(await screen.findByText('Task not found.')).toBeVisible()
+    expect(await screen.findByText('This task is gone or you can’t see it.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Close' })).toBeVisible()
   })
 
@@ -193,7 +218,7 @@ describe('TaskPanel', () => {
 
     const select = await screen.findByLabelText('Status')
     await findOption(user, select, 'In progress')
-    expect(await optionsOf(user, select)).toEqual(['To do', 'In progress', 'Done'])
+    for (const name of ['To do', 'In progress', 'Done']) await findOption(user, select, name)
     await pick(user, select, 'In progress')
 
     await screen.findByText('Saved')
@@ -213,12 +238,12 @@ describe('TaskPanel', () => {
     renderPanel()
 
     const due = await screen.findByLabelText('Due date')
-    await user.type(due, '2025-03-04')
+    await pickDay(user, due, '2025-03-04')
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       "Couldn't save the due date: dates must start before they end",
     )
-    expect(due).toHaveValue('')
+    expectValue(due, '—')
   })
 
   it('FR-17: a due date is sent as UTC midnight and shows the same calendar day', async () => {
@@ -227,11 +252,30 @@ describe('TaskPanel', () => {
     renderPanel()
 
     const due = await screen.findByLabelText('Due date')
-    await user.type(due, '2025-03-04')
+    await pickDay(user, due, '2025-03-04')
 
     await screen.findByText('Saved')
     expect(patches(stub)[0].body).toEqual({ dueDate: '2025-03-04T00:00:00Z' })
-    expect(due).toHaveValue('2025-03-04')
+    expectValue(due, 'Mar 4, 2025')
+  })
+
+  it('FR-17: the quick days of a date field are Today, Tomorrow, Next week and No date', async () => {
+    const { stub } = serve({ dueDate: '2025-03-04T00:00:00Z' })
+    const user = userEvent.setup()
+    renderPanel()
+
+    const due = await screen.findByLabelText('Due date')
+    for (const name of ['Today', 'Tomorrow', 'Next week', 'No date']) {
+      await findOption(user, due, name)
+    }
+    await pick(user, due, 'Tomorrow')
+    await screen.findByText('Saved')
+    expect(patches(stub)[0].body).toEqual({
+      dueDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T00:00:00Z$/),
+    })
+    await pick(user, due, 'No date')
+    await waitFor(() => expect(patches(stub)).toHaveLength(2))
+    expect(patches(stub)[1].body).toEqual({ dueDate: null })
   })
 
   it('FR-17: tags and assignees save as lists', async () => {
@@ -244,10 +288,23 @@ describe('TaskPanel', () => {
     await waitFor(() => expect(patches(stub)).toHaveLength(1))
     expect(patches(stub)[0].body).toEqual({ tags: ['a', 'b'] })
 
-    await user.click(await screen.findByRole('checkbox', { name: 'Omar Haddad' }))
+    await pick(user, await screen.findByLabelText('Assignees'), 'Omar Haddad')
     await waitFor(() => expect(patches(stub)).toHaveLength(2))
     expect(patches(stub)[1].body).toEqual({ assigneeIds: ['u2'] })
     expect(patches(stub)[1].headers.get('If-Match')).toBe('"4"') // version moved on after the first save
+  })
+
+  it('FR-17: a second assignee picked after the first save keeps the first', async () => {
+    const { stub } = serve({})
+    const user = userEvent.setup()
+    renderPanel()
+
+    const field = await screen.findByLabelText('Assignees')
+    await pick(user, field, 'Omar Haddad')
+    await screen.findByText('Saved')
+    await pick(user, await screen.findByLabelText('Assignees'), 'Maya Lopez')
+    await waitFor(() => expect(patches(stub)).toHaveLength(2))
+    expect(patches(stub)[1].body).toEqual({ assigneeIds: ['u2', 'u1'] })
   })
 
   it('FR-18: a 409 shows the banner and the server values, and Apply again resends with the new version', async () => {
@@ -272,13 +329,13 @@ describe('TaskPanel', () => {
     const user = userEvent.setup()
     renderPanel()
 
-    await user.type(await screen.findByLabelText('Due date'), '2025-12-03')
+    await pickDay(user, await screen.findByLabelText('Due date'), '2025-12-03')
 
     const banner = await screen.findByRole('alert')
     expect(banner).toHaveTextContent('Someone else changed this task. Their version is shown.')
     expect(banner).toHaveTextContent('Your change: Dec 3, 2025')
     expect(screen.getByLabelText('Title')).toHaveValue("Maya's new title")
-    expect(screen.getByLabelText('Due date')).toHaveValue('')
+    expectValue(screen.getByLabelText('Due date'), '—')
     // never retried automatically
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(patches(stub)).toHaveLength(1)
@@ -289,7 +346,7 @@ describe('TaskPanel', () => {
     expect(patches(stub)[1].headers.get('If-Match')).toBe('"7"')
     expect(patches(stub)[1].body).toEqual({ dueDate: '2025-12-03T00:00:00Z' })
     await waitFor(() => expect(screen.queryByText(/Someone else changed/)).not.toBeInTheDocument())
-    expect(screen.getByLabelText('Due date')).toHaveValue('2025-12-03')
+    expectValue(screen.getByLabelText('Due date'), 'Dec 3, 2025')
   })
 
   it('FR-18: Discard drops the attempted change without sending it', async () => {
@@ -348,7 +405,7 @@ describe('TaskPanel', () => {
       const user = userEvent.setup()
       renderPanel()
 
-      const panel = await screen.findByRole('complementary', { name: 'Task ACME-1' })
+      const panel = await findTaskDetail('Task ACME-1')
       expect(await within(panel).findByText('from Engineering')).toBeVisible()
       const box = within(panel).getByRole('textbox', { name: 'Story points for ACME-1' })
       await user.type(box, '5{Enter}')
@@ -441,7 +498,7 @@ describe('TaskPanel', () => {
         'GET /api/v1/tasks/:id/dependencies': () => json(waiting),
       } as never)
       renderPanel()
-      const panel = await screen.findByRole('complementary', { name: 'Task ACME-1' })
+      const panel = await findTaskDetail('Task ACME-1')
       expect(within(panel).getByRole('img', { name: 'Blocked by 1 task' })).toHaveTextContent(
         'Blocked · 1',
       )
@@ -453,7 +510,7 @@ describe('TaskPanel', () => {
     it('FR-10: a task that is not blocked has no badge', async () => {
       serve()
       renderPanel()
-      const panel = await screen.findByRole('complementary', { name: 'Task ACME-1' })
+      const panel = await findTaskDetail('Task ACME-1')
       await within(panel).findByText('No dependencies yet.')
       expect(within(panel).queryByRole('img', { name: /Blocked/ })).not.toBeInTheDocument()
     })
@@ -478,7 +535,7 @@ describe('TaskPanel', () => {
       // a change that does not complete asks nothing
       await pick(user, screen.getByLabelText('Status'), 'In progress')
       await waitFor(() => expect(patches(stub)).toHaveLength(1))
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(screen.queryByRole('dialog', { name: /is waiting on/ })).not.toBeInTheDocument()
     })
 
     it('FR-6: "Complete anyway" sends the change', async () => {
@@ -493,6 +550,215 @@ describe('TaskPanel', () => {
       await user.click(await screen.findByRole('button', { name: 'Complete anyway' }))
       await waitFor(() => expect(patches(stub)).toHaveLength(1))
       expect(patches(stub)[0].body).toEqual({ statusId: 'st3' })
+    })
+  })
+
+  describe('frames (AD-1, AD-2)', () => {
+    const composer = () => (
+      <div>
+        <div contentEditable suppressContentEditableWarning role="textbox" aria-label="Composer" />
+        <button type="button">Tab button</button>
+      </div>
+    )
+
+    it('opens a 940px modal dialog named by the task, with an activity column', async () => {
+      serve()
+      renderPanel('/t/t1', undefined, composer)
+      const dialog = await findTaskDetail('Task ACME-1')
+      expect(dialog).toHaveAttribute('role', 'dialog')
+      expect(dialog).toHaveAttribute('aria-modal', 'true')
+      expect(dialog.className).toContain('max-w-[940px]')
+      const column = within(dialog).getByRole('region', { name: 'Discussion and activity' })
+      expect(column.className).toContain('w-[330px]')
+      expect(within(column).getByRole('textbox', { name: 'Composer' })).toBeInTheDocument()
+    })
+
+    it('the Docked toggle switches to a complementary panel, remembers it and keeps unsaved description text', async () => {
+      const { stub } = serve()
+      const user = userEvent.setup()
+      renderPanel()
+      const dialog = await findTaskDetail('Task ACME-1')
+      const toggle = within(dialog).getByRole('button', { name: 'Docked' })
+      expect(toggle).toHaveAttribute('aria-pressed', 'false')
+      const editor = within(dialog).getByRole('textbox', { name: 'Description' })
+      await user.click(editor)
+      await user.keyboard('Remember me')
+      await user.click(toggle)
+
+      const docked = await screen.findByRole('complementary', { name: 'Task ACME-1' })
+      expect(docked.className).toContain('w-[600px]')
+      expect(screen.queryByRole('dialog', { name: 'Task ACME-1' })).toBeNull()
+      expect(within(docked).getByRole('button', { name: 'Docked' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      )
+      expect(localStorage.getItem('taskflow:task-detail')).toBe('docked')
+      await waitFor(() => expect(patches(stub).length).toBeGreaterThan(0))
+      expect(JSON.stringify(patches(stub).at(-1)?.body)).toContain('Remember me')
+      // the toggle keeps focus after the switch
+      expect(within(docked).getByRole('button', { name: 'Docked' })).toHaveFocus()
+    })
+
+    it('opens docked when that was remembered, and an unknown stored value falls back to the modal', async () => {
+      localStorage.setItem('taskflow:task-detail', 'docked')
+      serve()
+      const first = renderPanel()
+      expect(await screen.findByRole('complementary', { name: 'Task ACME-1' })).toBeVisible()
+      first.unmount()
+      useUiStore.setState({ taskDetailMode: null })
+      localStorage.setItem('taskflow:task-detail', 'sideways')
+      renderPanel()
+      expect(await screen.findByRole('dialog', { name: 'Task ACME-1' })).toBeVisible()
+    })
+
+    it('with localStorage throwing the toggle still works and nothing is logged', async () => {
+      serve()
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('denied')
+      })
+      const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('denied')
+      })
+      const user = userEvent.setup()
+      renderPanel()
+      const dialog = await findTaskDetail('Task ACME-1')
+      await user.click(within(dialog).getByRole('button', { name: 'Docked' }))
+      expect(await screen.findByRole('complementary', { name: 'Task ACME-1' })).toBeVisible()
+      expect(error).not.toHaveBeenCalled()
+      get.mockRestore()
+      set.mockRestore()
+      error.mockRestore()
+    })
+
+    it.each(['modal', 'docked'] as const)(
+      'Escape in the comment composer keeps the %s open and the text; Escape on a button closes it',
+      async (mode) => {
+        useUiStore.setState({ taskDetailMode: mode })
+        serve()
+        const user = userEvent.setup()
+        renderPanel('/t/t1', { backgroundLocation: { pathname: '/w/w1/l/l1' } }, composer)
+        const detail = await findTaskDetail('Task ACME-1')
+        const box = within(detail).getByRole('textbox', { name: 'Composer' })
+        box.textContent = 'half a comment'
+        box.focus()
+        fireEvent.keyDown(box, { key: 'Escape' })
+        expect(queryTaskDetail('Task ACME-1')).toBeInTheDocument()
+        expect(box).toHaveTextContent('half a comment')
+        within(detail).getByRole('button', { name: 'Tab button' }).focus()
+        await user.keyboard('{Escape}')
+        await waitFor(() => expect(queryTaskDetail('Task ACME-1')).toBeNull())
+      },
+    )
+
+    it('shows a retry for a server error and the gone message for a 404', async () => {
+      let calls = 0
+      serve({}, {
+        'GET /api/v1/tasks/:id': () =>
+          ++calls === 1 ? problem(500, 'boom', 'Server broke') : json(base),
+      } as never)
+      const user = userEvent.setup()
+      renderPanel()
+      expect(await screen.findByText('Server broke')).toBeVisible()
+      await user.click(screen.getByRole('button', { name: 'Retry' }))
+      expect(await findTaskDetail('Task ACME-1')).toBeVisible()
+    })
+
+    it('shows a skeleton while the task loads', async () => {
+      serve({}, { 'GET /api/v1/tasks/:id': () => new Promise<Response>(() => {}) } as never)
+      renderPanel()
+      const dialog = await screen.findByRole('dialog', { name: 'Task' })
+      expect(dialog.querySelector('[aria-busy="true"]')).not.toBeNull()
+    })
+  })
+
+  describe('j/k between the tasks of the List behind (AD-6)', () => {
+    const path = () => screen.getByTestId('where').textContent
+    const order = ['t0', 't1', 't2']
+
+    // the List behind shows three tasks and publishes their order, like the real view does
+    const listOf = (ids: string[]) => ({
+      'GET /api/v1/tasks': () =>
+        json({ items: ids.map((id, n) => ({ ...base, id, readableId: `ACME-${n + 1}` })) }),
+      'POST /api/v1/views/query': () =>
+        json({
+          items: ids.map((id, n) => ({
+            group: 'x',
+            task: { ...base, id, readableId: `ACME-${n + 1}`, title: `Task ${id}` },
+          })),
+        }),
+      'GET /api/v1/tasks/:id': (request: Request) =>
+        json({ ...base, id: new URL(request.url).pathname.split('/').at(-1) }),
+    })
+
+    async function open() {
+      renderPanel('/t/t1', { backgroundLocation: { pathname: '/w/w1/l/l1' } })
+      const detail = await findTaskDetail('Task ACME-1')
+      await waitFor(() => expect(useTaskOrder.getState().ids).toEqual(order))
+      const close = within(detail).getByRole('button', { name: 'Close task panel' })
+      close.focus()
+      return { detail, close }
+    }
+
+    it.each(['modal', 'docked'] as const)(
+      'j and k open the next and previous task in the %s frame, stopping at the ends',
+      async (mode) => {
+        useUiStore.setState({ taskDetailMode: mode })
+        serve({}, listOf(order) as never)
+        const user = userEvent.setup()
+        await open()
+        await user.keyboard('j')
+        await waitFor(() => expect(path()).toBe('/t/t2'))
+        await user.keyboard('j')
+        expect(path()).toBe('/t/t2')
+        await user.keyboard('{ArrowUp}')
+        await waitFor(() => expect(path()).toBe('/t/t1'))
+        await user.keyboard('k')
+        await waitFor(() => expect(path()).toBe('/t/t0'))
+        await user.keyboard('k')
+        expect(path()).toBe('/t/t0')
+      },
+    )
+
+    it('does nothing in a text field, with a Picker open, or when the task is not in the List order', async () => {
+      serve({}, listOf(order) as never)
+      const user = userEvent.setup()
+      const { detail } = await open()
+      await user.click(within(detail).getByLabelText('Title'))
+      await user.keyboard('j')
+      expect(path()).toBe('/t/t1')
+
+      await user.click(within(detail).getByLabelText('Status'))
+      await screen.findByRole('option', { name: 'Done' })
+      await user.keyboard('j')
+      expect(path()).toBe('/t/t1')
+      await user.keyboard('{Escape}')
+    })
+
+    it('does nothing without a List behind, and under the Complete anyway dialog', async () => {
+      useTaskOrder.setState({ ids: [] })
+      serve({ blocked: true, blockerCount: 1 }, {
+        'GET /api/v1/tasks/:id/dependencies': () =>
+          json({
+            ...noDependencies,
+            waitingOn: [
+              { task: { id: 'b1', readableId: 'ACME-2', title: 'Other' }, relation: 'WAITING_ON' },
+            ],
+          }),
+      } as never)
+      const user = userEvent.setup()
+      renderPanel('/t/t1', { backgroundLocation: { pathname: '/w/w1/l/l1' } })
+      const detail = await findTaskDetail('Task ACME-1')
+      within(detail).getByRole('button', { name: 'Close task panel' }).focus()
+      await user.keyboard('j')
+      expect(path()).toBe('/t/t1')
+
+      useTaskOrder.setState({ ids: order })
+      await pick(user, within(detail).getByLabelText('Status'), 'Done')
+      const dialog = await screen.findByRole('dialog', { name: /is waiting on/ })
+      within(dialog).getByRole('button', { name: 'Cancel' }).focus()
+      await user.keyboard('j')
+      expect(path()).toBe('/t/t1')
     })
   })
 })

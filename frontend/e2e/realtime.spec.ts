@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { api, apiSignUp, inviteTokenFor, signInThroughTheUi } from './helpers'
+import { api, apiSignUp, inviteTokenFor, signInThroughTheUi, taskDetail } from './helpers'
 import { expectValue } from './ui'
 import { snap } from './screenshots'
 
@@ -65,9 +65,9 @@ test('RT-1 / RT-2 / FR-20: a change and a viewer show up in a second browser wit
 
   // RT-2: A opens the task; B opens it too and each sees the other viewing it within 2 seconds
   await pageA.getByRole('link', { name: 'Live task' }).click()
-  await expect(pageA.getByRole('complementary', { name: /^Task / })).toBeVisible()
+  await expect(taskDetail(pageA)).toBeVisible()
   await pageB.getByRole('link', { name: 'Live task' }).click()
-  await expect(pageB.getByRole('complementary', { name: /^Task / })).toBeVisible()
+  await expect(taskDetail(pageB)).toBeVisible()
   await expect(pageA.getByText('Bob Member is viewing this')).toBeVisible({ timeout: 2000 })
   await expect(pageB.getByText('Alice Owner is viewing this')).toBeVisible({ timeout: 2000 })
 
@@ -116,7 +116,7 @@ test('FIELD live (3A S6): a value change and a new field show in a second browse
   const pageB = await contextB.newPage()
   await signInThroughTheUi(pageB, b)
   await pageB.goto(`/t/${task.id}`)
-  const panel = pageB.getByRole('complementary', { name: /^Task / })
+  const panel = taskDetail(pageB)
   await expect(panel.getByLabel(/^Customer tier for /)).toBeVisible()
 
   // A sets a value over the API; B's open panel shows it within 2 seconds.

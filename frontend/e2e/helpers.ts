@@ -155,3 +155,9 @@ export async function createView(page: Page, name: string, type: string) {
   await form.getByRole('button', { name: 'Create view' }).click()
   await expect(page.getByRole('tab', { name })).toBeVisible()
 }
+
+/** The open task detail, in either frame: the modal dialog or the docked complementary panel (AD-1). */
+export const taskDetail = (page: Page): Locator =>
+  page
+    .getByRole('dialog', { name: /^Task / })
+    .or(page.getByRole('complementary', { name: /^Task / }))

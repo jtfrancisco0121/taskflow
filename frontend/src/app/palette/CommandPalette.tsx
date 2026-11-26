@@ -29,18 +29,26 @@ export function CommandPalette({
 }) {
   const open = useUiStore((state) => state.paletteOpen)
   const setOpen = useUiStore((state) => state.setPaletteOpen)
-  const togglePalette = useUiStore((state) => state.togglePalette)
-  useShortcut(togglePalette)
+  const shellReady = useUiStore((state) => state.shellReady)
+  const requested = useUiStore((state) => state.paletteRequested)
+  const setRequested = useUiStore((state) => state.setPaletteRequested)
+  useShortcut()
+  // AD-9: a Ctrl/Cmd+K queued before the shell was ready opens the palette once, now.
+  useEffect(() => {
+    if (!shellReady || !requested) return
+    setRequested(false)
+    setOpen(true)
+  }, [shellReady, requested, setRequested, setOpen])
 
   // A picked Command runs after the palette is gone, so the focus the palette gives back never wins over
   // the focus the Command sets (the new-Space field, the sidebar toggle).
   const pending = useRef<(() => void) | null>(null)
   useEffect(() => {
-    if (open || !pending.current) return
+    if (open || !shellReady || !pending.current) return
     const run = pending.current
     pending.current = null
     run()
-  }, [open])
+  }, [open, shellReady])
 
   if (!open) return null
   return (

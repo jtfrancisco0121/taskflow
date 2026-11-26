@@ -4,7 +4,7 @@ import { Route, Routes } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import type { TaskView } from '../../api/types'
 import { TaskPanelRoute } from '../tasks'
-import { installFetch, json, renderWithProviders } from '../../test/api'
+import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { ActivityTab } from './ActivityTab'
 import { TaskTabs } from './TaskTabs'
 
@@ -246,5 +246,19 @@ describe('CAP-7 automation attribution', () => {
     expect(screen.getAllByText('Automation')).toHaveLength(1)
     expect(screen.getByText('Taskflow')).toBeVisible()
     expect(screen.getByText('Due date reached')).toBeVisible()
+  })
+
+  it('shows Loading…, the empty text, and an error with Retry', async () => {
+    let calls = 0
+    serve([], {
+      'GET /api/v1/tasks/:id/activity': () =>
+        ++calls === 1 ? problem(500, 'boom', 'Server broke') : json({ items: [] }),
+    } as never)
+    const user = userEvent.setup()
+    renderWithProviders(<ActivityTab task={task} />)
+    expect(screen.getByRole('status')).toHaveTextContent('Loading…')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Server broke')
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('No activity yet.')).toBeVisible()
   })
 })

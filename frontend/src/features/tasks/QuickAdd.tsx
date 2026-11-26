@@ -27,7 +27,7 @@ export function QuickAdd({
   function submit() {
     const value = title.trim()
     if (!value || pending) return
-    create.mutate(value, { onSuccess: () => setTitle('') })
+    create.mutate({ title: value }, { onSuccess: () => setTitle('') })
   }
 
   return (

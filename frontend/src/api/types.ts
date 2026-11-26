@@ -3,6 +3,8 @@ import type { components } from './schema'
 /** Aliases of the generated schema; never hand-write an API shape. */
 export type TaskView = components['schemas']['TaskView']
 export type StatusInfo = components['schemas']['StatusInfo']
+export type ChecklistView = components['schemas']['ChecklistView']
+export type ChecklistItemView = components['schemas']['ItemView']
 export type StatusSetView = components['schemas']['StatusSetView']
 export type LocationView = components['schemas']['LocationView']
 export type MemberView = components['schemas']['MemberView']

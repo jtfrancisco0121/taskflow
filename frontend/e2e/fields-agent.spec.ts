@@ -7,6 +7,7 @@ import {
   openFields,
   row,
   signUpAndCreateWorkspace,
+  taskDetail,
 } from './helpers'
 import { snap } from './screenshots'
 
@@ -78,7 +79,7 @@ test('UJ-3: an agent files a task with Customer tier by name; the Table shows it
     row(page, 'Agent ticket').getByRole('button', { name: 'Customer tier: Enterprise' }),
   ).toBeVisible()
   await row(page, 'Agent ticket').getByRole('link', { name: 'Agent ticket' }).click()
-  const panel = page.getByRole('complementary', { name: /^Task / })
+  const panel = taskDetail(page)
   await panel.getByRole('tab', { name: 'Activity' }).click()
   await expect(panel.getByText('triage-agent (key CI-1)').first()).toBeVisible()
   await expect(panel.getByText('set Customer tier to Enterprise')).toBeVisible()

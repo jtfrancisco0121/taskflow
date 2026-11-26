@@ -293,4 +293,56 @@ describe('RT-3 cache patcher', () => {
       patcher.dispose()
     })
   })
+
+  describe('subtask scans (AD-5)', () => {
+    const scanKey = (listId: string) => queryKeys.subtaskScan(listId)
+    function withScans() {
+      const ctx = setup()
+      ctx.queryClient.setQueryData(scanKey('l1'), { tasks: [], capped: false })
+      ctx.queryClient.setQueryData(scanKey('l2'), { tasks: [], capped: false })
+      const stale = (listId: string) =>
+        ctx.queryClient.getQueryState(scanKey(listId))?.isInvalidated
+      return { ...ctx, stale }
+    }
+    const unseen = (extra = {}) => event({ entityId: 'new1', version: 1, ...extra })
+
+    it('a burst of events for tasks this tab never saw invalidates only that List’s scan, once', async () => {
+      const { patcher, queryClient, stale } = withScans()
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+      for (const id of ['n1', 'n2', 'n3']) {
+        expect(await patcher.handle('w1', unseen({ entityId: id }))).toBe('invalidated')
+      }
+      expect(stale('l1')).toBe(false)
+      await vi.advanceTimersByTimeAsync(600)
+      expect(stale('l1')).toBe(true)
+      expect(stale('l2')).toBe(false)
+      expect(
+        invalidate.mock.calls.filter(([f]) => JSON.stringify(f?.queryKey) === '["subtasks","l1"]'),
+      ).toHaveLength(1)
+    })
+
+    it('an event for another List invalidates that List only', async () => {
+      const { patcher, stale } = withScans()
+      await patcher.handle('w1', unseen({ listId: 'l2' }))
+      await vi.advanceTimersByTimeAsync(600)
+      expect(stale('l2')).toBe(true)
+      expect(stale('l1')).toBe(false)
+    })
+
+    it('a comment event, an event without a List, an applied event and a custom-field event leave the scans alone', async () => {
+      const { patcher, stale } = withScans()
+      await patcher.handle('w1', unseen({ type: 'comment.created' }))
+      await patcher.handle('w1', unseen({ listId: null }))
+      await patcher.handle('w1', event({ version: 9 })) // t1 is cached: applied
+      await patcher.handle('w1', {
+        type: 'custom_field.created',
+        entity: 'location',
+        entityId: 'l1',
+        clientId: 'someone-else',
+      })
+      await vi.advanceTimersByTimeAsync(600)
+      expect(stale('l1')).toBe(false)
+      expect(stale('l2')).toBe(false)
+    })
+  })
 })

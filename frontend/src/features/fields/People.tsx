@@ -25,7 +25,7 @@ export function PeopleCell({ workspaceId, value }: { workspaceId?: string; value
           return (
             <span
               key={id}
-              className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-600"
+              className="rounded-full border border-line bg-surface-2 px-2 py-0.5 text-xs text-muted"
             >
               Former member
             </span>
@@ -36,7 +36,7 @@ export function PeopleCell({ workspaceId, value }: { workspaceId?: string; value
             key={id}
             title={name ?? ''}
             aria-label={name ?? 'Loading'}
-            className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-xs font-medium"
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-surface-3 text-xs font-medium"
           >
             {initials(name ?? '?')}
           </span>
@@ -74,7 +74,7 @@ export function PeopleEditor({
       role="group"
       aria-label={label}
       data-field={field.id}
-      className="flex max-h-32 flex-col gap-0.5 overflow-auto rounded border border-slate-300 bg-white p-1"
+      className="flex max-h-32 flex-col gap-0.5 overflow-auto rounded border border-line-strong bg-surface p-1"
     >
       {members.map((m) => (
         <label key={m.userId} className="flex items-center gap-2 text-sm">
@@ -88,7 +88,7 @@ export function PeopleEditor({
         </label>
       ))}
       {former.map((id) => (
-        <label key={id} className="flex items-center gap-2 text-sm text-slate-600">
+        <label key={id} className="flex items-center gap-2 text-sm text-muted">
           <input
             type="checkbox"
             checked

@@ -6,11 +6,16 @@ type GuardOptions = {
   allowInTextFields?: boolean
   /** `false` for a shortcut that is itself a modifier combination (Cmd/Ctrl+K). */
   singleKey?: boolean
+  /**
+   * The element that hosts the shortcut (the task detail frame). The modal dialog that is or contains it does
+   * not count as busy; any other modal dialog still does.
+   */
+  host?: Element | null
 }
 
 /**
  * AD-2: the one "the user is busy" check for every keyboard shortcut. True (do nothing, no preventDefault)
- * while a modal dialog other than the palette is open, while a floating layer is open, while focus is in a
+ * while a modal dialog other than the palette (and other than the one hosting the shortcut, see `host`) is open, while a floating layer is open, while focus is in a
  * text field or library control (unless `allowInTextFields`), or, for a single-key shortcut, while Ctrl, Cmd
  * or Alt is held (a browser or OS combination, not ours).
  */
@@ -18,10 +23,12 @@ export function isShortcutBlocked(
   event:
     | KeyboardEvent
     | { target: EventTarget | null; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean },
-  { allowInTextFields = false, singleKey = true }: GuardOptions = {},
+  { allowInTextFields = false, singleKey = true, host = null }: GuardOptions = {},
 ): boolean {
-  if (document.querySelector('[role="dialog"][aria-modal="true"]:not([data-tf-palette])'))
-    return true
+  const modals = document.querySelectorAll(
+    '[role="dialog"][aria-modal="true"]:not([data-tf-palette])',
+  )
+  if (Array.from(modals).some((dialog) => !host || !dialog.contains(host))) return true
   if (hasOpenFloatingLayer()) return true
   if (!allowInTextFields && isTypingTarget(event.target)) return true
   if (singleKey && (event.ctrlKey || event.metaKey || event.altKey)) return true

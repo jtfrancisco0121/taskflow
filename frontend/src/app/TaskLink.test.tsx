@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { setSession } from '../api/session'
 import { TaskPanelRoute } from '../features/tasks'
+import { findTaskDetail } from '../test/ui'
 import { installFetch, json, renderWithProviders } from '../test/api'
 import { AppShell } from './AppShell'
 
@@ -41,7 +42,7 @@ describe('task link', () => {
       { route: '/t/t1' },
     )
 
-    expect(await screen.findByRole('complementary', { name: 'Task BETA-1' })).toBeVisible()
+    expect(await findTaskDetail('Task BETA-1')).toBeVisible()
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Workspace switcher' })).toHaveTextContent('Beta'),
     )

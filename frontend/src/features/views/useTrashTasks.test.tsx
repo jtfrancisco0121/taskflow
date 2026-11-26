@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 import { Toaster } from '../../shared/ui/Toaster'
+import { queryKeys } from '../../api/queryKeys'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { scope, task } from './testSupport'
 import { useTrashTasks } from './useTrashTasks'
@@ -55,6 +56,22 @@ describe('useTrashTasks (AD-4)', () => {
         .filter((c) => c.url.pathname.endsWith('/restore'))
         .map((c) => c.headers.get('If-Match')),
     ).toEqual(['"5"', '"8"'])
+  })
+
+  it('trash and restore invalidate the subtask scans of every List', async () => {
+    serve()
+    const user = userEvent.setup()
+    const rows = [task(1, { version: 4 })]
+    const { queryClient } = renderWithProviders(<Harness batches={[rows]} all={rows} />)
+    queryClient.setQueryData(queryKeys.subtaskScan('l9'), { tasks: [], capped: false })
+    const stale = () => queryClient.getQueryState(queryKeys.subtaskScan('l9'))?.isInvalidated
+    await user.click(screen.getByRole('button', { name: 'Trash 1' }))
+    await screen.findByText('Moved 1 task to trash.')
+    await waitFor(() => expect(stale()).toBe(true))
+    queryClient.setQueryData(queryKeys.subtaskScan('l9'), { tasks: [], capped: false })
+    await user.click(screen.getByRole('button', { name: 'Undo' }))
+    await waitFor(() => expect(messages()).toContain('Restored 1 task.'))
+    await waitFor(() => expect(stale()).toBe(true))
   })
 
   it('names the tasks that were not deleted and trashes the rest', async () => {

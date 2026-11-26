@@ -56,6 +56,7 @@ export function DesignPage() {
   const [on, setOn] = useState(true)
   const [dialog, setDialog] = useState(false)
   const [confirm, setConfirm] = useState(false)
+  const [taskDialog, setTaskDialog] = useState(false)
   const [picked, setPicked] = useState('progress')
   const [many, setMany] = useState<string[]>(['plan'])
   const showToast = useToastStore((state) => state.show)
@@ -172,6 +173,7 @@ export function DesignPage() {
           <Button>Hover for a tooltip</Button>
         </Tooltip>
         <Button onClick={() => setDialog(true)}>Open dialog</Button>
+        <Button onClick={() => setTaskDialog(true)}>Open task-size dialog</Button>
         <Button onClick={() => showToast('Saved the rule')}>Show toast</Button>
         <Button onClick={() => showToast('Could not save', 'error')}>Show error toast</Button>
       </Section>
@@ -308,6 +310,31 @@ export function DesignPage() {
             <Button variant="primary" onClick={() => setDialog(false)}>
               Done
             </Button>
+          </div>
+        </Dialog>
+      )}
+      {taskDialog && (
+        <Dialog
+          title="Task-size dialog"
+          size="task"
+          closeOnEscape={() => true}
+          onClose={() => setTaskDialog(false)}
+        >
+          <div className="flex min-h-0 flex-1">
+            <div className="min-w-0 flex-1 overflow-auto p-5">
+              <p className="mb-3 text-muted">
+                The task detail frame: up to 940px, 88vh, no padding.
+              </p>
+              <TextField label="Title in task dialog" />
+            </div>
+            <aside
+              aria-label="Side column"
+              className="w-[330px] shrink-0 overflow-auto border-l border-line p-5"
+            >
+              <Button variant="primary" onClick={() => setTaskDialog(false)}>
+                Close task-size dialog
+              </Button>
+            </aside>
           </div>
         </Dialog>
       )}

@@ -1,9 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import { ApiError, messageOf } from '../../api/errors'
 import type { StatusInfo, TaskView } from '../../api/types'
 import { formatDay } from '../../shared/dates'
 import { RichTextEditor, isEmptyDoc, type RichDoc } from '../../shared/richtext'
 import { Button } from '../../shared/ui/Button'
+import { useNavigate, useLocation } from 'react-router'
+import { useTaskOrder } from '../../shared/task-order'
+import { Dialog } from '../../shared/ui/Dialog'
+import { isShortcutBlocked } from '../../shared/ui/shortcutGuard'
+import { readTaskDetailMode, useUiStore } from '../../shared/ui-store'
 import {
   BlockedBadge,
   DependenciesSection,
@@ -27,6 +39,8 @@ import {
   TitleField,
 } from './TaskFields'
 import { useFieldHints } from './useFieldHints'
+import { ChecklistsSection } from './ChecklistsSection'
+import { ParentLink, SubtasksSection } from './SubtasksSection'
 import { useTask } from './useTask'
 import { useUpdateTask, type TaskPatch } from './useUpdateTask'
 
@@ -48,88 +62,172 @@ type TaskPanelProps = {
   taskId: string
   onClose: () => void
   /** Tabs (comments, activity) mounted by the route through their feature's index. */
-  children?: (task: TaskView) => React.ReactNode
+  children?: (task: TaskView) => ReactNode
 }
 
+/**
+ * AD-2: Escape closes the detail unless it comes from inside a rich-text editor (the comment composer, a comment
+ * being edited, the description), which owns it. Text inputs that hold a draft stop Escape themselves.
+ */
+export function escapeClosesDetail(event: { target: EventTarget | null }): boolean {
+  return !(event.target as HTMLElement | null)?.closest?.('[contenteditable="true"]')
+}
+
+const SKELETON = (
+  <div aria-busy="true" className="flex animate-pulse flex-col gap-3 p-4">
+    <div className="h-6 rounded bg-surface-3" />
+    <div className="h-4 rounded bg-surface-3" />
+    <div className="h-4 rounded bg-surface-3" />
+  </div>
+)
+
+/**
+ * The task detail (AD-1, AD-2): one body in two frames, a modal Dialog or a docked complementary panel, chosen by
+ * the person and remembered. A task switch (the route's id changes) swaps only the body; the frame stays.
+ */
 export function TaskPanel({ taskId, onClose, children }: TaskPanelProps) {
   const query = useTask(taskId)
   const task = query.data
-
-  const panelRef = useRef<HTMLElement>(null)
+  const stored = useUiStore((state) => state.taskDetailMode)
+  const setMode = useUiStore((state) => state.setTaskDetailMode)
+  const mode = stored ?? readTaskDetailMode()
+  const titleRef = useRef<HTMLInputElement>(null)
+  const frameRef = useRef<HTMLElement>(null)
+  // Where focus goes when a body mounts: the title on a fresh open, the frame after a task switch (the body of
+  // the previous task was shown), the toggle after a frame switch. Refs are read only from effects and handlers.
+  const shown = useRef<string | null>(null)
+  const toggled = useRef(false)
   useEffect(() => {
-    // Return focus to where the user came from (the row), also after the opener re-rendered.
-    const opener = document.activeElement
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected && opener !== document.body) {
-        opener.focus()
-      } else {
-        document.querySelector<HTMLElement>(`[data-task-id="${taskId}"] a`)?.focus()
-      }
-    }
-  }, [taskId])
-
-  function onKeyDown(event: React.KeyboardEvent) {
-    if (event.key !== 'Escape' || event.defaultPrevented) return
-    const target = event.target as HTMLElement
-    if (target.closest('[contenteditable="true"]')) return // an editor is open
-    event.stopPropagation()
-    onClose()
+    if (task) shown.current = task.id ?? null
+    // The next task is loading and the old body is gone: keep focus in the frame, so j/k go on working.
+    else if (shown.current && document.activeElement === document.body) frameRef.current?.focus()
+  })
+  // StrictMode runs a mount effect twice: the answer for one body must not change between the two runs.
+  const decided = useRef<{ id: string | undefined; target: 'title' | 'frame' | 'toggle' } | null>(
+    null,
+  )
+  const takeFocusTarget = (id: string | undefined): 'title' | 'frame' | 'toggle' => {
+    if (decided.current && decided.current.id === id && !toggled.current)
+      return decided.current.target
+    const target = toggled.current
+      ? 'toggle'
+      : shown.current && shown.current !== id
+        ? 'frame'
+        : 'title'
+    toggled.current = false
+    decided.current = { id, target }
+    return target
   }
 
-  if (query.isError || (query.isSuccess && !task)) {
-    const status = query.error instanceof ApiError ? query.error.status : 0
-    return (
-      <aside
-        role="complementary"
-        aria-label="Task"
-        className="w-96 shrink-0 border-l border-line bg-surface p-4"
-        onKeyDown={onKeyDown}
-      >
-        <p>{status === 403 || status === 404 ? 'Task not found.' : messageOf(query.error)}</p>
-        <Button className="mt-3" onClick={onClose}>
-          Close
-        </Button>
-      </aside>
-    )
+  const navigate = useNavigate()
+  const location = useLocation()
+  // AD-6: j/ArrowDown and k/ArrowUp open the next/previous task of the List behind, in the same frame and with no
+  // history entry per step. The shared guard ignores this frame's own dialog and keeps every other layer busy.
+  function onFrameKeyDown(event: KeyboardEvent<HTMLElement>) {
+    const key = event.key
+    const step = key === 'j' || key === 'ArrowDown' ? 1 : key === 'k' || key === 'ArrowUp' ? -1 : 0
+    if (!step || event.defaultPrevented) return
+    if (isShortcutBlocked(event.nativeEvent, { host: event.currentTarget })) return
+    const ids = useTaskOrder.getState().ids
+    const at = ids.indexOf(taskId)
+    const next = at < 0 ? undefined : ids[at + step]
+    if (!next) return
+    event.preventDefault()
+    void navigate(`/t/${next}`, { replace: true, state: location.state })
   }
-  if (!task) {
+
+  const name = `Task ${task?.readableId ?? ''}`.trim()
+  const status = query.error instanceof ApiError ? query.error.status : 0
+  const failed = query.isError || (query.isSuccess && !task)
+  const content = failed ? (
+    <div className="flex flex-col items-start gap-3 p-4">
+      <p>
+        {status === 403 || status === 404
+          ? 'This task is gone or you can’t see it.'
+          : messageOf(query.error)}
+      </p>
+      {status !== 403 && status !== 404 && query.isError && (
+        <Button onClick={() => void query.refetch()}>Retry</Button>
+      )}
+      <Button onClick={onClose}>Close</Button>
+    </div>
+  ) : !task ? (
+    SKELETON
+  ) : (
+    <TaskDetailBody
+      key={task.id}
+      task={task}
+      layout={mode}
+      titleRef={titleRef}
+      takeFocusTarget={takeFocusTarget}
+      onClose={onClose}
+      onToggle={() => {
+        toggled.current = true
+        setMode(mode === 'modal' ? 'docked' : 'modal')
+      }}
+    >
+      {children}
+    </TaskDetailBody>
+  )
+
+  if (mode === 'modal') {
     return (
-      <aside
-        role="complementary"
-        aria-label="Task"
-        aria-busy="true"
-        className="w-96 shrink-0 border-l border-line bg-surface p-4"
+      <Dialog
+        title={name}
+        size="task"
+        initialFocus={titleRef}
+        closeOnEscape={escapeClosesDetail}
+        onClose={onClose}
       >
-        <div className="flex animate-pulse flex-col gap-3">
-          <div className="h-6 rounded bg-surface-3" />
-          <div className="h-4 rounded bg-surface-3" />
-          <div className="h-4 rounded bg-surface-3" />
+        <div
+          ref={frameRef as RefObject<HTMLDivElement>}
+          tabIndex={-1}
+          onKeyDown={onFrameKeyDown}
+          className="flex min-h-0 flex-1 flex-col outline-none"
+        >
+          {content}
         </div>
-      </aside>
+      </Dialog>
     )
   }
   return (
-    <TaskPanelBody
-      key={task.id}
-      task={task}
-      panelRef={panelRef}
-      onClose={onClose}
-      onKeyDown={onKeyDown}
+    <aside
+      ref={frameRef as RefObject<HTMLElement>}
+      role="complementary"
+      aria-label={name}
+      tabIndex={-1}
+      onKeyDown={(event: KeyboardEvent<HTMLElement>) => {
+        onFrameKeyDown(event)
+        if (event.key !== 'Escape' || event.defaultPrevented || !escapeClosesDetail(event)) return
+        event.stopPropagation()
+        onClose()
+      }}
+      className="flex h-full min-h-0 w-[600px] max-w-[60%] shrink-0 flex-col overflow-auto border-l border-line bg-surface outline-none"
     >
-      {children}
-    </TaskPanelBody>
+      {content}
+    </aside>
   )
 }
 
 type BodyProps = {
   task: TaskView
-  panelRef: React.Ref<HTMLElement>
+  layout: 'modal' | 'docked'
+  titleRef: RefObject<HTMLInputElement | null>
+  takeFocusTarget: (id: string | undefined) => 'title' | 'frame' | 'toggle'
   onClose: () => void
-  onKeyDown: (event: React.KeyboardEvent) => void
-  children?: (task: TaskView) => React.ReactNode
+  onToggle: () => void
+  children?: (task: TaskView) => ReactNode
 }
 
-function TaskPanelBody({ task, panelRef, onClose, onKeyDown, children }: BodyProps) {
+function TaskDetailBody({
+  task,
+  layout,
+  titleRef,
+  takeFocusTarget,
+  onClose,
+  onToggle,
+  children,
+}: BodyProps) {
   const update = useUpdateTask(task.id!)
   const statuses = useLocationStatuses(task.workspaceId, task.listId)
   const statusList: StatusInfo[] = statuses.data?.statuses ?? []
@@ -139,10 +237,16 @@ function TaskPanelBody({ task, panelRef, onClose, onKeyDown, children }: BodyPro
   const { hints, set } = useFieldHints()
   const guard = useCompletionGuard()
   const [conflict, setConflict] = useState<TaskPatch | null>(null)
-  const titleRef = useRef<HTMLInputElement>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    titleRef.current?.focus()
+    const where = takeFocusTarget(task.id)
+    if (where === 'toggle') toggleRef.current?.focus()
+    else if (where === 'frame') rootRef.current?.parentElement?.focus()
+    else titleRef.current?.focus()
+    // Focus moves in once, when this body mounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function save(field: string, label: string, patch: TaskPatch): Promise<boolean> {
@@ -228,15 +332,41 @@ function TaskPanelBody({ task, panelRef, onClose, onKeyDown, children }: BodyPro
   }
 
   const common = { task, hints, save: guardedSave }
+  const modal = layout === 'modal'
+  const fields = (
+    <div className="flex flex-col gap-3 p-4">
+      {conflict && (
+        <ConflictBanner
+          changes={changes}
+          applying={update.isPending}
+          onDiscard={() => setConflict(null)}
+          onApply={() => {
+            const patch = conflict
+            const key = Object.keys(patch)[0] as keyof TaskPatch
+            void save(FIELD_OF[key].field, FIELD_OF[key].label.toLowerCase(), patch)
+          }}
+        />
+      )}
+      <ParentLink task={task} />
+      <TitleField {...common} titleRef={titleRef} />
+      <StatusField {...common} statuses={statusList} loading={statuses.isPending} />
+      <PriorityField {...common} />
+      <div className="grid grid-cols-2 gap-2">
+        <DateField {...common} field="startDate" label="Start date" />
+        <DateField {...common} field="dueDate" label="Due date" />
+      </div>
+      <TagsField {...common} />
+      <AssigneesField {...common} members={memberList} />
+      <DescriptionField {...common} members={memberList} />
+      <SubtasksSection task={task} statuses={statusList} />
+      <ChecklistsSection taskId={task.id!} workspaceId={task.workspaceId} />
+      <CustomFieldsGroup {...common} />
+      <DependenciesSection task={task} />
+    </div>
+  )
   return (
-    <aside
-      ref={panelRef}
-      role="complementary"
-      aria-label={`Task ${task.readableId}`}
-      onKeyDown={onKeyDown}
-      className="flex h-full max-h-full w-96 shrink-0 flex-col gap-3 overflow-auto border-l border-line bg-surface p-4"
-    >
-      <header className="flex items-center justify-between">
+    <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
+      <header className="flex shrink-0 items-center justify-between gap-2 border-b border-line px-4 py-2">
         <span className="flex items-center gap-2">
           <span className="font-mono text-sm text-muted">{task.readableId}</span>
           {task.blocked && (
@@ -255,42 +385,43 @@ function TaskPanelBody({ task, panelRef, onClose, onKeyDown, children }: BodyPro
         <span className="flex items-center gap-2">
           <WatchControl taskId={task.id!} />
           <button
+            ref={toggleRef}
+            type="button"
+            aria-pressed={!modal}
+            onClick={onToggle}
+            className="rounded-md border border-line-strong px-2 py-1 text-xs text-fg hover:bg-surface-2 aria-pressed:bg-accent-soft"
+          >
+            Docked
+          </button>
+          <button
             type="button"
             aria-label="Close task panel"
             onClick={onClose}
-            className="rounded px-2 text-xl leading-none hover:bg-surface-2"
+            className="rounded px-2 text-xl leading-none text-muted hover:bg-surface-2"
           >
             ×
           </button>
         </span>
       </header>
-      {conflict && (
-        <ConflictBanner
-          changes={changes}
-          applying={update.isPending}
-          onDiscard={() => setConflict(null)}
-          onApply={() => {
-            const patch = conflict
-            const key = Object.keys(patch)[0] as keyof TaskPatch
-            void save(FIELD_OF[key].field, FIELD_OF[key].label.toLowerCase(), patch)
-          }}
-        />
+      {modal ? (
+        <div className="flex min-h-0 flex-1">
+          <div className="min-w-0 flex-1 overflow-auto">{fields}</div>
+          <div
+            role="region"
+            aria-label="Discussion and activity"
+            className="flex w-[330px] shrink-0 flex-col gap-3 overflow-auto border-l border-line p-4"
+          >
+            {children?.(task)}
+          </div>
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-auto">
+          {fields}
+          <div className="flex flex-col gap-3 border-t border-line p-4">{children?.(task)}</div>
+        </div>
       )}
-      <TitleField {...common} titleRef={titleRef} />
-      <StatusField {...common} statuses={statusList} loading={statuses.isPending} />
-      <PriorityField {...common} />
-      <div className="grid grid-cols-2 gap-2">
-        <DateField {...common} field="startDate" label="Start date" />
-        <DateField {...common} field="dueDate" label="Due date" />
-      </div>
-      <TagsField {...common} />
-      <AssigneesField {...common} members={memberList} />
-      <DescriptionField {...common} members={memberList} />
-      <CustomFieldsGroup {...common} />
-      <DependenciesSection task={task} />
-      {children?.(task)}
       {guard.dialog}
-    </aside>
+    </div>
   )
 }
 
@@ -309,7 +440,9 @@ function DescriptionField({
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const server = task.description as RichDoc | null | undefined
 
-  useEffect(() => () => clearTimeout(timer.current), [])
+  const latest = useRef<() => void>(() => {})
+  // Unsaved text is saved when the field goes away (a frame switch, a task switch, a close), never lost.
+  useEffect(() => () => latest.current(), [])
 
   function flush() {
     clearTimeout(timer.current)
@@ -320,6 +453,10 @@ function DescriptionField({
     if (JSON.stringify(next) === JSON.stringify(isEmptyDoc(server) ? null : server)) return
     void save('description', 'description', { description: next })
   }
+
+  useEffect(() => {
+    latest.current = flush
+  })
 
   return (
     <FieldShell label="Description" hint={hints.description}>

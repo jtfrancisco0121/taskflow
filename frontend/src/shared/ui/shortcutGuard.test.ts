@@ -39,4 +39,24 @@ describe('isShortcutBlocked', () => {
     expect(isShortcutBlocked(key({ metaKey: true }), { singleKey: false })).toBe(false)
     expect(isShortcutBlocked(key({ ctrlKey: true }), { singleKey: false })).toBe(false)
   })
+
+  it('host: the dialog that hosts the shortcut is not busy, another modal dialog still is', () => {
+    document.body.innerHTML =
+      '<div role="dialog" aria-modal="true" id="d"><div id="frame"></div></div>'
+    const host = document.getElementById('frame')
+    expect(isShortcutBlocked(key())).toBe(true)
+    expect(isShortcutBlocked(key(), { host })).toBe(false)
+    document.body.insertAdjacentHTML('beforeend', '<div role="dialog" aria-modal="true"></div>')
+    expect(isShortcutBlocked(key(), { host })).toBe(true)
+  })
+
+  it('host: a floating layer and a text field still block', () => {
+    document.body.innerHTML =
+      '<div role="dialog" aria-modal="true"><div id="frame"><input id="f" /></div></div>'
+    const host = document.getElementById('frame')
+    const target = document.getElementById('f')
+    expect(isShortcutBlocked(key({ target }), { host })).toBe(true)
+    document.body.insertAdjacentHTML('beforeend', '<div data-tf-floating></div>')
+    expect(isShortcutBlocked(key(), { host })).toBe(true)
+  })
 })

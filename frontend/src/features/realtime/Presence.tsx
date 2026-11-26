@@ -37,7 +37,7 @@ export function Presence({ taskId, workspaceId }: { taskId: string; workspaceId:
     .map((id) => members.find((m) => m.userId === id)?.displayName ?? 'Someone')
   if (names.length === 0) return null
   return (
-    <p role="status" className="rounded bg-amber-50 px-2 py-1 text-sm text-amber-900">
+    <p role="status" className="rounded bg-warn-soft px-2 py-1 text-sm text-fg">
       {names.length === 1
         ? `${names[0]} is viewing this`
         : `${names.slice(0, -1).join(', ')} and ${names.at(-1)} are viewing this`}

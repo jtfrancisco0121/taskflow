@@ -1,12 +1,20 @@
 import { useEffect, useRef } from 'react'
 import type { StatusInfo, TaskView } from '../../api/types'
-import { formatDay, toApiDate, toInputDay } from '../../shared/dates'
-import { Avatar } from '../../shared/ui/Avatar'
-import { Picker, type PickerItem } from '../../shared/ui/Picker'
-import { PriorityBadge, type PriorityLevel } from '../../shared/ui/PriorityBadge'
-import { StatusBadge, type StatusTone } from '../../shared/ui/StatusBadge'
-import { PRIORITIES, PRIORITY_LABEL } from '../tasks'
-import { quickDays } from './quickDays'
+import { toApiDate, toInputDay } from '../../shared/dates'
+import { Picker } from '../../shared/ui/Picker'
+import {
+  AssigneesValue,
+  DayValue,
+  PriorityValue,
+  StatusValue,
+  assigneeItems,
+  dayItems,
+  dayOfItem,
+  priorityItems,
+  quickDays,
+  statusItems,
+  type Member,
+} from '../tasks'
 import { useGuardedStatus } from './useGuardedStatus'
 import { useTaskActions } from './useTaskActions'
 import { useViewStore, type EditorField } from './viewStore'
@@ -24,25 +32,10 @@ function useEditorOpen(taskId: string, field: EditorField) {
   }
 }
 
-const TONE: Record<string, StatusTone> = { ACTIVE: 'progress', DONE: 'done', CLOSED: 'done' }
-const toneOf = (status: StatusInfo | undefined): StatusTone => TONE[status?.group ?? ''] ?? 'todo'
-
-const LEVEL: Record<string, PriorityLevel> = {
-  URGENT: 'urgent',
-  HIGH: 'high',
-  NORMAL: 'normal',
-  LOW: 'low',
-}
-
 export function StatusEditor({ task, statuses }: { task: TaskView; statuses: StatusInfo[] }) {
   const guarded = useGuardedStatus()
   const editor = useEditorOpen(task.id!, 'status')
   const current = statuses.find((s) => s.id === task.statusId)
-  const items: PickerItem[] = statuses.map((s) => ({
-    value: s.id!,
-    label: s.name ?? '',
-    render: <StatusBadge name={s.name ?? ''} tone={toneOf(s)} />,
-  }))
   return (
     <>
       <Picker
@@ -56,10 +49,10 @@ export function StatusEditor({ task, statuses }: { task: TaskView; statuses: Sta
             className={trigger}
             onClick={(e) => e.stopPropagation()}
           >
-            {current ? <StatusBadge name={current.name ?? ''} tone={toneOf(current)} /> : '—'}
+            <StatusValue status={current} />
           </button>
         }
-        items={items}
+        items={statusItems(statuses)}
         selected={task.statusId ? [task.statusId] : []}
         onPick={(statusId) => {
           if (statusId !== task.statusId) void guarded.change(task, statusId, statuses)
@@ -86,18 +79,10 @@ export function PriorityEditor({ task }: { task: TaskView }) {
           className={trigger}
           onClick={(e) => e.stopPropagation()}
         >
-          {LEVEL[priority] ? (
-            <PriorityBadge name={PRIORITY_LABEL[priority]} level={LEVEL[priority]} />
-          ) : (
-            <span className="text-faint">{PRIORITY_LABEL[priority]}</span>
-          )}
+          <PriorityValue priority={priority} />
         </button>
       }
-      items={PRIORITIES.map((p) => ({
-        value: p,
-        label: LEVEL[p] ? PRIORITY_LABEL[p] : 'None',
-        render: LEVEL[p] ? <PriorityBadge name={PRIORITY_LABEL[p]} level={LEVEL[p]} /> : undefined,
-      }))}
+      items={priorityItems()}
       selected={[priority]}
       onPick={(next) => {
         if (next !== priority) void actions.patch(task, { priority: next as TaskView['priority'] })
@@ -105,8 +90,6 @@ export function PriorityEditor({ task }: { task: TaskView }) {
     />
   )
 }
-
-type Member = { userId?: string; displayName?: string; email?: string }
 
 /**
  * The assignee editor stays open after a pick, so several toggles can be queued behind one another. A queued job
@@ -161,27 +144,10 @@ export function AssigneeEditor({
           className={trigger}
           onClick={(e) => e.stopPropagation()}
         >
-          {assignees.length === 0 ? (
-            <span className="text-faint">—</span>
-          ) : (
-            <span className="flex -space-x-1">
-              {assignees.map((id) => (
-                <Avatar key={id} name={names.get(id) ?? 'Former member'} size={20} />
-              ))}
-            </span>
-          )}
+          <AssigneesValue ids={assignees} names={names} />
         </button>
       }
-      items={members.map((m) => ({
-        value: m.userId!,
-        label: m.displayName ?? m.email ?? '',
-        render: (
-          <span className="flex items-center gap-2">
-            <Avatar name={m.displayName ?? m.email ?? ''} size={20} />
-            {m.displayName ?? m.email}
-          </span>
-        ),
-      }))}
+      items={assigneeItems(members)}
       selected={assignees}
       onPick={toggle}
     />
@@ -211,7 +177,7 @@ export function DueEditor({ task, done }: { task: TaskView; done: boolean }) {
           className={`${trigger} ${overdue ? 'text-danger' : ''}`}
           onClick={(e) => e.stopPropagation()}
         >
-          {task.dueDate ? formatDay(task.dueDate) : <span className="text-faint">—</span>}
+          <DayValue iso={task.dueDate} />
           {overdue && (
             <span id={`overdue-${task.id}`} className="sr-only">
               overdue
@@ -219,22 +185,9 @@ export function DueEditor({ task, done }: { task: TaskView; done: boolean }) {
           )}
         </button>
       }
-      items={[
-        { value: 'today', label: 'Today', hint: days.today },
-        { value: 'tomorrow', label: 'Tomorrow', hint: days.tomorrow },
-        { value: 'next-week', label: 'Next week', hint: days.nextWeek },
-        { value: 'none', label: 'No date' },
-      ]}
+      items={dayItems(days)}
       selected={[]}
-      onPick={(value) => {
-        if (value === 'none') save(null)
-        else
-          save(
-            toApiDate(
-              value === 'today' ? days.today : value === 'tomorrow' ? days.tomorrow : days.nextWeek,
-            ),
-          )
-      }}
+      onPick={(value) => save(dayOfItem(value, days))}
       footer={
         <input
           type="date"

@@ -21,6 +21,18 @@ function writeExpanded(workspaceId: string, ids: string[]) {
   }
 }
 
+export type TaskDetailMode = 'modal' | 'docked'
+const MODE_KEY = 'taskflow:task-detail'
+
+/** The remembered frame of the task detail; anything unknown (or an unreadable storage) means the modal. */
+export function readTaskDetailMode(): TaskDetailMode {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'docked' ? 'docked' : 'modal'
+  } catch {
+    return 'modal'
+  }
+}
+
 type UiState = {
   sidebarOpen: boolean
   toggleSidebar: () => void
@@ -31,6 +43,15 @@ type UiState = {
   paletteOpen: boolean
   setPaletteOpen: (value: boolean) => void
   togglePalette: () => void
+  /** AppShell is mounted with a session: the palette can open and run Commands (AD-9). */
+  shellReady: boolean
+  setShellReady: (value: boolean) => void
+  /** Ctrl/Cmd+K pressed before the shell was ready: the palette opens once when it is. */
+  paletteRequested: boolean
+  setPaletteRequested: (value: boolean) => void
+  /** The task detail frame; null until the person chooses, then the remembered choice is read on demand. */
+  taskDetailMode: TaskDetailMode | null
+  setTaskDetailMode: (mode: TaskDetailMode) => void
   /** Expanded tree node ids per Workspace; loaded lazily from localStorage. */
   expanded: Record<string, string[]>
   loadExpanded: (workspaceId: string) => void
@@ -47,6 +68,19 @@ export const useUiStore = create<UiState>((set, get) => ({
   paletteOpen: false,
   setPaletteOpen: (value) => set({ paletteOpen: value }),
   togglePalette: () => set((state) => ({ paletteOpen: !state.paletteOpen })),
+  shellReady: false,
+  setShellReady: (value) => set({ shellReady: value }),
+  paletteRequested: false,
+  setPaletteRequested: (value) => set({ paletteRequested: value }),
+  taskDetailMode: null,
+  setTaskDetailMode: (mode) => {
+    try {
+      localStorage.setItem(MODE_KEY, mode)
+    } catch {
+      // storage unavailable: the choice holds for this session only
+    }
+    set({ taskDetailMode: mode })
+  },
   expanded: {},
   loadExpanded: (workspaceId) =>
     set((state) => ({ expanded: { ...state.expanded, [workspaceId]: readExpanded(workspaceId) } })),

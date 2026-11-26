@@ -10,7 +10,7 @@ export function TaskTabs({ task }: { task: TaskView }) {
   const [tab, setTab] = useState<Tab>('comments')
   return (
     <section aria-label="Task discussion">
-      <div role="tablist" className="mb-3 flex gap-1 border-b border-slate-200">
+      <div role="tablist" className="mb-3 flex gap-1 border-b border-line">
         {(['comments', 'activity'] as const).map((id) => (
           <button
             key={id}
@@ -20,7 +20,7 @@ export function TaskTabs({ task }: { task: TaskView }) {
             aria-selected={tab === id}
             aria-controls={`tabpanel-${id}`}
             onClick={() => setTab(id)}
-            className={`px-3 py-1.5 text-sm ${tab === id ? 'border-b-2 border-blue-600 font-medium' : 'text-slate-600'}`}
+            className={`px-3 py-1.5 text-sm ${tab === id ? 'border-b-2 border-accent font-medium' : 'text-muted'}`}
           >
             {id === 'comments' ? 'Comments' : 'Activity'}
           </button>

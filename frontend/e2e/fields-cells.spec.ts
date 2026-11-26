@@ -9,6 +9,7 @@ import {
   row,
   signUpAndCreateWorkspace,
   statusOf,
+  taskDetail,
 } from './helpers'
 import { pick } from './ui'
 import { snap } from './screenshots'
@@ -65,7 +66,7 @@ test('UJ-2: a Customer tier column is edited inline in Table and List, and shows
   await pick(row(page, 'Beta').getByLabel(/^Status of/), 'in progress')
   await expect(statusOf(page, 'Beta')).toHaveText('in progress')
   await expect(page).not.toHaveURL(/\/t\//)
-  await expect(page.getByRole('complementary', { name: /^Task / })).toBeHidden()
+  await expect(taskDetail(page)).toBeHidden()
 
   // Board: a chip per card that has a value.
   await page.getByRole('tab', { name: 'Board' }).click()

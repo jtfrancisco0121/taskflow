@@ -30,7 +30,7 @@ export function CustomFieldsGroup({ task, hints, save }: Props) {
 
   return (
     <section aria-labelledby="custom-fields-heading" className="flex flex-col gap-3">
-      <h3 id="custom-fields-heading" className="text-xs font-semibold uppercase text-slate-500">
+      <h3 id="custom-fields-heading" className="text-xs font-semibold uppercase text-muted">
         Custom fields
       </h3>
       {fields.isPending && (
@@ -39,12 +39,12 @@ export function CustomFieldsGroup({ task, hints, save }: Props) {
           aria-label="Loading custom fields"
           className="flex animate-pulse flex-col gap-2"
         >
-          <div className="h-8 rounded bg-slate-200" />
-          <div className="h-8 rounded bg-slate-200" />
+          <div className="h-8 rounded bg-surface-3" />
+          <div className="h-8 rounded bg-surface-3" />
         </div>
       )}
       {fields.isError && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           Couldn't load the custom fields: {messageOf(fields.error)}{' '}
           <button type="button" className="underline" onClick={() => void fields.refetch()}>
             Retry
@@ -52,7 +52,7 @@ export function CustomFieldsGroup({ task, hints, save }: Props) {
         </p>
       )}
       {fields.isSuccess && shown.length === 0 && (
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-muted">
           No custom fields here. Add one from the location's Fields.
         </p>
       )}
@@ -68,7 +68,7 @@ export function CustomFieldsGroup({ task, hints, save }: Props) {
               workspaceId={task.workspaceId}
               onCommit={(value) => commit(field.id!, field.name ?? 'custom field', value)}
             />
-            <span id={`${key}-origin`} className="text-xs text-slate-500">
+            <span id={`${key}-origin`} className="text-xs text-muted">
               from {field.definedAtName}
             </span>
           </FieldShell>

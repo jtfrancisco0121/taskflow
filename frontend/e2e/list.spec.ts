@@ -200,6 +200,66 @@ test('two quick Backspaces then one Undo restores both rows', async ({ page, req
   }
 })
 
+// The guard (isShortcutBlocked) in a real browser: the key is dispatched on the row itself, so it reaches the
+// Tasks table handler whatever the open layer does with focus.
+const pressOnRow = (page: Page, title: string, key: string) =>
+  rowEl(page, title).evaluate(
+    (el, k) =>
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true })),
+    key,
+  )
+
+test('row keys do nothing while a modal dialog is open', async ({ page, request }) => {
+  await openList(page, request, [{ title: 'Alpha' }, { title: 'Beta' }])
+  await rowEl(page, 'Alpha').focus()
+  await page.getByRole('button', { name: 'Statuses' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toHaveAttribute('aria-modal', 'true')
+  for (const key of ['x', 'j', 'Backspace', 's']) await pressOnRow(page, 'Alpha', key)
+  await expect(rowOf(page, 'Alpha')).toHaveAttribute('aria-selected', 'false')
+  await expect(page.getByText(/to trash/)).toHaveCount(0)
+  await expect(page.locator('[data-tf-floating]')).toHaveCount(0)
+  await expect(dialog).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+  await expect(page.getByRole('link', { name: 'Alpha' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Beta' })).toBeVisible()
+})
+
+test('row keys do nothing while a floating layer (a row editor) is open', async ({
+  page,
+  request,
+}) => {
+  await openList(page, request, [{ title: 'Alpha' }, { title: 'Beta' }])
+  await rowOf(page, 'Beta')
+    .getByLabel(/^Priority of/)
+    .click()
+  const layer = page.locator('[data-tf-floating]')
+  await expect(layer).toBeVisible()
+  for (const key of ['x', 'j', 'Backspace']) await pressOnRow(page, 'Alpha', key)
+  await expect(rowOf(page, 'Alpha')).toHaveAttribute('aria-selected', 'false')
+  await expect(page.getByText(/to trash/)).toHaveCount(0)
+  await expect(layer).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(layer).toBeHidden()
+  await expect(page.getByRole('link', { name: 'Alpha' })).toBeVisible()
+})
+
+test('a held Backspace on a focused row trashes exactly one task', async ({ page, request }) => {
+  await openList(page, request, [{ title: 'Alpha' }, { title: 'Beta' }, { title: 'Gamma' }])
+  await rowEl(page, 'Alpha').focus()
+  // Playwright marks every down() of an already pressed key as an auto-repeat.
+  await page.keyboard.down('Backspace')
+  for (let i = 0; i < 5; i++) await page.keyboard.down('Backspace')
+  await page.keyboard.up('Backspace')
+  await expect(page.getByText('Moved 1 task to trash.')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Alpha' })).toBeHidden()
+  await expect(page.getByRole('link', { name: 'Beta' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Gamma' })).toBeVisible()
+  await expect(page.getByText(/Moved \d+ tasks? to trash/)).toHaveCount(1)
+})
+
 test('bulk Delete of a parent and its subtask, then Undo, restores both with no error', async ({
   page,
   request,

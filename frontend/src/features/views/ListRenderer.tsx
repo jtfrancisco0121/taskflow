@@ -25,6 +25,7 @@ import { useScopeFields, customColumns } from './useScopeFields'
 import { useTaskActions } from './useTaskActions'
 import { useViewTasks } from './useViewTasks'
 import { useListKeys } from './useListKeys'
+import { useTaskOrder } from '../../shared/task-order'
 import { useViewStore } from './viewStore'
 
 const ROW_HEIGHT = 36
@@ -106,6 +107,12 @@ export function ListRenderer({
   )
   const onKeyDown = useListKeys({ scope, taskRows, loaded, virtualizer, openTask })
   const firstTaskId = taskRows[0]?.task.id
+  // The task detail reads the display order for j/k; collapsed groups are not in it.
+  const order = taskRows.map((r) => r.task.id).join(',')
+  useEffect(() => {
+    useTaskOrder.getState().setIds(order ? order.split(',') : [])
+  }, [order])
+  useEffect(() => () => useTaskOrder.getState().setIds([]), [])
 
   if (query.isPending) {
     return (

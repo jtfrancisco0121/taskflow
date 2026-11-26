@@ -148,14 +148,14 @@ export function DependencyPicker({
     <div
       role="group"
       aria-label="Add a relationship"
-      className="flex flex-col gap-2 rounded border border-slate-200 bg-slate-50 p-2"
+      className="flex flex-col gap-2 rounded border border-line bg-surface-2 p-2"
       onKeyDown={onKeyDown}
     >
       <div role="radiogroup" aria-label="Relationship kind" className="flex gap-1 text-sm">
         {RELATIONS.map((r) => (
           <label
             key={r}
-            className={`cursor-pointer rounded border px-2 py-0.5 ${relation === r ? 'border-blue-600 bg-blue-50 font-medium' : 'border-slate-300 bg-white'}`}
+            className={`cursor-pointer rounded border px-2 py-0.5 ${relation === r ? 'border-accent bg-accent-soft font-medium' : 'border-line-strong bg-surface'}`}
           >
             <input
               type="radio"
@@ -184,7 +184,7 @@ export function DependencyPicker({
           setActive(0)
           setMessage(null)
         }}
-        className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm focus:outline-2 focus:outline-blue-600"
+        className="rounded border border-line-strong bg-surface px-2 py-1.5 text-sm focus:outline-2 focus:outline-focus-ring"
       />
       <ul
         id={listId}
@@ -200,29 +200,29 @@ export function DependencyPicker({
             aria-selected={i === active}
             onMouseEnter={() => setActive(i)}
             onClick={() => void pick(c)}
-            className={`cursor-pointer rounded px-2 py-1 text-sm ${i === active ? 'bg-blue-100' : ''}`}
+            className={`cursor-pointer rounded px-2 py-1 text-sm ${i === active ? 'bg-accent-soft' : ''}`}
           >
-            <span className="font-mono text-xs text-slate-500">{c.readableId}</span> {c.title}
-            {c.listName && <span className="text-xs text-slate-500"> · {c.listName}</span>}
+            <span className="font-mono text-xs text-muted">{c.readableId}</span> {c.title}
+            {c.listName && <span className="text-xs text-muted"> · {c.listName}</span>}
           </li>
         ))}
       </ul>
-      {q.length < 2 && <p className="m-0 text-xs text-slate-600">Type at least 2 characters.</p>}
+      {q.length < 2 && <p className="m-0 text-xs text-muted">Type at least 2 characters.</p>}
       {q.length >= 2 && search.isPending && (
-        <p role="status" className="m-0 text-xs text-slate-600">
+        <p role="status" className="m-0 text-xs text-muted">
           Searching…
         </p>
       )}
       {q.length >= 2 && search.isSuccess && shown.length === 0 && (
-        <p className="m-0 text-xs text-slate-600">No tasks match.</p>
+        <p className="m-0 text-xs text-muted">No tasks match.</p>
       )}
       {search.isError && (
-        <p role="alert" className="m-0 text-xs text-red-700">
+        <p role="alert" className="m-0 text-xs text-danger">
           {messageOf(search.error)}
         </p>
       )}
       {message && (
-        <p role="alert" className="m-0 text-sm text-red-700">
+        <p role="alert" className="m-0 text-sm text-danger">
           {message}
         </p>
       )}

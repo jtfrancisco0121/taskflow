@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Outlet, useMatch, useParams } from 'react-router'
 import { useTaskWorkspaceId } from '../features/tasks'
 import { SidebarTree } from '../features/locations'
@@ -58,6 +59,13 @@ export function AppShell() {
   const sidebarOpen = useUiStore((state) => state.sidebarOpen)
   const toggleSidebar = useUiStore((state) => state.toggleSidebar)
   const togglePalette = useUiStore((state) => state.togglePalette)
+  const setShellReady = useUiStore((state) => state.setShellReady)
+  // AD-9: ready means "the shell is mounted with a session", never "a Workspace is resolved": /setup and a
+  // hidden /t/:id render here without one and keep their palette.
+  useEffect(() => {
+    setShellReady(true)
+    return () => setShellReady(false)
+  }, [setShellReady])
   const session = useSession()
   const signOut = useSignOut()
   const { workspaceId: urlWorkspaceId, taskId, locationId } = useParams()

@@ -20,6 +20,13 @@ describe('the library, /design, the shell and the rebuilt feature files use toke
       '../../features/tasks/{TaskPanelRoute,TaskPanel}.tsx',
       '../../features/views/{FilterBuilder,ChipBar,ViewTabs,ViewPage,ListRenderer,ListEditors,ColumnsPicker,ResultNotices,BulkBar}.tsx',
       '../../features/tasks/QuickAdd.tsx',
+      // slice 5: the task detail
+      '../../features/tasks/{TaskFields,FieldShell,CustomFieldsGroup,ConflictBanner,SubtasksSection,ChecklistsSection,editorItems}.tsx',
+      '../../features/comments/{TaskTabs,CommentsTab,ActivityTab}.tsx',
+      '../../features/dependencies/{DependenciesSection,DependencyPicker,BlockedBadge,CompleteAnywayDialog}.tsx',
+      '../../features/realtime/Presence.tsx',
+      '../../features/notifications/WatchControl.tsx',
+      '../../features/fields/{ValueEditor,People}.tsx',
       '../../features/fields/FilterInput.tsx',
     ],
     {

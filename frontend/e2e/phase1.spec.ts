@@ -6,6 +6,7 @@ import {
   row,
   signUpAndCreateWorkspace,
   statusOf,
+  taskDetail,
 } from './helpers'
 import { pick } from './ui'
 
@@ -22,7 +23,7 @@ test('FR-26: sign up, create a Workspace, Space, List and task, then open the ta
 
   await page.getByRole('link', { name: 'Draft launch post' }).click()
   await expect(page).toHaveURL(/\/t\/[0-9a-f-]+$/)
-  const panel = page.getByRole('complementary', { name: /^Task / })
+  const panel = taskDetail(page)
   await expect(panel.getByLabel('Title')).toHaveValue('Draft launch post')
 
   // a field edit carries If-Match, a comment shows with its author, the activity names the change
@@ -40,9 +41,7 @@ test('FR-26: sign up, create a Workspace, Space, List and task, then open the ta
   const url = page.url()
   await page.reload()
   await expect(page).toHaveURL(url)
-  await expect(page.getByRole('complementary', { name: /^Task / }).getByLabel('Title')).toHaveValue(
-    'Draft launch post',
-  )
+  await expect(taskDetail(page).getByLabel('Title')).toHaveValue('Draft launch post')
   await expect(page.getByRole('heading', { name: 'Launch' })).toBeVisible()
 })
 

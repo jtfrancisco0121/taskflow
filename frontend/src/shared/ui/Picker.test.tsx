@@ -84,4 +84,53 @@ describe('Picker', () => {
     await pick(user, screen.getByRole('button', { name: 'Choose' }), 'Tomorrow')
     expect(onPick).toHaveBeenCalledWith('c')
   })
+
+  it('marks the option holding the current value with aria-checked, in both modes', async () => {
+    const user = userEvent.setup()
+    render(
+      <Picker
+        trigger={<button type="button">Choose</button>}
+        label="Choose one"
+        mode="single"
+        items={ITEMS}
+        selected={['b']}
+        onPick={() => {}}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Choose' }))
+    expect(await screen.findByRole('option', { name: 'Beta' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(screen.getByRole('option', { name: 'Alpha' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('option', { name: 'Tomorrow' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
+  })
+
+  it('searches the label and keywords, never the raw value', async () => {
+    const user = userEvent.setup()
+    const id = 'ab12cd34-5678-4abc-9def-0123456789ab'
+    render(
+      <Picker
+        trigger={<button type="button">Choose</button>}
+        label="Choose one"
+        mode="single"
+        items={[{ value: id, label: 'Ada Lovelace', keywords: ['analyst'] }]}
+        selected={[]}
+        onPick={() => {}}
+      />,
+    )
+    await user.click(screen.getByRole('button', { name: 'Choose' }))
+    const search = await screen.findByRole('combobox', { name: 'Choose one' })
+    await user.type(search, 'ab12cd')
+    expect(screen.getByText('No match')).toBeInTheDocument()
+    await user.clear(search)
+    await user.type(search, 'lovel')
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+    await user.clear(search)
+    await user.type(search, 'analy')
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+  })
 })
