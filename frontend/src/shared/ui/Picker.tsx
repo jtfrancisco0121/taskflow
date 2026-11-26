@@ -65,7 +65,11 @@ export function Picker({
   }
   return (
     <Popover trigger={trigger} label={label} open={isOpen} onOpenChange={setOpen}>
-      <CommandPrimitive label={label} filter={matchLabel} className="flex w-60 flex-col text-[13px] text-fg">
+      <CommandPrimitive
+        label={label}
+        filter={matchLabel}
+        className="flex w-60 flex-col text-[13px] text-fg"
+      >
         <CommandPrimitive.Input
           placeholder={placeholder}
           aria-label={label}

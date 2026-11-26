@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { FOCUSABLE } from './floating'
 
@@ -11,6 +11,18 @@ type DialogProps = {
   wide?: boolean
   /** `top`: the command-palette sheet (560px, 12vh from the top, hidden title, closes on a backdrop click). */
   placement?: 'center' | 'top'
+  /**
+   * `task`: the task detail frame (up to 940px wide, 88vh, no inner padding, hidden title, no backdrop close).
+   * The content lays itself out; the title stays the dialog's accessible name.
+   */
+  size?: 'task'
+  /** The element that gets focus on open, instead of the first focusable one. */
+  initialFocus?: RefObject<HTMLElement | null>
+  /**
+   * Asked for every Escape that reaches the dialog. Returning false leaves that Escape alone: the dialog stays
+   * open and the event is not stopped (an editor inside, such as a comment composer, owns it).
+   */
+  closeOnEscape?: (event: KeyboardEvent<HTMLDivElement>) => boolean
 }
 
 /** A modal dialog: focus moves in, Tab is trapped, Escape closes, focus returns to the opener. */
@@ -21,8 +33,12 @@ export function Dialog({
   restoreFocus,
   wide,
   placement = 'center',
+  size,
+  initialFocus,
+  closeOnEscape,
 }: DialogProps) {
   const top = placement === 'top'
+  const task = size === 'task'
   const titleId = useId()
   const ref = useRef<HTMLDivElement>(null)
   const restoreRef = useRef(restoreFocus)
@@ -34,18 +50,21 @@ export function Dialog({
   useEffect(() => {
     const opener = document.activeElement
     const node = ref.current
-    const first = node?.querySelector<HTMLElement>(FOCUSABLE)
+    const first = initialFocus?.current ?? node?.querySelector<HTMLElement>(FOCUSABLE)
     ;(first ?? node)?.focus()
     return () => {
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
       else restoreRef.current?.()?.focus()
     }
+    // Focus moves in once, when the dialog opens: a later change of `initialFocus` must not move it again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     // Events from a portalled floating layer (a Select, a menu) bubble here through the React tree (AD-12).
     if (event.defaultPrevented || !ref.current?.contains(event.target as Node)) return
     if (event.key === 'Escape') {
+      if (closeOnEscape && !closeOnEscape(event)) return
       event.stopPropagation()
       onClose()
       return
@@ -77,13 +96,18 @@ export function Dialog({
         tabIndex={-1}
         onKeyDown={onKeyDown}
         {...(top ? { 'data-tf-floating': '', 'data-tf-palette': '' } : {})}
-        className={`w-full overflow-auto rounded-xl glass ${
-          top
-            ? 'max-h-[80vh] max-w-[560px] p-2'
-            : `max-h-[90vh] p-5 ${wide ? 'max-w-2xl' : 'max-w-md'}`
+        className={`w-full rounded-xl glass ${
+          task
+            ? 'flex h-[88vh] max-w-[940px] flex-col overflow-hidden'
+            : top
+              ? 'max-h-[80vh] max-w-[560px] overflow-auto p-2'
+              : `max-h-[90vh] overflow-auto p-5 ${wide ? 'max-w-2xl' : 'max-w-md'}`
         }`}
       >
-        <h2 id={titleId} className={top ? 'sr-only' : 'mb-3 font-display text-base font-semibold'}>
+        <h2
+          id={titleId}
+          className={top || task ? 'sr-only' : 'mb-3 font-display text-base font-semibold'}
+        >
           {title}
         </h2>
         {children}

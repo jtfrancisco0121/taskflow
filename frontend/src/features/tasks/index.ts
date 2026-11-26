@@ -11,3 +11,16 @@ export { cachedVersion, mapTaskInViews, patchTaskInCaches, writeTaskToCaches } f
 export { PRIORITIES, PRIORITY_LABEL, initialsOf } from './labels'
 export { useCreateTask } from './useCreateTask'
 export { QuickAdd } from './QuickAdd'
+export {
+  AssigneesValue,
+  DayValue,
+  PriorityValue,
+  StatusValue,
+  assigneeItems,
+  dayItems,
+  dayOfItem,
+  priorityItems,
+  quickDays,
+  statusItems,
+  type Member,
+} from './editorItems'

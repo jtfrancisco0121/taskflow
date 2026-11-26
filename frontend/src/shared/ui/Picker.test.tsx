@@ -98,9 +98,15 @@ describe('Picker', () => {
       />,
     )
     await user.click(screen.getByRole('button', { name: 'Choose' }))
-    expect(await screen.findByRole('option', { name: 'Beta' })).toHaveAttribute('aria-checked', 'true')
+    expect(await screen.findByRole('option', { name: 'Beta' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
     expect(screen.getByRole('option', { name: 'Alpha' })).toHaveAttribute('aria-checked', 'false')
-    expect(screen.getByRole('option', { name: 'Tomorrow' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('option', { name: 'Tomorrow' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
   })
 
   it('searches the label and keywords, never the raw value', async () => {

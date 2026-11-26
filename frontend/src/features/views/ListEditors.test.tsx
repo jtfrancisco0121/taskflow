@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { pick } from '../../test/ui'
-import { quickDays } from './quickDays'
 import { ListRenderer } from './ListRenderer'
 import { baseRoutes, scope, task } from './testSupport'
 import { useViewStore } from './viewStore'
@@ -77,17 +76,6 @@ describe('List popover editors (CAP-2)', () => {
     } finally {
       vi.useRealTimers()
     }
-  })
-
-  it('computes the quick days in UTC', () => {
-    expect(quickDays(new Date('2026-11-26T23:30:00Z'))).toEqual({
-      today: '2026-11-26',
-      tomorrow: '2026-11-27',
-      nextWeek: '2026-11-30',
-    })
-    // Monday: next week is seven days later; Sunday: the next day.
-    expect(quickDays(new Date('2026-11-30T00:00:00Z')).nextWeek).toBe('2026-12-07')
-    expect(quickDays(new Date('2026-11-29T10:00:00Z')).nextWeek).toBe('2026-11-30')
   })
 
   it('Enter in the due day field does not pick the highlighted quick pick', async () => {
