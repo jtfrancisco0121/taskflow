@@ -28,6 +28,8 @@ describe('the library, /design, the shell and the rebuilt feature files use toke
       '../../features/notifications/WatchControl.tsx',
       '../../features/fields/{ValueEditor,People}.tsx',
       '../../features/fields/FilterInput.tsx',
+      // slice 6: the Board
+      '../../features/fields/{ValueChip,OptionChip}.tsx',
     ],
     {
       query: '?raw',

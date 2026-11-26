@@ -15,7 +15,6 @@
   --color-slate-500: var(--tf-muted);
   --color-slate-600: var(--tf-muted);
   --color-slate-700: var(--tf-fg);
-  --color-slate-900: var(--tf-fg);
 
   --color-red-50: var(--tf-danger-soft);
   --color-red-100: var(--tf-danger-soft);
