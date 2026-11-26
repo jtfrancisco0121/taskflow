@@ -136,11 +136,49 @@ for (const os of OS_SCHEMES)
       await page.keyboard.press('Escape')
       await expect(dialog).toHaveCount(0)
 
+      // The task detail (slice 5): the modal with a subtask, a checklist and the Activity tab, an open
+      // Picker, then the docked panel.
       await page.getByRole('link', { name: 'Draft launch post' }).click()
-      await expect(taskDetail(page)).toBeVisible()
-      await snap(page, testInfo, `task-panel-${theme}${suffix}`)
-      await expectNoContrastViolations(page, `task-panel-${theme}${suffix}`)
+      const detail = taskDetail(page)
+      await expect(detail).toBeVisible()
+      // tall enough to show the fields, the subtask and the checklist together
+      await page.setViewportSize({ width: 1280, height: 1100 })
+      await detail.getByRole('textbox', { name: 'Add a subtask' }).fill('Write the migration note')
+      await page.keyboard.press('Enter')
+      await expect(detail.getByRole('link', { name: 'Write the migration note' })).toBeVisible()
+      await detail.getByRole('button', { name: 'Add checklist' }).click()
+      const checklistName = detail.getByRole('textbox', { name: 'Checklist name' })
+      await expect(checklistName).toBeFocused()
+      await checklistName.fill('Release')
+      await page.keyboard.press('Enter')
+      for (const item of ['Draft the notes', 'Tag the build']) {
+        await detail.getByRole('textbox', { name: 'Add an item to Release' }).fill(item)
+        await page.keyboard.press('Enter')
+        await expect(detail.getByRole('checkbox', { name: item })).toBeVisible()
+      }
+      await detail.getByRole('checkbox', { name: 'Draft the notes' }).click()
+      await expect(detail.getByText('1/2')).toBeVisible()
+      await detail.getByRole('tab', { name: 'Activity' }).click()
+      await expect(detail.getByText('created this task')).toBeVisible()
+      await detail.getByLabel('Title').scrollIntoViewIfNeeded()
+      await snap(page, testInfo, `task-modal-${theme}${suffix}`)
+      await expectNoContrastViolations(page, `task-modal-${theme}${suffix}`)
+
+      await detail.getByLabel('Status', { exact: true }).click()
+      await expect(page.getByRole('option', { name: 'in progress' })).toBeVisible()
+      await snap(page, testInfo, `task-picker-${theme}${suffix}`)
+      await expectNoContrastViolations(page, `task-picker-${theme}${suffix}`)
       await page.keyboard.press('Escape')
+
+      await detail.getByRole('button', { name: 'Docked' }).click()
+      await expect(page.getByRole('complementary', { name: /^Task / })).toBeVisible()
+      await snap(page, testInfo, `task-docked-${theme}${suffix}`)
+      await expectNoContrastViolations(page, `task-docked-${theme}${suffix}`)
+      await detail.getByRole('button', { name: 'Close task panel' }).click()
+      await expect(detail).toHaveCount(0)
+      // the next screens expect the modal again, and later runs start from the default
+      await page.evaluate(() => localStorage.removeItem('taskflow:task-detail'))
+      await page.setViewportSize({ width: 1280, height: 720 })
 
       for (const type of ['Board', 'Table', 'Calendar']) {
         await createView(page, `${type} view`, type)
@@ -188,5 +226,19 @@ test('the List follows the OS dark scheme when no theme is stored (System)', asy
   const dialog = page.getByRole('dialog', { name: 'Command palette' })
   await expect(dialog).toBeVisible()
   await expectNoContrastViolations(page, 'palette System-dark')
+  await page.keyboard.press('Escape')
+
+  // the task detail under System-dark: the modal, an open Picker, the docked panel
+  await page.getByRole('link', { name: 'Draft launch post' }).click()
+  const detail = taskDetail(page)
+  await expect(detail).toBeVisible()
+  await expectNoContrastViolations(page, 'task-modal System-dark')
+  await detail.getByLabel('Status', { exact: true }).click()
+  await expect(page.getByRole('option', { name: 'in progress' })).toBeVisible()
+  await expectNoContrastViolations(page, 'task-picker System-dark')
+  await page.keyboard.press('Escape')
+  await detail.getByRole('button', { name: 'Docked' }).click()
+  await expect(page.getByRole('complementary', { name: /^Task / })).toBeVisible()
+  await expectNoContrastViolations(page, 'task-docked System-dark')
   fonts.expectNone()
 })
