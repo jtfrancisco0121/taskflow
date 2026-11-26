@@ -25,7 +25,7 @@ export function EditableText({
         <button
           type="button"
           aria-label={`Edit ${label}`}
-          className="ml-1 text-xs text-slate-400 hover:text-slate-700"
+          className="ml-1 text-xs text-faint hover:text-fg"
           onClick={(e) => {
             e.stopPropagation()
             setDraft(value)
@@ -47,7 +47,7 @@ export function EditableText({
       autoFocus
       aria-label={label}
       value={draft}
-      className="w-full rounded border border-blue-400 px-1 py-0.5"
+      className="w-full rounded-md border border-focus-ring bg-surface px-1 py-0.5"
       onClick={(e) => e.stopPropagation()}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
@@ -85,7 +85,7 @@ export function TagsCell({
         )
       }
     >
-      {tags.length ? tags.join(', ') : <span className="text-slate-400">—</span>}
+      {tags.length ? tags.join(', ') : <span className="text-faint">—</span>}
     </EditableText>
   )
 }

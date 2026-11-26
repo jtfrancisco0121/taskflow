@@ -11,6 +11,7 @@ import { messageOf } from '../../api/errors'
 import type { FieldView, StatusInfo, TaskView, ViewConfig } from '../../api/types'
 import { formatDateTime } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
+import { ErrorState } from '../../shared/ui/ErrorState'
 import { BlockedBadge } from '../dependencies'
 import { useLocationInfo } from '../locations'
 import { useLocationStatuses } from '../statuses'
@@ -38,7 +39,8 @@ import { useViewTasks } from './useViewTasks'
 import { AssigneeEditor, DueEditor, PriorityEditor, StartEditor, StatusEditor } from './ListEditors'
 import { useViewStore } from './viewStore'
 
-const ROW_HEIGHT = 40
+const ROW_HEIGHT = 36
+const HEADER_HEIGHT = 32
 const helper = createColumnHelper<TaskView>()
 
 /** TABLE-1: resizable, reorderable columns written to the URL `c`, with in-place editors. */
@@ -93,6 +95,7 @@ export function TableRenderer({
   })
   const headers = table.getHeaderGroups()[0]?.headers ?? []
   const template = headers.map((h) => `${h.getSize()}px`).join(' ')
+  const totalWidth = table.getTotalSize()
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const rows = table.getRowModel().rows
@@ -139,86 +142,102 @@ export function TableRenderer({
   }
 
   if (query.isError) {
-    return (
-      <p role="alert" className="flex items-center gap-2 text-red-700">
-        {messageOf(query.error)}
-        <Button onClick={() => void query.refetch()}>Retry</Button>
-      </p>
-    )
+    return <ErrorState message={messageOf(query.error)} onRetry={() => void query.refetch()} />
   }
 
   return (
     <div>
       <DroppedNotice dropped={query.droppedFields} config={config} update={update} />
       <ColumnsPicker columns={columns} fields={fields} builtIn onChange={setColumns} />
-      <div role="grid" aria-label="Tasks table" aria-rowcount={rows.length}>
-        <div
-          role="row"
-          className="grid border-b border-slate-200 text-xs text-slate-500 uppercase"
-          style={{ gridTemplateColumns: template }}
-        >
-          {headers.map((header) => {
-            const width = header.getSize()
-            return (
-              <div
-                key={header.id}
-                role="columnheader"
-                draggable
-                onDragStart={(e) => e.dataTransfer.setData('text/plain', header.id)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  setColumns(dropColumn(columns, e.dataTransfer.getData('text/plain'), header.id))
-                }}
-                className="relative px-2 py-1"
-              >
-                <button
-                  type="button"
-                  className="w-full text-left uppercase"
-                  aria-label={`${labelOf(header.id)} column, width ${width}`}
-                  onKeyDown={(e) => onHeaderKey(e, header.id, width)}
-                >
-                  {labelOf(header.id)}
-                </button>
-                <span
-                  role="separator"
-                  aria-orientation="vertical"
-                  aria-label={`Resize ${labelOf(header.id)}`}
-                  className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-blue-300"
-                  onPointerDown={(e) => startResize(e, header.id, width)}
-                />
-              </div>
-            )
-          })}
-        </div>
+      <div role="table" aria-label="Tasks table" aria-rowcount={hasNextPage ? -1 : rows.length + 1}>
         <div ref={scrollRef} className="max-h-[70vh] overflow-auto">
-          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-            {virtualItems.map((v) => {
-              const row = rows[v.index]
-              return (
-                <div
-                  key={row.id}
-                  role="row"
-                  data-task-id={row.original.id}
-                  className="grid items-center border-b border-slate-100 text-sm"
-                  style={{
-                    gridTemplateColumns: template,
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    height: ROW_HEIGHT,
-                    transform: `translateY(${v.start}px)`,
-                  }}
-                >
-                  <TableRow
-                    task={row.original}
-                    scope={scope}
-                    fields={headers.map((h) => h.id)}
-                    byId={byId}
-                  />
-                </div>
-              )
-            })}
+          <div style={{ width: totalWidth, minWidth: '100%' }}>
+            <div
+              role="row"
+              aria-rowindex={1}
+              className="sticky top-0 z-10 grid border-b border-line bg-surface-2 text-xs font-medium text-muted uppercase"
+              style={{
+                gridTemplateColumns: template,
+                width: totalWidth,
+                minWidth: '100%',
+                height: HEADER_HEIGHT,
+              }}
+            >
+              {headers.map((header) => {
+                const width = header.getSize()
+                return (
+                  <div
+                    key={header.id}
+                    role="columnheader"
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData('text/plain', header.id)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      setColumns(
+                        dropColumn(columns, e.dataTransfer.getData('text/plain'), header.id),
+                      )
+                    }}
+                    className="group relative flex items-center px-2"
+                  >
+                    <button
+                      type="button"
+                      className="w-full truncate text-left uppercase focus-visible:outline-2 focus-visible:outline-focus-ring"
+                      aria-label={`${labelOf(header.id)} column, width ${width}`}
+                      onKeyDown={(e) => onHeaderKey(e, header.id, width)}
+                    >
+                      {labelOf(header.id)}
+                    </button>
+                    <span
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label={`Resize ${labelOf(header.id)}`}
+                      className={`absolute top-0 right-0 h-full w-1.5 cursor-col-resize group-hover:bg-line-strong group-focus-within:bg-accent-line ${dragWidth?.field === header.id ? 'bg-accent-line' : ''}`}
+                      onPointerDown={(e) => startResize(e, header.id, width)}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+            <div
+              style={{
+                height: virtualizer.getTotalSize(),
+                position: 'relative',
+                width: totalWidth,
+                minWidth: '100%',
+              }}
+            >
+              {virtualItems.map((v) => {
+                const row = rows[v.index]
+                return (
+                  <div
+                    key={row.id}
+                    role="row"
+                    aria-rowindex={v.index + 2}
+                    tabIndex={-1}
+                    data-task-id={row.original.id}
+                    className="grid items-center border-b border-line bg-surface text-[13px] text-fg hover:bg-surface-2 focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-focus-ring"
+                    style={{
+                      gridTemplateColumns: template,
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: totalWidth,
+                      minWidth: '100%',
+                      height: ROW_HEIGHT,
+                      transform: `translateY(${v.start}px)`,
+                    }}
+                  >
+                    <TableRow
+                      task={row.original}
+                      scope={scope}
+                      fields={headers.map((h) => h.id)}
+                      byId={byId}
+                    />
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -266,7 +285,7 @@ function TableRow({
   return (
     <>
       {fields.map((field) => (
-        <div key={field} role="gridcell" className="truncate px-2">
+        <div key={field} role="cell" className="truncate px-2">
           <Cell
             field={field}
             task={task}
@@ -306,7 +325,7 @@ function Cell({
   if (isCustomRef(field)) return custom ? <FieldCell field={custom} task={task} /> : null
   switch (field) {
     case 'readableId':
-      return <span className="font-mono text-xs text-slate-500">{task.readableId}</span>
+      return <span className="font-mono text-xs text-faint">{task.readableId}</span>
     case 'title':
       return (
         <EditableText
@@ -347,7 +366,7 @@ function Cell({
       return <span>{list.data?.name ?? ''}</span>
     case 'createdAt':
     case 'updatedAt':
-      return <span className="text-slate-600">{formatDateTime(task[field])}</span>
+      return <span className="text-muted">{formatDateTime(task[field])}</span>
     default:
       return null
   }

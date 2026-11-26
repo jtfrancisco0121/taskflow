@@ -381,3 +381,41 @@ describe('FIELD-3 custom field columns (3A S4)', () => {
     expect(await screen.findByText('empty')).toBeInTheDocument()
   })
 })
+
+describe('TABLE-1 layout structure (S4)', () => {
+  it('is a table with a header row and indexed rows in one scroll container', async () => {
+    serve([task(1), task(2)])
+    renderWithProviders(<TableRenderer scope={scope} config={config} update={vi.fn()} />)
+    await screen.findByRole('link', { name: 'Task 2' })
+    const table = screen.getByRole('table', { name: 'Tasks table' })
+    expect(table).toHaveAttribute('aria-rowcount', '3')
+    const header = within(table).getAllByRole('row')[0]
+    expect(header).toHaveAttribute('aria-rowindex', '1')
+    const rows = Array.from(table.querySelectorAll('[data-task-id]')) as HTMLElement[]
+    expect(rows.map((r) => r.getAttribute('aria-rowindex'))).toEqual(['2', '3'])
+    for (const r of rows) {
+      expect(r).toHaveAttribute('tabindex', '-1')
+      expect(r).toHaveAttribute('role', 'row')
+      expect(within(r).getAllByRole('cell').length).toBeGreaterThan(0)
+    }
+    // header and rows share one scroll container, so they scroll sideways together
+    const scroller = header.closest('.overflow-auto')
+    expect(scroller).not.toBeNull()
+    for (const r of rows) expect(scroller!.contains(r)).toBe(true)
+  })
+
+  it('header and row widths equal the sum of the column widths', async () => {
+    serve([task(1)])
+    renderWithProviders(<TableRenderer scope={scope} config={config} update={vi.fn()} />)
+    await screen.findByRole('link', { name: 'Task 1' })
+    const table = screen.getByRole('table', { name: 'Tasks table' })
+    const sum = config.columns.reduce((total, c) => total + c.width, 0)
+    const header = within(table).getAllByRole('row')[0]
+    const row = table.querySelector('[data-task-id]') as HTMLElement
+    expect(header.style.width).toBe(`${sum}px`)
+    expect(row.style.width).toBe(`${sum}px`)
+    expect(header.style.gridTemplateColumns).toBe(
+      config.columns.map((c) => `${c.width}px`).join(' '),
+    )
+  })
+})
