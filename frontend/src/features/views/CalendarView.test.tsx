@@ -287,4 +287,24 @@ describe('CAL-1 Calendar view', () => {
     expect(await screen.findByText('No tasks due in this range.')).toBeVisible()
     expect(screen.getByRole('grid', { name: 'Calendar' })).toBeVisible()
   })
+
+  it('CAL-1: keyboard Down moves a task one week and Left one day back', async () => {
+    const stub = serve([dated(1, '2026-11-25')], (_r, body) =>
+      json({ ...dated(1, '2026-12-02'), ...(body as object), version: 2 }),
+    )
+    const month = { v: 1, mode: 'month' }
+    renderWithProviders(<CalendarRenderer scope={scope} config={month} update={vi.fn()} />, {
+      route: '/w/w1/l/l1/v/cal?m=month&d=2026-11-25',
+    })
+    const user = userEvent.setup()
+    const chip = (await screen.findByRole('link', { name: 'Task 1' })).closest('li')!
+    chip.focus()
+    await user.keyboard(' ')
+    await user.keyboard('{ArrowDown}')
+    await user.keyboard(' ')
+    await waitFor(() => expect(stub.calls.some((c) => c.method === 'PATCH')).toBe(true))
+    expect(stub.calls.find((c) => c.method === 'PATCH')!.body).toEqual({
+      dueDate: '2026-12-02T00:00:00Z',
+    })
+  })
 })
