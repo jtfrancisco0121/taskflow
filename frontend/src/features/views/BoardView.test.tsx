@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useLocation } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { TaskView } from '../../api/types'
 import { formatDay } from '../../shared/dates'
@@ -417,5 +418,88 @@ describe('Board loading, empty and error states (slice 6)', () => {
     expect(stub.calls.find((c) => c.url.pathname.endsWith('/move'))!.body).toMatchObject({
       statusName: 'In progress',
     })
+  })
+})
+
+function Where() {
+  const location = useLocation()
+  return (
+    <output aria-label="where">
+      {location.pathname}
+      {(location.state as { backgroundLocation?: unknown } | null)?.backgroundLocation
+        ? ' (over the Board)'
+        : ''}
+    </output>
+  )
+}
+
+describe('Board keyboard: Space lifts, Enter opens (slice 6)', () => {
+  let restore = () => {}
+  beforeEach(() => {
+    restore = layOut()
+  })
+  afterEach(() => restore())
+
+  const board = (
+    stub = serve({ 'to do': [t(1) as never], 'in progress': [t(4) as never] }, () =>
+      json({ ...task(1), statusId: 'st-doing', version: 2 }),
+    ),
+  ) => {
+    renderWithProviders(
+      <>
+        <BoardRenderer scope={scope} config={config} />
+        <Where />
+      </>,
+    )
+    return stub
+  }
+  const moves = (stub: ReturnType<typeof serve>) =>
+    stub.calls.filter((c) => c.url.pathname.endsWith('/move'))
+
+  it('Enter on a focused card opens the task over the Board and does not lift it', async () => {
+    const stub = board()
+    const user = userEvent.setup()
+    const card = (await screen.findByText('Task 1')).closest('li')!
+    card.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByLabelText('where')).toHaveTextContent('/t/t1 (over the Board)')
+    expect(moves(stub)).toHaveLength(0)
+    // the title link is not a tab stop: the card is the only one
+    expect(screen.getByRole('link', { name: 'Task 1' })).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('Enter while a card is lifted does nothing; Space drops it with one move', async () => {
+    const stub = board()
+    const user = userEvent.setup()
+    const card = (await screen.findByText('Task 1')).closest('li')!
+    card.focus()
+    await user.keyboard(' ')
+    await user.keyboard('{ArrowRight}')
+    await user.keyboard('{Enter}')
+    expect(screen.getByLabelText('where')).toHaveTextContent(/^\/$/)
+    expect(moves(stub)).toHaveLength(0)
+    await user.keyboard(' ')
+    await waitFor(() => expect(moves(stub)).toHaveLength(1))
+    expect(screen.getByLabelText('where')).toHaveTextContent(/^\/$/)
+  })
+
+  it('the column under a lifted card is the drop target, also over a card of a non-empty column', async () => {
+    board()
+    const user = userEvent.setup()
+    const card = (await screen.findByText('Task 1')).closest('li')!
+    await screen.findByText('Task 4')
+    card.focus()
+    await user.keyboard(' ')
+    await user.keyboard('{ArrowRight}')
+    await waitFor(() =>
+      expect(screen.getByRole('region', { name: 'In progress' })).toHaveAttribute(
+        'data-over',
+        'true',
+      ),
+    )
+    await user.keyboard('{Escape}')
+    await waitFor(() =>
+      expect(screen.getByRole('region', { name: 'In progress' })).not.toHaveAttribute('data-over'),
+    )
   })
 })

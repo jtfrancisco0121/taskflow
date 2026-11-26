@@ -1,6 +1,9 @@
 import { useSortable } from '@dnd-kit/sortable'
-import { Link, useLocation } from 'react-router'
+import { useDndContext } from '@dnd-kit/core'
+import type { KeyboardEvent } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router'
 import type { FieldView, TaskView } from '../../api/types'
+import { isShortcutBlocked } from '../../shared/ui/shortcutGuard'
 import { BlockedBadge } from '../dependencies'
 import { ValueChip } from '../fields'
 import { AssigneesValue, DayValue, PriorityValue } from '../tasks'
@@ -21,6 +24,17 @@ export function BoardCard({
     id,
   })
   const location = useLocation()
+  const navigate = useNavigate()
+  const dragging = useDndContext().active != null
+  // Space lifts a card (KeyboardSensor), Enter opens it. The sensor's own handler runs first; Enter does nothing
+  // while any card is lifted: the detail would open with the sensor still live and a Space there would drop it.
+  function onKeyDown(event: KeyboardEvent<HTMLLIElement>) {
+    listeners?.onKeyDown?.(event)
+    if (event.key !== 'Enter' || event.target !== event.currentTarget) return
+    if (dragging || isDragging || isShortcutBlocked(event)) return
+    event.preventDefault()
+    void navigate(`/t/${task.id}`, { state: { backgroundLocation: location } })
+  }
   const style = {
     transform: transform
       ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`
@@ -28,7 +42,6 @@ export function BoardCard({
     transition: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
       ? undefined
       : transition,
-    opacity: isDragging ? 0.5 : 1,
   }
   // Up to three custom field chips of the view's columns; empty values are not drawn, "+N" for the rest.
   const values = (task.customFields ?? {}) as Record<string, unknown>
@@ -44,11 +57,13 @@ export function BoardCard({
       data-task-id={task.id}
       {...attributes}
       {...listeners}
-      className="cursor-grab rounded-md border border-line bg-surface p-2 text-sm outline-none hover:border-line-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+      onKeyDown={onKeyDown}
+      className={`cursor-grab rounded-md border bg-surface p-2 text-sm outline-none ${isDragging ? 'z-10 border-accent-line opacity-90 shadow-float' : 'border-line hover:border-line-strong'} focus-visible:outline-offset-2 focus-visible:outline-focus-ring`}
     >
       <Link
         to={`/t/${task.id}`}
         state={{ backgroundLocation: location }}
+        tabIndex={-1}
         className="line-clamp-3 font-medium text-fg hover:underline"
       >
         {task.title}

@@ -1,4 +1,4 @@
-import { useDroppable } from '@dnd-kit/core'
+import { useDndContext, useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import type { ReactNode } from 'react'
 import type { FieldView, ViewConfig } from '../../api/types'
@@ -29,13 +29,19 @@ export function BoardColumn({
   chipFields: FieldView[]
 }) {
   const query = useViewTasks(scope, config, { groupValue: column.key })
-  const { setNodeRef, isOver } = useDroppable({ id: `col:${column.key}` })
+  const { setNodeRef } = useDroppable({ id: `col:${column.key}` })
+  // `over` is usually a card (`<key>|<taskId>`), not the column, so the drop target is read from its key.
+  const overId = String(useDndContext().over?.id ?? '')
+  const isOver =
+    overId !== '' &&
+    (overId.startsWith('col:') ? overId.slice(4) : overId.split('|')[0]) === column.key
   const tasks = query.items.flatMap((i) => (i.task ? [i.task] : []))
   return (
     <section
       ref={setNodeRef}
       aria-label={column.label}
-      className={`w-[268px] shrink-0 rounded-lg border border-line bg-surface-2 p-2 ${isOver ? 'bg-accent-soft outline-2 outline-accent-line' : ''}`}
+      data-over={isOver ? 'true' : undefined}
+      className="w-[268px] shrink-0 rounded-lg border border-line bg-surface-2 p-2 transition-colors duration-(--tf-dur-fast) data-[over=true]:bg-accent-soft data-[over=true]:outline-2 data-[over=true]:outline-accent-line"
     >
       <h2 className="mb-2 flex items-center justify-between gap-2 px-1 text-sm font-semibold text-fg">
         <span className="flex min-w-0 items-center gap-2">{heading}</span>

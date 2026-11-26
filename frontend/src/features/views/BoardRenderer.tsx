@@ -92,7 +92,11 @@ export function BoardRenderer({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+      // Space lifts and drops; Enter is left to the card (it opens the task detail).
+      keyboardCodes: { start: ['Space'], cancel: ['Escape'], end: ['Space'] },
+    }),
   )
 
   const columnQueryKey = (key: string) =>

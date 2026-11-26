@@ -48,3 +48,53 @@ test('BOARD-1 / FR-19: dragging a card to another column survives a reload', asy
     0,
   )
 })
+
+async function openBoard(page: Page, titles: string[]) {
+  await signUpAndCreateWorkspace(page, 'Board Keys Co')
+  await createSpace(page, 'Product')
+  await createList(page, 'Product', 'Sprint')
+  for (const title of titles) await addTask(page, title)
+  await page.getByRole('tab', { name: 'Board' }).click()
+  await expect(page.getByRole('region', { name: 'to do' }).getByText(titles[0])).toBeVisible()
+}
+
+test('keyboard: Tab to a card, Enter opens it, Escape returns focus to the card', async ({
+  page,
+}) => {
+  await openBoard(page, ['Write the spec'])
+  const card = page.locator('[data-task-id]').filter({ hasText: 'Write the spec' })
+  await card.focus()
+  await page.keyboard.press('Enter')
+  const detail = page.getByRole('dialog', { name: /^Task / })
+  await expect(detail).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(detail).toHaveCount(0)
+  await expect(card).toBeFocused()
+})
+
+test('keyboard: Space lifts, ArrowRight, Space drops, survives a reload', async ({ page }) => {
+  await openBoard(page, ['Write the spec'])
+  const card = page.locator('[data-task-id]').filter({ hasText: 'Write the spec' })
+  await card.focus()
+  const move = page.waitForResponse(
+    (r) => /\/api\/v1\/tasks\/[^/]+\/move$/.test(r.url()) && r.request().method() === 'POST',
+  )
+  await page.keyboard.press('Space')
+  await page.keyboard.press('ArrowRight')
+  await expect(page.getByRole('region', { name: 'in progress' })).toHaveAttribute(
+    'data-over',
+    'true',
+  )
+  await page.keyboard.press('Space')
+  expect((await move).status()).toBe(200)
+  await expect(
+    page.getByRole('region', { name: 'in progress' }).getByText('Write the spec'),
+  ).toBeVisible()
+  await page.reload()
+  await expect(
+    page.getByRole('region', { name: 'in progress' }).getByText('Write the spec'),
+  ).toBeVisible()
+  await expect(page.getByRole('region', { name: 'to do' }).getByText('Write the spec')).toHaveCount(
+    0,
+  )
+})
