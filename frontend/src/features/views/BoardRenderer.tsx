@@ -10,10 +10,13 @@ import {
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { api } from '../../api/client'
+import { messageOf } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
 import type { TaskView, ViewConfig, ViewQueryResponse } from '../../api/types'
 import { Avatar } from '../../shared/ui/Avatar'
+import { Skeleton } from '../../shared/ui/Skeleton'
 import { EmptyState } from '../../shared/ui/EmptyState'
+import { ErrorState } from '../../shared/ui/ErrorState'
 import { completesTask, useCompletionGuard } from '../dependencies'
 import { useLocationStatuses } from '../statuses'
 import { PriorityValue, StatusValue, useOptimisticTaskMutation } from '../tasks'
@@ -208,6 +211,24 @@ export function BoardRenderer({
     return <span className="truncate">{column.label}</span>
   }
 
+  if (columns.length === 0 && lead.isPending) {
+    return (
+      <div role="status" aria-label="Loading the Board" className="flex gap-3 overflow-x-auto pb-4">
+        {Array.from({ length: 3 }, (_, i) => (
+          <div key={i} className="flex w-[268px] shrink-0 flex-col gap-2 p-2">
+            <Skeleton className="h-5 w-24" />
+            {Array.from({ length: 3 }, (_, j) => (
+              <Skeleton key={j} className="h-16 w-full" />
+            ))}
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (columns.length === 0 && lead.isError) {
+    return <ErrorState message={messageOf(lead.error)} onRetry={() => void lead.refetch()} />
+  }
+
   return (
     <>
       <DroppedNotice dropped={lead.droppedFields} config={config} update={update} />
@@ -237,6 +258,11 @@ export function BoardRenderer({
           },
         }}
       >
+        {lead.isError && columns.length > 0 && (
+          <div className="mb-2">
+            <ErrorState message={messageOf(lead.error)} onRetry={() => void lead.refetch()} />
+          </div>
+        )}
         <div className="flex gap-3 overflow-x-auto pb-4" aria-label="Board">
           {columns.map((column) => (
             <BoardColumn

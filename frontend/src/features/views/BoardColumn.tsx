@@ -2,7 +2,10 @@ import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import type { ReactNode } from 'react'
 import type { FieldView, ViewConfig } from '../../api/types'
+import { messageOf } from '../../api/errors'
 import { Button } from '../../shared/ui/Button'
+import { ErrorState } from '../../shared/ui/ErrorState'
+import { Skeleton } from '../../shared/ui/Skeleton'
 import { BoardCard } from './BoardCard'
 import type { ViewScope } from './scope'
 import { useViewTasks } from './useViewTasks'
@@ -38,11 +41,20 @@ export function BoardColumn({
         <span className="flex min-w-0 items-center gap-2">{heading}</span>
         <span className="font-normal text-muted">{column.count ?? tasks.length}</span>
       </h2>
+      {query.isPending && (
+        <div role="status" aria-label={`Loading ${column.label}`} className="flex flex-col gap-2">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      )}
+      {query.isError && !query.data && (
+        <ErrorState message={messageOf(query.error)} onRetry={() => void query.refetch()} />
+      )}
       <SortableContext
         items={tasks.map((t) => `${column.key}|${t.id}`)}
         strategy={verticalListSortingStrategy}
       >
-        <ul className="flex min-h-12 flex-col gap-2">
+        <ul className={`flex flex-col gap-2 ${tasks.length > 0 ? 'min-h-12' : ''}`}>
           {tasks.map((task) => (
             <BoardCard
               key={task.id}
@@ -53,6 +65,11 @@ export function BoardColumn({
             />
           ))}
         </ul>
+        {query.isSuccess && tasks.length === 0 && (
+          <p className="min-h-12 rounded-md border border-dashed border-line-strong p-2 text-center text-xs leading-8 text-faint">
+            No tasks
+          </p>
+        )}
       </SortableContext>
       {query.hasNextPage && (
         <Button

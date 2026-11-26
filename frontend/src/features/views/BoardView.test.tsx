@@ -302,3 +302,120 @@ describe('Board cards and column headers (slice 6)', () => {
     expect(header).toHaveTextContent('2')
   })
 })
+
+describe('Board loading, empty and error states (slice 6)', () => {
+  let restore = () => {}
+  beforeEach(() => {
+    restore = layOut()
+  })
+  afterEach(() => restore())
+
+  const asks = (stub: ReturnType<typeof serve>, groupValue?: string) =>
+    stub.calls.filter(
+      (c) =>
+        c.url.pathname.endsWith('/views/query') &&
+        (c.body as { groupValue?: string }).groupValue === groupValue,
+    ).length
+
+  it('a cold load shows the Loading the Board status', async () => {
+    installFetch({
+      ...baseRoutes,
+      'GET /api/v1/locations/:id/statuses': () => new Promise<Response>(() => {}),
+      'POST /api/v1/views/query': () => new Promise<Response>(() => {}),
+    } as never)
+    renderWithProviders(<BoardRenderer scope={scope} config={config} />)
+    expect(await screen.findByRole('status', { name: 'Loading the Board' })).toBeVisible()
+  })
+
+  it('a failed lead query shows the server message, and Retry asks the lead again', async () => {
+    let failing = true
+    const stub = installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': (_r: Request, body: unknown) => {
+        const { groupValue } = body as { groupValue?: string }
+        if (groupValue) {
+          return json({ items: groupValue === 'to do' ? [{ group: 'to do', task: task(1) }] : [] })
+        }
+        return failing
+          ? problem(500, 'server.error', 'The Board is down')
+          : json({ items: [], groups: [{ key: 'to do', label: 'To do', count: 1 }] })
+      },
+    } as never)
+    const user = userEvent.setup()
+    renderWithProviders(<BoardRenderer scope={scope} config={config} />)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('The Board is down')
+    const before = asks(stub as never)
+    failing = false
+    await user.click(within(alert).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect(asks(stub as never)).toBe(before + 1)
+    expect(await screen.findByText('Task 1')).toBeVisible()
+  })
+
+  it('one failed column shows its error and Retry refetches only that column', async () => {
+    let failing = true
+    const stub = installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': (_r: Request, body: unknown) => {
+        const { groupValue } = body as { groupValue?: string }
+        if (!groupValue) return json({ items: [], groups: [] })
+        if (groupValue === 'in progress' && failing)
+          return problem(500, 'server.error', 'Column is down')
+        return json({ items: groupValue === 'to do' ? [{ group: 'to do', task: task(1) }] : [] })
+      },
+    } as never)
+    const user = userEvent.setup()
+    renderWithProviders(<BoardRenderer scope={scope} config={config} />)
+    const column = await screen.findByRole('region', { name: 'In progress' })
+    const alert = await within(column).findByRole('alert')
+    expect(alert).toHaveTextContent('Column is down')
+    expect(await screen.findByText('Task 1')).toBeVisible()
+    const todo = asks(stub as never, 'to do')
+    const doing = asks(stub as never, 'in progress')
+    failing = false
+    await user.click(within(alert).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(within(column).queryByRole('alert')).toBeNull())
+    expect(asks(stub as never, 'in progress')).toBe(doing + 1)
+    expect(asks(stub as never, 'to do')).toBe(todo)
+  })
+
+  it('an empty view says so, and a filter with no match offers Clear filters', async () => {
+    installFetch({
+      ...baseRoutes,
+      'GET /api/v1/locations/:id/statuses': { statuses: [] },
+      'POST /api/v1/views/query': json({ items: [], groups: [] }),
+    } as never)
+    const first = renderWithProviders(<BoardRenderer scope={scope} config={config} />)
+    expect(await screen.findByText('No tasks in this view.')).toBeVisible()
+    first.unmount()
+    const filtered = {
+      ...config,
+      filter: { op: 'AND', items: [{ field: 'priority', op: 'eq', value: 'HIGH' }] },
+    }
+    renderWithProviders(
+      <BoardRenderer scope={scope} config={filtered as never} update={() => {}} />,
+    )
+    expect(await screen.findByText('No tasks match these filters.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Clear filters' })).toBeVisible()
+  })
+
+  it('an empty column shows No tasks and still takes a keyboard drop', async () => {
+    const stub = serve({ 'to do': [t(1) as never], 'in progress': [] }, () =>
+      json({ ...task(1), statusId: 'st-doing', version: 2 }),
+    )
+    renderWithProviders(<BoardRenderer scope={scope} config={config} />)
+    await screen.findByText('Task 1')
+    const doing = screen.getByRole('region', { name: 'In progress' })
+    await waitFor(() => expect(within(doing).getByText('No tasks')).toBeVisible())
+    const user = userEvent.setup()
+    screen.getByText('Task 1').closest('li')!.focus()
+    await user.keyboard(' ')
+    await user.keyboard('{ArrowRight}')
+    await user.keyboard(' ')
+    await waitFor(() => expect(stub.calls.some((c) => c.url.pathname.endsWith('/move'))).toBe(true))
+    expect(stub.calls.find((c) => c.url.pathname.endsWith('/move'))!.body).toMatchObject({
+      statusName: 'In progress',
+    })
+  })
+})
