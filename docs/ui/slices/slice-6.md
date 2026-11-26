@@ -32,14 +32,19 @@ branch measured 445.1 KiB at the start of this run.
 | After | JS/CSS (gzip -9) | Delta |
 |---|---|---|
 | Start of the run (main) | 445.1 KiB | |
-| S1 to S5 (script guard, focus fix, e2e, chips, Board look) | 445.2 KiB | +0.1 |
+| S1 Script guard (`ed06038`) | 445.1 KiB | +0.0 |
+| S2 Focus fix (`5981510`) | 445.1 KiB | +0.0 |
+| S3 e2e (`69f93d3`) | 445.1 KiB | +0.0 |
+| S4 Chips (`3d6a032`) | 445.1 KiB | +0.0 |
+| S5 Board look (`4d014bb`) | 445.2 KiB | +0.1 |
 | S6 States | 445.4 KiB | +0.2 |
 | S7 Drag feedback and keys | 445.7 KiB | +0.3 |
 | S8 (specs and docs only) | 445.7 KiB | +0.0 |
 
 Result: `bundle-size: ok`, **445.7 of 446.3 KiB** (cap unchanged, `bundle-budget.json` untouched, option (a)); +0.6 KiB over the
-start. S1 to S4 were not measured one by one: S1 and S3 touch no bundled file, S2 and S4 are a few lines, measured together
-with S5. 0.6 KiB is left, so the Table and Calendar rebuilds must delete the code they replace first.
+start. S1 to S5 were measured one by one in slice 7 (a temporary worktree per commit, `npm ci`, `npm run build`,
+`bash scripts/bundle-size.sh --check`; the start commit `7e1781e` measures 445.1 KiB). Every measured total matches the
+rows above to within 0.1 KiB. 0.6 KiB is left, so the Table and Calendar rebuilds must delete the code they replace first.
 
 ## Contrast
 axe `color-contrast`, zero violations, in Light and Aurora and under both OS schemes on `board` and `board-drag`
