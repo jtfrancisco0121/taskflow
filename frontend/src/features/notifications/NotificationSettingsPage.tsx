@@ -4,6 +4,11 @@ import { api } from '../../api/client'
 import { messageOf, unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
 import { useToastStore } from '../../shared/toast-store'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { ErrorState } from '../../shared/ui/ErrorState'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { Skeleton } from '../../shared/ui/Skeleton'
+import { Switch } from '../../shared/ui/Switch'
 
 type Pref = { kind?: string; inApp?: boolean; emailDigest?: boolean }
 type Prefs = { kinds?: Pref[] }
@@ -58,31 +63,45 @@ export function NotificationSettingsPage() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
   })
 
+  const kinds = prefs.data?.kinds ?? []
   return (
     <section aria-label="Notification settings" className="max-w-2xl">
-      <header className="mb-3 flex items-center gap-2">
-        <h1 className="text-2xl font-semibold">Notification settings</h1>
-        <Link to={`/w/${workspaceId}/inbox`} className="ml-auto text-sm text-blue-700 underline">
+      <PageHeader title="Notification settings">
+        <Link to={`/w/${workspaceId}/inbox`} className="text-[13px] text-accent underline">
           Back to the inbox
         </Link>
-      </header>
-      {prefs.isPending && <p role="status">Loading…</p>}
-      {prefs.isError && (
-        <p role="alert" className="text-red-700">
-          {messageOf(prefs.error)}
-        </p>
+      </PageHeader>
+      {prefs.isPending && (
+        <div
+          role="status"
+          aria-label="Loading notification settings"
+          className="flex flex-col gap-2"
+        >
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-8 w-full" />
+          ))}
+        </div>
       )}
-      {prefs.isSuccess && (
-        <table className="w-full text-sm">
+      {prefs.isError && (
+        <ErrorState message={messageOf(prefs.error)} onRetry={() => void prefs.refetch()} />
+      )}
+      {prefs.isSuccess && kinds.length === 0 && (
+        <EmptyState
+          title="No notification events yet."
+          description="Events you can choose to hear about will be listed here."
+        />
+      )}
+      {prefs.isSuccess && kinds.length > 0 && (
+        <table className="w-full rounded-md border border-line bg-surface text-[13px]">
           <thead>
-            <tr className="text-left text-slate-600">
-              <th className="py-1 font-medium">Event</th>
-              <th className="py-1 font-medium">In app</th>
-              <th className="py-1 font-medium">Email digest</th>
+            <tr className="text-left text-muted">
+              <th className="px-3 py-2 font-medium">Event</th>
+              <th className="px-3 py-2 font-medium">In app</th>
+              <th className="px-3 py-2 font-medium">Email digest</th>
             </tr>
           </thead>
           <tbody>
-            {(prefs.data.kinds ?? []).map((k) => {
+            {kinds.map((k) => {
               const label = LABEL[k.kind ?? ''] ?? k.kind ?? ''
               const update = (patch: Partial<Pref>) =>
                 save.mutate({
@@ -92,22 +111,22 @@ export function NotificationSettingsPage() {
                   ...patch,
                 })
               return (
-                <tr key={k.kind} className="border-t border-slate-200">
-                  <th scope="row" className="py-2 text-left font-normal">
+                <tr key={k.kind} className="border-t border-line">
+                  <th scope="row" className="px-3 py-2 text-left font-normal text-fg">
                     {label}
                   </th>
-                  <td>
+                  <td className="px-3 py-2">
                     <Switch
-                      label={`${label}: In app`}
+                      aria-label={`${label}: In app`}
                       checked={k.inApp ?? true}
-                      onChange={(inApp) => update({ inApp })}
+                      onCheckedChange={(inApp) => update({ inApp })}
                     />
                   </td>
-                  <td>
+                  <td className="px-3 py-2">
                     <Switch
-                      label={`${label}: Email digest`}
+                      aria-label={`${label}: Email digest`}
                       checked={k.emailDigest ?? false}
-                      onChange={(emailDigest) => update({ emailDigest })}
+                      onCheckedChange={(emailDigest) => update({ emailDigest })}
                     />
                   </td>
                 </tr>
@@ -116,34 +135,9 @@ export function NotificationSettingsPage() {
           </tbody>
         </table>
       )}
-      <p className="mt-3 text-xs text-slate-500">
+      <p className="mt-3 text-xs text-muted">
         Email digests are a hook only for now: nothing is sent yet.
       </p>
     </section>
-  )
-}
-
-function Switch({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string
-  checked: boolean
-  onChange: (value: boolean) => void
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={`relative h-5 w-9 rounded-full ${checked ? 'bg-blue-600' : 'bg-slate-300'} focus:outline-2 focus:outline-offset-2 focus:outline-blue-600`}
-    >
-      <span
-        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${checked ? 'left-4.5' : 'left-0.5'}`}
-      />
-    </button>
   )
 }

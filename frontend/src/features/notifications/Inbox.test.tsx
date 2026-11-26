@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes, useLocation } from 'react-router'
 import { describe, expect, it } from 'vitest'
-import { installFetch, json, renderWithProviders } from '../../test/api'
+import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { InboxPage } from './InboxPage'
 import { NotificationBell } from './NotificationBell'
 
@@ -126,5 +126,77 @@ describe('CAP-11 inbox page', () => {
     const row = (await screen.findByText('Maya assigned you to ACME-1 Task 1')).closest('li')!
     await user.click(within(row).getByRole('button', { name: 'Mark read' }))
     await waitFor(() => expect(stub.count('POST', /\/notifications\/1\/read$/)).toBe(1))
+  })
+
+  it('9a-1: shows a loading status with skeletons while the inbox loads', async () => {
+    installFetch({
+      'GET /api/v1/workspaces/:id/notifications': () => new Promise<Response>(() => {}),
+    })
+    renderInbox()
+    expect(await screen.findByRole('status', { name: 'Loading the inbox' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Inbox' })).toBeVisible()
+  })
+
+  it('9a-2: shows an error with Retry that loads the inbox again', async () => {
+    let fail = true
+    installFetch({
+      'GET /api/v1/workspaces/:id/notifications': () =>
+        fail ? problem(500, 'internal', 'Inbox is down') : json({ items: [note('1')] }),
+    })
+    const user = userEvent.setup()
+    renderInbox()
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Inbox is down')
+    fail = false
+    await user.click(within(alert).getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('Maya assigned you to ACME-1 Task 1')).toBeVisible()
+  })
+
+  it('9a-3: the empty All tab says there is nothing yet, as an empty state', async () => {
+    serve({ count: 0, items: [] })
+    const user = userEvent.setup()
+    renderInbox()
+    expect(await screen.findByRole('heading', { name: "You're all caught up." })).toBeVisible()
+    await user.click(screen.getByRole('tab', { name: 'All' }))
+    expect(await screen.findByRole('heading', { name: 'No notifications yet.' })).toBeVisible()
+  })
+
+  it('9a-4: an unread row carries an Unread marker a read row lacks', async () => {
+    serve({ items: [note('1'), note('2', { read: true })] })
+    const user = userEvent.setup()
+    renderInbox()
+    await user.click(screen.getByRole('tab', { name: 'All' }))
+    const unread = (await screen.findByText('Maya assigned you to ACME-1 Task 1')).closest('li')!
+    const read = (await screen.findByText('Maya assigned you to ACME-2 Task 2')).closest('li')!
+    expect(within(unread).getByRole('img', { name: 'Unread' })).toBeVisible()
+    expect(within(read).queryByRole('img', { name: 'Unread' })).toBeNull()
+  })
+})
+
+describe('9a bell states', () => {
+  it('9a-5: the popover shows an error with Retry and an empty state', async () => {
+    let fail = true
+    installFetch({
+      'GET /api/v1/workspaces/:id/notifications/unread-count': () => json({ count: 0 }),
+      'GET /api/v1/workspaces/:id/notifications': () =>
+        fail ? problem(500, 'internal', 'x') : json({ items: [] }),
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<NotificationBell workspaceId="w1" />)
+    await user.click(await screen.findByRole('button', { name: 'Notifications' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Notifications' })
+    const alert = await within(dialog).findByRole('alert')
+    expect(alert).toHaveTextContent("Couldn't load notifications.")
+    fail = false
+    await user.click(within(alert).getByRole('button', { name: 'Retry' }))
+    expect(await within(dialog).findByText('No notifications yet.')).toBeVisible()
+  })
+
+  it('9a-6: the bell draws an icon, not an emoji', async () => {
+    serve({ count: 1 })
+    renderWithProviders(<NotificationBell workspaceId="w1" />)
+    const bell = await screen.findByRole('button', { name: /Notifications/ })
+    expect(bell.textContent).not.toContain('🔔')
+    expect(bell.querySelector('svg')).not.toBeNull()
   })
 })
