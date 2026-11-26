@@ -149,7 +149,8 @@ describe('CAP-8 Automations page', () => {
       actions: [{ type: 'SEND_NOTIFICATION', personIds: [], message: 'Done!' }],
     })
     expect((post.body as { trigger: object }).trigger).not.toHaveProperty('fromStatuses')
-  })
+    // Several Selects and typing in one dialog: 0.3 s alone, but a loaded parallel run passed the 5 s default once.
+  }, 20_000)
 
   it('never lists a "Choose a ..." prompt as an option (AD-11)', async () => {
     serve({ locationId: 'l1', canEdit: true, limit: 50, rules: [] })
