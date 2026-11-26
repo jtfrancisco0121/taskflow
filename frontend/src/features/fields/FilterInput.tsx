@@ -1,7 +1,7 @@
-// TODO(slice 4): the relative-date <select> stays native until slice 4 (it renders only inside FilterBuilder).
-// It is one of the two named exceptions to the no-native-select lint rule.
 import { useState } from 'react'
 import type { FieldView } from '../../api/types'
+import { Checkbox } from '../../shared/ui/Checkbox'
+import { Select } from '../../shared/ui/Select'
 import { isValueless } from './filterOps'
 
 type FilterInputProps = {
@@ -13,7 +13,8 @@ type FilterInputProps = {
   people?: Array<{ value: string; label: string }>
 }
 
-const input = 'rounded border border-slate-300 px-1 py-0.5 text-sm'
+const input =
+  'h-8 rounded-md border border-line-strong bg-surface px-2 text-[13px] text-fg placeholder:text-faint'
 const RELATIVE = [
   ['today', 'today'],
   ['this_week', 'this week'],
@@ -72,19 +73,13 @@ function DayInput({
         value={relative ? '' : text}
         onChange={(event) => event.target.value && onChange(event.target.value)}
       />
-      <select
+      <Select
         aria-label={`${label} (relative)`}
-        className={input}
         value={relative ? text : ''}
-        onChange={(event) => event.target.value && onChange(event.target.value)}
-      >
-        <option value="">or relative…</option>
-        {RELATIVE.map(([v, l]) => (
-          <option key={v} value={v}>
-            {l}
-          </option>
-        ))}
-      </select>
+        placeholder="or relative…"
+        onValueChange={(next) => next && onChange(next)}
+        options={RELATIVE.map(([value, label]) => ({ value, label }))}
+      />
     </span>
   )
 }
@@ -111,20 +106,18 @@ export function FilterInput({ field, op, value, onChange, people }: FilterInputP
           ? (people ?? [])
           : (field.options ?? []).map((o) => ({ value: o.id!, label: o.name ?? '' }))
         ).map((option) => (
-          <label key={option.value} className="flex items-center gap-1">
-            <input
-              type="checkbox"
-              checked={selected.includes(option.value)}
-              onChange={(event) =>
-                onChange(
-                  event.target.checked
-                    ? [...selected, option.value]
-                    : selected.filter((id) => id !== option.value),
-                )
-              }
-            />
-            {option.label}
-          </label>
+          <Checkbox
+            key={option.value}
+            label={option.label}
+            checked={selected.includes(option.value)}
+            onCheckedChange={(checked) =>
+              onChange(
+                checked
+                  ? [...selected, option.value]
+                  : selected.filter((id) => id !== option.value),
+              )
+            }
+          />
         ))}
       </span>
     )
