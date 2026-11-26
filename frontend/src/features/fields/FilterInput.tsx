@@ -15,6 +15,8 @@ type FilterInputProps = {
 
 const input =
   'h-8 rounded-md border border-line-strong bg-surface px-2 text-[13px] text-fg placeholder:text-faint'
+/** A stable fallback: a fresh [] on every render would re-run ChoiceGroup's sync effect and reset its latest list. */
+const NO_VALUES: unknown[] = []
 const RELATIVE = [
   ['today', 'today'],
   ['this_week', 'this week'],
@@ -121,7 +123,7 @@ function ChoiceGroup({
 /** The value input of a custom field filter condition (AD-12), by the field's type and operator. */
 export function FilterInput({ field, op, value, onChange, people }: FilterInputProps) {
   if (isValueless(op)) return null
-  const list = Array.isArray(value) ? value : []
+  const list = Array.isArray(value) ? value : NO_VALUES
   if (['contains', 'not_contains'].includes(op)) {
     return (
       <input
