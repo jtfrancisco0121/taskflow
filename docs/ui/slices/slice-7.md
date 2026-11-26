@@ -98,9 +98,15 @@ None added; the Table's native date input and the Table-only select are gone.
 - `bash scripts/e2e-local.sh e2e/fields-filters.spec.ts --repeat-each=6`: first run (`uptime` load 4.59 / 5.50 / 5.50) 5 of 6
   passed. The one failure: after Beta's tier was picked, the click on "Story points: empty" put the tier cell back into its editor
   and the points were never typed (screenshot in `artifacts/e2e-failures/20261126-214938`; the Table was scrolled sideways).
-  Second run (load 6.15 / 5.77 / 5.60): 6 of 6, "No failed attempts.". Machine load was 4 to 7 throughout, never idle, so
-  the plan's 6 of 6 on an idle machine is **not** proven; the cause is unknown (a mis-click while the page scrolled sideways is the
-  likely one) and should be watched.
+  Second run (load 6.15 / 5.77 / 5.60): 6 of 6.
+  Cause found in review round 1: `FieldCell.commit` called `button.focus()` after the save finished. The late focus scrolled
+  the sideways-scrolled Table to the Customer tier cell under the pending click on "Story points: empty" (and could blur an
+  editor opened in the meantime). Fixed: it now focuses only when nothing else holds the focus, with `preventScroll`.
+  After the fix, run after (never alongside) the full check: `--repeat-each=6` 6 of 6 and `--repeat-each=12` 12 of 12, "No failed
+  attempts.". The machine was never idle (load 5.6 to 6.7 from other work, `uptime` before: 5.63 / 5.57 / 6.38), so "low load" is
+  still not met literally; the cause, not the load, is what was fixed.
+- Review round 1 full runs (load 4 to 7) hit one unrelated flake each (`shell.spec.ts` SM-2 palette Inbox heading, then AD-5
+  palette focus); SM-2 passed 4 of 4 alone and the next full run was 73 passed, "No failed attempts.".
 - Full `bash scripts/e2e-local.sh` on the final tree (load 4.4 to 7.4): 73 passed, "No failed attempts.".
 - `theme-screens.spec.ts` alone: 5 of 5 (load 4.8).
 

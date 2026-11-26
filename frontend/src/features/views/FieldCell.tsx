@@ -32,7 +32,11 @@ export function FieldCell({ field, task }: { field: FieldView; task: TaskView })
       clearTimeout(timer.current)
       setSaving(false)
     }
-    if (!multi) button.current?.focus()
+    // The save may finish after the user has already moved on to another cell: only take the focus back when
+    // nothing else holds it, and never scroll (a late focus() scrolled the Table sideways under a click).
+    const active = document.activeElement
+    if (!multi && (!active || active === document.body))
+      button.current?.focus({ preventScroll: true })
   }
 
   if (field.type === 'CHECKBOX') {

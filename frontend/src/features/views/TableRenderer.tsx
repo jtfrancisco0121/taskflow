@@ -201,18 +201,6 @@ export function TableRenderer({
                 )
               })}
             </div>
-            {query.isPending && (
-              <div
-                role="status"
-                aria-label="Loading the Table"
-                className="flex flex-col gap-px"
-                style={{ width: totalWidth, minWidth: '100%' }}
-              >
-                {Array.from({ length: 8 }, (_, i) => (
-                  <Skeleton key={i} className="h-9 w-full" />
-                ))}
-              </div>
-            )}
             <div
               style={{
                 height: virtualizer.getTotalSize(),
@@ -255,6 +243,13 @@ export function TableRenderer({
           </div>
         </div>
       </div>
+      {query.isPending && (
+        <div role="status" aria-label="Loading the Table" className="flex flex-col gap-px">
+          {Array.from({ length: 8 }, (_, i) => (
+            <Skeleton key={i} className="h-9 w-full" />
+          ))}
+        </div>
+      )}
       {query.isSuccess &&
         rows.length === 0 &&
         (hasFilter(config) ? (
