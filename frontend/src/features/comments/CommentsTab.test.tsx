@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { setSession } from '../../api/session'
 import type { TaskView } from '../../api/types'
-import { installFetch, json, renderWithProviders } from '../../test/api'
+import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { CommentsTab } from './CommentsTab'
 
 const task: TaskView = { id: 't1', workspaceId: 'w1', listId: 'l1', readableId: 'ACME-1' }
@@ -174,5 +174,21 @@ describe('CommentsTab', () => {
       .filter((c) => c.method === 'GET' && c.url.pathname.endsWith('/comments'))
       .map((c) => c.url.searchParams.get('cursor'))
     expect(cursors).toEqual([null, 'c2'])
+  })
+
+  it('shows Loading…, then an error with Retry that loads the comments', async () => {
+    let calls = 0
+    serve([comment('c1', 'u1', 'Maya Lopez', 'first')], {
+      'GET /api/v1/tasks/:id/comments': () =>
+        ++calls === 1
+          ? problem(500, 'boom', 'Server broke')
+          : json({ items: [comment('c1', 'u1', 'Maya Lopez', 'first')] }),
+    } as never)
+    const user = userEvent.setup()
+    renderTab()
+    expect(screen.getByRole('status')).toHaveTextContent('Loading…')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Server broke')
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('Maya Lopez')).toBeVisible()
   })
 })

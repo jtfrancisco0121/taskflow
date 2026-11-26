@@ -15,7 +15,7 @@ export function WatchControl({ taskId }: { taskId: string }) {
       aria-pressed={watching}
       disabled={set.isPending}
       onClick={() => set.mutate(!watching, { onError: (e) => toast(messageOf(e), 'error') })}
-      className="rounded border border-slate-300 px-2 py-0.5 text-xs font-medium hover:bg-slate-100 focus:outline-2 focus:outline-offset-2 focus:outline-blue-600"
+      className="rounded border border-line-strong px-2 py-0.5 text-xs font-medium hover:bg-surface-2 focus:outline-2 focus:outline-offset-2 focus:outline-focus-ring"
     >
       {watching ? `Watching (${watchers.data.count ?? 0})` : 'Watch'}
     </button>

@@ -99,6 +99,16 @@ describe('FR-9 Dependencies section', () => {
     expect(screen.getByRole('heading', { name: 'Waiting on (3)' })).toBeVisible()
   })
 
+  it('shows a busy skeleton while loading', async () => {
+    installFetch({
+      'GET /api/v1/tasks/:id/dependencies': () => new Promise<Response>(() => {}),
+      'GET /api/v1/workspaces/:id/members': members,
+    })
+    render()
+    const region = await screen.findByRole('region', { name: 'Dependencies' })
+    expect(region.querySelector('[aria-busy="true"]')).not.toBeNull()
+  })
+
   it('shows an error with Retry', async () => {
     let calls = 0
     installFetch({

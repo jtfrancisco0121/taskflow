@@ -24,7 +24,7 @@ export function BlockedBadge({
       role="img"
       aria-label={name}
       title={name}
-      className="inline-flex shrink-0 items-center gap-1 rounded border border-red-300 bg-red-50 px-1 text-xs font-medium text-red-800"
+      className="inline-flex shrink-0 items-center gap-1 rounded border border-danger bg-danger-soft px-1 text-xs font-medium text-danger"
     >
       <span aria-hidden="true">⛔</span>
       {!iconOnly && <span aria-hidden="true">{showCount ? `Blocked · ${n}` : 'Blocked'}</span>}

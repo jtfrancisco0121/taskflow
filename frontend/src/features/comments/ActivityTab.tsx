@@ -65,12 +65,15 @@ export function ActivityTab({ task }: { task: TaskView }) {
     <div className="flex flex-col gap-2">
       {activity.isPending && <p role="status">Loading…</p>}
       {activity.isError && (
-        <p role="alert" className="text-sm text-red-700">
-          {messageOf(activity.error)}
+        <p role="alert" className="text-sm text-danger">
+          {messageOf(activity.error)}{' '}
+          <button type="button" className="underline" onClick={() => void activity.refetch()}>
+            Retry
+          </button>
         </p>
       )}
       {activity.isSuccess && entries.length === 0 && (
-        <p className="text-sm text-slate-600">No activity yet.</p>
+        <p className="text-sm text-muted">No activity yet.</p>
       )}
       <ul className="m-0 flex list-none flex-col gap-2 p-0">
         {entries.map((entry) => (
@@ -86,7 +89,7 @@ export function ActivityTab({ task }: { task: TaskView }) {
             <time
               dateTime={entry.createdAt}
               title={formatDateTime(entry.createdAt)}
-              className="text-xs text-slate-500"
+              className="text-xs text-muted"
             >
               {relativeTime(entry.createdAt)}
             </time>

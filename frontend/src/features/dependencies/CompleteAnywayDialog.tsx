@@ -25,7 +25,7 @@ export function CompleteAnywayDialog({
   return (
     <Dialog title={sentence} onClose={onCancel}>
       {open.length > 0 && (
-        <ul className="mb-3 list-none p-0 text-sm text-slate-700">
+        <ul className="mb-3 list-none p-0 text-sm text-fg">
           {open.map((i) => (
             <li key={i.dependencyId}>
               <span className="font-mono text-xs">{i.task?.readableId}</span> {i.task?.title}

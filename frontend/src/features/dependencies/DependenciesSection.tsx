@@ -72,12 +72,12 @@ export function DependenciesSection({ task }: { task: TaskView }) {
       )}
       {query.isPending && (
         <div aria-busy="true" className="flex animate-pulse flex-col gap-2">
-          <div className="h-4 rounded bg-slate-200" />
-          <div className="h-4 rounded bg-slate-200" />
+          <div className="h-4 rounded bg-surface-3" />
+          <div className="h-4 rounded bg-surface-3" />
         </div>
       )}
       {query.isError && (
-        <div role="alert" className="text-sm text-red-700">
+        <div role="alert" className="text-sm text-danger">
           <p className="m-0">Couldn&apos;t load dependencies.</p>
           <span className="sr-only">{messageOf(query.error)}</span>
           <Button className="mt-1" onClick={() => void query.refetch()}>
@@ -86,7 +86,7 @@ export function DependenciesSection({ task }: { task: TaskView }) {
         </div>
       )}
       {data && total === 0 && !adding && (
-        <p className="m-0 text-sm text-slate-600">No dependencies yet.</p>
+        <p className="m-0 text-sm text-muted">No dependencies yet.</p>
       )}
       {data &&
         GROUPS.map((group) => {
@@ -95,7 +95,7 @@ export function DependenciesSection({ task }: { task: TaskView }) {
           if (items.length === 0 && hidden === 0) return null
           return (
             <div key={group.key}>
-              <h4 className="m-0 mb-1 text-xs font-semibold text-slate-600">
+              <h4 className="m-0 mb-1 text-xs font-semibold text-muted">
                 {group.label} ({items.length + hidden})
               </h4>
               <ul aria-label={group.label} className="m-0 flex list-none flex-col gap-1 p-0">
@@ -108,7 +108,7 @@ export function DependenciesSection({ task }: { task: TaskView }) {
                       to={`/t/${item.task?.id}`}
                       state={location.state}
                       replace
-                      className={`min-w-0 truncate hover:underline ${item.task?.finished ? 'text-slate-500 line-through' : ''}`}
+                      className={`min-w-0 truncate hover:underline ${item.task?.finished ? 'text-muted line-through' : ''}`}
                     >
                       <span className="font-mono text-xs">{item.task?.readableId}</span>{' '}
                       {item.task?.title}
@@ -123,14 +123,14 @@ export function DependenciesSection({ task }: { task: TaskView }) {
                             otherTaskId: item.task!.id!,
                           })
                         }
-                        className="rounded px-1 text-slate-500 hover:bg-slate-100"
+                        className="rounded px-1 text-muted hover:bg-surface-2"
                       >
                         ×
                       </button>
                     )}
                   </li>
                 ))}
-                {hidden > 0 && <li className="text-sm text-slate-500">{hiddenText(hidden)}</li>}
+                {hidden > 0 && <li className="text-sm text-muted">{hiddenText(hidden)}</li>}
               </ul>
             </div>
           )

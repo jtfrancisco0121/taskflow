@@ -27,12 +27,15 @@ export function CommentsTab({ task }: { task: TaskView }) {
     <div className="flex flex-col gap-3">
       {comments.isPending && <p role="status">Loading…</p>}
       {comments.isError && (
-        <p role="alert" className="text-sm text-red-700">
-          {messageOf(comments.error)}
+        <p role="alert" className="text-sm text-danger">
+          {messageOf(comments.error)}{' '}
+          <button type="button" className="underline" onClick={() => void comments.refetch()}>
+            Retry
+          </button>
         </p>
       )}
       {comments.isSuccess && items.length === 0 && (
-        <p className="text-sm text-slate-600">No comments yet.</p>
+        <p className="text-sm text-muted">No comments yet.</p>
       )}
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
         {items.map((comment) => (
@@ -121,9 +124,9 @@ function CommentItem({
   const body = comment.body as RichDoc | undefined
 
   return (
-    <li className="flex flex-col gap-1 rounded border border-slate-200 p-2">
-      <div className="flex items-baseline gap-2 text-xs text-slate-600">
-        <span className="font-medium text-slate-900">{comment.authorName}</span>
+    <li className="flex flex-col gap-1 rounded border border-line p-2">
+      <div className="flex items-baseline gap-2 text-xs text-muted">
+        <span className="font-medium text-fg">{comment.authorName}</span>
         {comment.authorIsAutomation && <AutomationBadge />}
         <time dateTime={comment.createdAt} title={formatDateTime(comment.createdAt)}>
           {relativeTime(comment.createdAt)}
@@ -144,7 +147,7 @@ function CommentItem({
         <div className="flex flex-col gap-2">
           <RichTextEditor label="Edit comment" members={members} value={body} onChange={setDraft} />
           {edit.isError && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="text-sm text-danger">
               {messageOf(edit.error)}
             </p>
           )}
@@ -184,7 +187,7 @@ function CommentItem({
           </Button>
           <Button onClick={() => setConfirming(false)}>Keep</Button>
           {remove.isError && (
-            <span role="alert" className="text-red-700">
+            <span role="alert" className="text-danger">
               {messageOf(remove.error)}
             </span>
           )}
