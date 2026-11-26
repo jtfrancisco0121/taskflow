@@ -409,4 +409,24 @@ describe('CAL-1 Calendar view', () => {
     expect(screen.getByTestId('where')).toHaveTextContent('/t/t1')
     expect(stub.calls.some((c) => c.method === 'PATCH')).toBe(false)
   })
+
+  it('CAL-1: with a chip link focused, "?" and "/" still reach the window shortcut listeners', async () => {
+    serve([dated(1, '2026-11-25')], () => json({}))
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
+      route,
+    })
+    const user = userEvent.setup()
+    const link = await screen.findByRole('link', { name: 'Task 1' })
+    link.focus()
+    const seen: string[] = []
+    const listener = (e: KeyboardEvent) => seen.push(e.key)
+    window.addEventListener('keydown', listener)
+    try {
+      await user.keyboard('?')
+      await user.keyboard('/')
+      expect(seen).toEqual(['?', '/'])
+    } finally {
+      window.removeEventListener('keydown', listener)
+    }
+  })
 })
