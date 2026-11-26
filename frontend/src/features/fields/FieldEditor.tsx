@@ -19,7 +19,7 @@ type FieldEditorProps = {
 }
 
 const input =
-  'rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-2 focus:outline-blue-600'
+  'rounded-md border border-line-strong bg-surface px-2 py-1.5 text-[13px] text-fg focus:outline-2 focus:outline-focus-ring'
 
 function numberConfig(field: FieldView | undefined, key: string, fallback: number): number {
   const value = field?.config?.[key]
@@ -155,7 +155,7 @@ export function FieldEditor({
             label: FIELD_TYPES[t].label,
           }))}
         />
-        {editing && <p className="text-xs text-slate-500">The type can't change after creation.</p>}
+        {editing && <p className="text-xs text-muted">The type can't change after creation.</p>}
       </div>
       {type === 'NUMBER' && (
         <div className="flex flex-col gap-1">
@@ -190,9 +190,7 @@ export function FieldEditor({
         <fieldset className="flex flex-col gap-2 border-0 p-0">
           <legend className="mb-1 text-sm font-medium">Options</legend>
           {options.length === 0 && (
-            <p className="text-sm text-slate-500">
-              No Options yet. Add the choices people can pick.
-            </p>
+            <p className="text-sm text-muted">No Options yet. Add the choices people can pick.</p>
           )}
           {options.map((option, index) => (
             <div key={option.key} className="flex items-center gap-2">
@@ -237,7 +235,7 @@ export function FieldEditor({
             </div>
           ))}
           {editing && (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted">
               Removing an Option: tasks with it will show this field as empty. Values stay saved.
             </p>
           )}
@@ -247,7 +245,7 @@ export function FieldEditor({
         </fieldset>
       )}
       {error?.field === 'form' && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           {error.message}
         </p>
       )}

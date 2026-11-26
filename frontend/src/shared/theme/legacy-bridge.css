@@ -40,7 +40,6 @@
   --color-sky-800: var(--tf-fg);
 
   --color-green-100: var(--tf-ok-soft);
-  --color-green-600: var(--tf-status-done);
   --color-green-700: var(--tf-status-done);
   --color-green-800: var(--tf-fg);
 
@@ -52,11 +51,5 @@
 @layer utilities {
   .bg-white {
     background-color: var(--tf-surface);
-  }
-  .text-white {
-    color: var(--tf-accent-fg);
-  }
-  .text-slate-300 {
-    color: var(--tf-faint);
   }
 }

@@ -14,7 +14,7 @@ function maxOf(field: FieldView) {
 export function ValueCell({ field, value, workspaceId }: ValueCellProps) {
   if (isEmpty(value)) {
     return (
-      <span className="text-slate-400">
+      <span className="text-faint">
         <span aria-hidden="true">—</span>
         <span className="sr-only">empty</span>
       </span>
@@ -42,7 +42,7 @@ export function ValueCell({ field, value, workspaceId }: ValueCellProps) {
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-blue-700 underline"
+          className="text-accent underline"
           onClick={(event) => event.stopPropagation()}
         >
           {String(value)}
@@ -55,7 +55,7 @@ export function ValueCell({ field, value, workspaceId }: ValueCellProps) {
       return (
         <a
           href={`mailto:${String(value)}`}
-          className="text-blue-700 underline"
+          className="text-accent underline"
           onClick={(event) => event.stopPropagation()}
         >
           {String(value)}
@@ -70,7 +70,7 @@ export function ValueCell({ field, value, workspaceId }: ValueCellProps) {
             <span
               key={i}
               aria-hidden="true"
-              className={i < on ? 'text-amber-500' : 'text-slate-300'}
+              className={i < on ? 'text-accent' : 'text-line-strong'}
             >
               ★
             </span>
@@ -81,9 +81,9 @@ export function ValueCell({ field, value, workspaceId }: ValueCellProps) {
     case 'PROGRESS':
       return (
         <span className="flex items-center gap-2">
-          <span aria-hidden="true" className="h-1.5 w-16 rounded-full bg-slate-200">
+          <span aria-hidden="true" className="h-1.5 w-16 rounded-full bg-surface-3">
             <span
-              className="block h-1.5 rounded-full bg-green-600"
+              className="block h-1.5 rounded-full bg-status-done"
               style={{ width: `${Math.min(100, Math.max(0, Number(value)))}%` }}
             />
           </span>

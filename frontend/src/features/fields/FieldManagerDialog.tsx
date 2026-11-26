@@ -3,6 +3,8 @@ import { messageOf } from '../../api/errors'
 import type { FieldView } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
 import { Dialog } from '../../shared/ui/Dialog'
+import { ErrorState } from '../../shared/ui/ErrorState'
+import { Skeleton } from '../../shared/ui/Skeleton'
 import { FieldEditor } from './FieldEditor'
 import { FIELD_TYPES, MAX_OWN_FIELDS, typeOf } from './fieldTypes'
 import { OptionChip } from './OptionChip'
@@ -28,7 +30,7 @@ type Mode = { kind: 'list' } | { kind: 'create' } | { kind: 'edit'; field: Field
 function TypeBadge({ field }: { field: FieldView }) {
   const entry = FIELD_TYPES[typeOf(field)]
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+    <span className="inline-flex items-center gap-1 text-xs text-muted">
       <span aria-hidden="true" className="font-mono">
         {entry.icon}
       </span>
@@ -114,31 +116,28 @@ export function FieldManagerDialog({
           {fields.isPending && (
             <div role="status" aria-label="Loading fields" className="flex flex-col gap-2">
               {[0, 1, 2].map((i) => (
-                <div key={i} className="h-9 animate-pulse rounded bg-slate-100" />
+                <Skeleton key={i} className="h-9 w-full" />
               ))}
             </div>
           )}
           {fields.isError && (
-            <div role="alert" className="flex items-center gap-3 text-red-700">
-              <span>{messageOf(fields.error)}</span>
-              <Button onClick={() => void fields.refetch()}>Retry</Button>
-            </div>
+            <ErrorState message={messageOf(fields.error)} onRetry={() => void fields.refetch()} />
           )}
           {fields.isSuccess && (
             <>
               {!canEdit && (
-                <p className="rounded bg-slate-100 px-2 py-1 text-sm">
+                <p className="rounded-md bg-surface-2 px-2 py-1 text-[13px] text-muted">
                   Only members who can edit {location.name} can change its fields.
                 </p>
               )}
               {actionError && (
-                <p role="alert" className="text-sm text-red-700">
+                <p role="alert" className="text-[13px] text-danger">
                   {actionError}
                 </p>
               )}
               <section aria-labelledby="fields-here" className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <h3 id="fields-here" className="text-sm font-semibold">
+                  <h3 id="fields-here" className="font-display text-sm font-semibold">
                     Fields here
                   </h3>
                   {canEdit && (
@@ -157,7 +156,7 @@ export function FieldManagerDialog({
                   )}
                 </div>
                 {own.length === 0 ? (
-                  <p className="text-sm text-slate-600">
+                  <p className="text-[13px] text-muted">
                     No fields here yet. Fields you add apply to every task below {location.name}.
                   </p>
                 ) : (
@@ -166,10 +165,12 @@ export function FieldManagerDialog({
                       <li
                         key={field.id}
                         onKeyDown={(event) => onRowKey(event, field, index)}
-                        className="flex flex-col gap-1 rounded border border-slate-200 px-2 py-1.5"
+                        className="flex flex-col gap-1 rounded-md border border-line bg-surface px-2 py-1.5"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="flex-1 text-sm font-medium">{field.name}</span>
+                          <span className="flex-1 text-[13px] font-medium text-fg">
+                            {field.name}
+                          </span>
                           <TypeBadge field={field} />
                           {canEdit && retiring !== field.id && (
                             <>
@@ -214,7 +215,7 @@ export function FieldManagerDialog({
                           </div>
                         )}
                         {retiring === field.id && (
-                          <div className="flex flex-wrap items-center gap-2 text-sm">
+                          <div className="flex flex-wrap items-center gap-2 text-[13px] text-fg">
                             <span>
                               Retire {field.name}? It disappears from every task below. Saved values
                               are kept.
@@ -242,11 +243,11 @@ export function FieldManagerDialog({
               </section>
               {location.type !== 'SPACE' && (
                 <section aria-labelledby="fields-inherited" className="flex flex-col gap-2">
-                  <h3 id="fields-inherited" className="text-sm font-semibold">
+                  <h3 id="fields-inherited" className="font-display text-sm font-semibold">
                     Inherited
                   </h3>
                   {inherited.length === 0 ? (
-                    <p className="text-sm text-slate-600">
+                    <p className="text-[13px] text-muted">
                       Nothing is inherited. Fields defined on a parent location show here.
                     </p>
                   ) : (
@@ -254,15 +255,13 @@ export function FieldManagerDialog({
                       {inherited.map((field) => (
                         <li
                           key={field.id}
-                          className="flex items-center gap-2 rounded border border-slate-200 px-2 py-1.5"
+                          className="flex items-center gap-2 rounded-md border border-line bg-surface px-2 py-1.5"
                         >
                           <div className="flex flex-1 flex-col">
-                            <span className="text-sm font-medium">{field.name}</span>
-                            <span className="text-xs text-slate-500">
-                              from {field.definedAtName}
-                            </span>
+                            <span className="text-[13px] font-medium text-fg">{field.name}</span>
+                            <span className="text-xs text-muted">from {field.definedAtName}</span>
                             {field.hidden && (
-                              <span className="text-xs text-slate-600">
+                              <span className="text-xs text-muted">
                                 Hidden here. Tasks in {location.name} won't show {field.name}.
                               </span>
                             )}
