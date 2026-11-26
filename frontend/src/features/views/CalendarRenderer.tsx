@@ -26,7 +26,9 @@ import {
   calendarRange,
   dayOfDue,
   dueDateFor,
+  fetchSpan,
   fromDay,
+  inRange,
   shiftAnchor,
   todayLocal,
 } from './calendarGrid'
@@ -77,10 +79,11 @@ export function CalendarRenderer({
   const actions = useTaskActions()
   const [openDay, setOpenDay] = useState<string | null>(null)
 
+  const span = fetchSpan(range)
   const between: ViewFilter = {
     field: 'dueDate',
     op: 'between',
-    value: [range.start, range.end] as unknown as ViewFilter['value'],
+    value: [span.start, span.end] as unknown as ViewFilter['value'],
   }
   const filter: ViewFilter = config.filter
     ? { op: 'AND', items: [config.filter, between] }
@@ -104,9 +107,11 @@ export function CalendarRenderer({
   ).groups?.find((g) => g.key === 'none')?.count
 
   const byDay = new Map<string, TaskView[]>()
+  let shown = 0
   for (const item of query.items) {
     const task = item.task
-    if (!task?.dueDate) continue
+    if (!task?.dueDate || !inRange(task.dueDate, range)) continue
+    shown += 1
     const day = dayOfDue(task.dueDate)
     byDay.set(day, [...(byDay.get(day) ?? []), task])
   }
@@ -198,9 +203,7 @@ export function CalendarRenderer({
               <Skeleton className="h-4 w-1/4" />
             </div>
           )}
-          {query.isSuccess && query.items.length === 0 && (
-            <EmptyState title="No tasks due in this range." />
-          )}
+          {query.isSuccess && shown === 0 && <EmptyState title="No tasks due in this range." />}
         </>
       )}
       {undated != null && undated > 0 && (

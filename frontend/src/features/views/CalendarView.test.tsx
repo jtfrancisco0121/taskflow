@@ -8,6 +8,8 @@ import {
   calendarRange,
   dayOfDue,
   dueDateFor,
+  fetchSpan,
+  inRange,
   shiftAnchor,
   todayLocal,
   weekStart,
@@ -155,6 +157,53 @@ function serve(
   } as never)
 }
 
+describe('CAL-1 edge days: the request is one day wider, the grid keeps only the local range', () => {
+  const week = calendarRange('week', '2026-11-25') // 2026-11-23 .. 2026-11-29
+  const local = (day: string, h = 0, m = 0, s = 0, ms = 0) =>
+    new Date(+day.slice(0, 4), +day.slice(5, 7) - 1, +day.slice(8, 10), h, m, s, ms).toISOString()
+
+  it('fetchSpan widens the range by one day on each side', () => {
+    expect(fetchSpan(week)).toEqual({ start: '2026-11-22', end: '2026-11-30' })
+  })
+
+  it('an instant just inside each local edge shows, one just outside does not (any zone)', () => {
+    expect(inRange(local('2026-11-23'), week)).toBe(true) // first local ms of the range
+    expect(inRange(local('2026-11-22', 23, 59, 59, 999), week)).toBe(false)
+    expect(inRange(local('2026-11-29', 23, 59, 59, 999), week)).toBe(true) // last local ms
+    expect(inRange(local('2026-11-30'), week)).toBe(false)
+  })
+
+  it('midnight-UTC due dates keep their named day whatever the zone', () => {
+    expect(inRange('2026-11-23T00:00:00Z', week)).toBe(true)
+    expect(inRange('2026-11-29T00:00:00Z', week)).toBe(true)
+    expect(inRange('2026-11-22T00:00:00Z', week)).toBe(false)
+    expect(inRange('2026-11-30T00:00:00Z', week)).toBe(false)
+  })
+
+  it('the fixed instants of the zone report: UTC-5 end edge and UTC+8 start edge', () => {
+    const offset = -new Date('2026-11-29T12:00:00Z').getTimezoneOffset() // minutes east of UTC
+    if (offset === -300) {
+      // New York: 2026-11-30T02:00Z is local Nov 29 (inside); 2026-11-30T05:00Z is local Nov 30 (outside)
+      expect(inRange('2026-11-30T02:00:00Z', week)).toBe(true)
+      expect(inRange('2026-11-30T05:00:00Z', week)).toBe(false)
+      expect(inRange('2026-11-23T04:59:00Z', week)).toBe(false)
+    }
+    if (offset === 480) {
+      // Manila: 2026-11-22T16:00Z is local Nov 23 00:00 (inside); 2026-11-22T15:59Z is local Nov 22 (outside)
+      expect(inRange('2026-11-22T16:00:00Z', week)).toBe(true)
+      expect(inRange('2026-11-22T15:59:00Z', week)).toBe(false)
+      expect(inRange('2026-11-29T15:59:00Z', week)).toBe(true)
+      expect(inRange('2026-11-29T16:00:00Z', week)).toBe(false)
+    }
+    if (offset === 780) {
+      // Auckland (NZDT): 2026-11-22T11:00Z is local Nov 23 00:00 (inside)
+      expect(inRange('2026-11-22T11:00:00Z', week)).toBe(true)
+      expect(inRange('2026-11-22T10:59:00Z', week)).toBe(false)
+    }
+    expect([0, -300, 480, 780]).toContain(offset)
+  })
+})
+
 describe('CAL-1 Calendar view', () => {
   let restore = () => {}
   beforeEach(() => {
@@ -185,8 +234,18 @@ describe('CAL-1 Calendar view', () => {
         c.url.pathname === '/api/v1/views/query' && (c.body as { limit: number }).limit === 200,
     )!
     expect(JSON.stringify((query.body as { config: unknown }).config)).toContain(
-      '"field":"dueDate","op":"between","value":["2026-11-23","2026-11-29"]',
+      '"field":"dueDate","op":"between","value":["2026-11-22","2026-11-30"]',
     )
+  })
+
+  it('CAL-1: tasks fetched from the widened neighbour days are not drawn, and do not hide the empty state', async () => {
+    serve([dated(1, '2026-11-22'), dated(2, '2026-11-30')], () => json({}))
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
+      route,
+    })
+    expect(await screen.findByText('No tasks due in this range.')).toBeVisible()
+    expect(screen.queryByRole('link', { name: 'Task 1' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Task 2' })).toBeNull()
   })
 
   it('CAL-1: the mode and the day go to the URL through update', async () => {

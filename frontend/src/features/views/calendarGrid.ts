@@ -67,6 +67,21 @@ export function calendarRange(mode: 'month' | 'week', anchor: string): CalendarR
   }
 }
 
+/**
+ * The days to request: the visible range widened by one day each side, because the API filters by UTC days and a
+ * local day edge can sit up to 14 hours into a neighbouring UTC day. The grid then keeps only `inRange` items.
+ */
+export const fetchSpan = (r: CalendarRange) => ({
+  start: addDays(r.start, -1),
+  end: addDays(r.end, 1),
+})
+
+/** Whether a due date sits on a visible day (the same day logic the grid draws with). */
+export function inRange(iso: string, r: CalendarRange): boolean {
+  const day = dayOfDue(iso)
+  return day >= r.start && day <= r.end
+}
+
 /** The anchor after Previous or Next. */
 export function shiftAnchor(mode: 'month' | 'week', anchor: string, direction: -1 | 1): string {
   if (mode === 'week') return addDays(anchor, 7 * direction)
