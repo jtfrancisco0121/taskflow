@@ -12,18 +12,35 @@ type BackgroundState = { backgroundLocation?: RouterLocation }
  * committed and the Dialog has given focus back to its opener, and the view has mounted its own quick-add focus),
  * and gives up when another task was opened meanwhile (it owns the focus then).
  */
-function focusRowOf(id: string, attempts = 40) {
+function focusRowOf(id: string) {
+  // Anything the person does after the close owns the focus from then on: stop at their first press or key.
+  let cancelled = false
+  const stop = () => {
+    cancelled = true
+    document.removeEventListener('pointerdown', stop, true)
+    document.removeEventListener('keydown', stop, true)
+  }
+  document.addEventListener('pointerdown', stop, true)
+  document.addEventListener('keydown', stop, true)
+  poll(id, 40, () => cancelled, stop)
+}
+
+function poll(id: string, attempts: number, isCancelled: () => boolean, done: () => void) {
   setTimeout(() => {
+    if (isCancelled()) return
     const path = window.location.pathname
-    if (path.startsWith('/t/') && path !== `/t/${id}`) return
+    if (path.startsWith('/t/') && path !== `/t/${id}`) return done()
     const detailOpen = document.querySelector(
       '[role="dialog"][aria-modal="true"], [role="complementary"][aria-label^="Task "]',
     )
     const row = detailOpen
       ? null
       : document.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(id)}"]`)
-    if (row) row.focus()
-    else if (attempts > 0) focusRowOf(id, attempts - 1)
+    if (row) {
+      row.focus()
+      done()
+    } else if (attempts > 0) poll(id, attempts - 1, isCancelled, done)
+    else done()
   }, 50)
 }
 

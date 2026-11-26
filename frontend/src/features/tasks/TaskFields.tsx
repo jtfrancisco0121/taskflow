@@ -239,8 +239,10 @@ export function AssigneesField({
   // Several toggles can follow one another before the first save returns, so each one builds on the selection
   // the previous one produced, never on the task as it was rendered.
   const pending = useRef(assignees)
+  const latest = useRef(assignees)
   const inFlight = useRef(0)
   useEffect(() => {
+    latest.current = assignees
     if (inFlight.current === 0) pending.current = assignees
   })
   const names = new Map(members.map((m) => [m.id, m.name]))
@@ -253,7 +255,7 @@ export function AssigneesField({
     inFlight.current += 1
     void save('assignees', 'assignees', { assigneeIds: next }).finally(() => {
       inFlight.current -= 1
-      if (inFlight.current === 0) setTimeout(() => (pending.current = assignees), 0)
+      if (inFlight.current === 0) setTimeout(() => (pending.current = latest.current), 0)
     })
   }
 

@@ -294,6 +294,19 @@ describe('TaskPanel', () => {
     expect(patches(stub)[1].headers.get('If-Match')).toBe('"4"') // version moved on after the first save
   })
 
+  it('FR-17: a second assignee picked after the first save keeps the first', async () => {
+    const { stub } = serve({})
+    const user = userEvent.setup()
+    renderPanel()
+
+    const field = await screen.findByLabelText('Assignees')
+    await pick(user, field, 'Omar Haddad')
+    await screen.findByText('Saved')
+    await pick(user, await screen.findByLabelText('Assignees'), 'Maya Lopez')
+    await waitFor(() => expect(patches(stub)).toHaveLength(2))
+    expect(patches(stub)[1].body).toEqual({ assigneeIds: ['u2', 'u1'] })
+  })
+
   it('FR-18: a 409 shows the banner and the server values, and Apply again resends with the new version', async () => {
     let calls = 0
     const { stub } = serve({}, {
