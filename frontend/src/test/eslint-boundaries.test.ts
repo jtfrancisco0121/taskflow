@@ -54,7 +54,7 @@ describe('the component library owns Radix and cmdk (slice 2, AD-4)', () => {
   const radix = "import * as S from '@radix-ui/react-select'\nexport const x = S\n"
 
   it('rejects a Radix import in a feature', async () => {
-    expect(await ruleIds(radix, 'src/features/views/ViewToolbar.tsx')).toContain(
+    expect(await ruleIds(radix, 'src/features/views/ChipBar.tsx')).toContain(
       'no-restricted-imports',
     )
   })

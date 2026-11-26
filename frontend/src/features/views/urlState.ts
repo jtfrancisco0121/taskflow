@@ -190,8 +190,45 @@ export function applyUrlState(base: ViewConfig, state: UrlState): ViewConfig {
   }
 }
 
-export function isDirty(state: UrlState): boolean {
-  return Object.keys(state).length > 0
+/** A filter as a structure that equals another when they mean the same: no filter is an empty AND group. */
+function normaliseFilter(filter: ViewFilter | undefined): ViewFilter {
+  if (!filter) return { op: 'AND', items: [] }
+  if (!filter.items) return { op: 'AND', items: [filter] }
+  return filter.items.length === 0 ? { op: 'AND', items: [] } : filter
+}
+
+/** The parts of a config the save bar compares, with the defaults filled in (AD-5). */
+function comparable(config: ViewConfig) {
+  const sort = config.sort?.length ? config.sort : [{ key: 'manual', dir: 'asc' }]
+  return {
+    filter: normaliseFilter(config.filter),
+    group: config.group ?? 'none',
+    sort: sort.map((s) => ({ key: s.key, dir: s.dir })),
+    columns: config.columns?.map((c) => ({ field: c.field, width: c.width })),
+    mode: config.mode ?? 'month',
+  }
+}
+
+/** Deep equality where a missing property equals `undefined`; arrays compare in order. */
+function same(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, i) => same(item, b[i]))
+  }
+  const x = a as Record<string, unknown>
+  const y = b as Record<string, unknown>
+  return [...new Set([...Object.keys(x), ...Object.keys(y)])].every((key) => same(x[key], y[key]))
+}
+
+/**
+ * AD-5: true only when the URL changes the saved view's filter, grouping, sort, columns or Calendar mode, after
+ * normalisation. A parameter equal to the saved value is not a change, and the Calendar day `d` is navigation
+ * only.
+ */
+export function isDirty(base: ViewConfig, state: UrlState): boolean {
+  return !same(comparable(base), comparable(applyUrlState(base, state)))
 }
 
 /** A short stable hash of the parts of a config that change the rows (query key, cursor scope). */

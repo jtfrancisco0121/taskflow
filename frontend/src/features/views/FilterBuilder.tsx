@@ -10,6 +10,7 @@ import { PRIORITIES, PRIORITY_LABEL } from '../tasks'
 import { Button } from '../../shared/ui/Button'
 import { Picker } from '../../shared/ui/Picker'
 import { Select } from '../../shared/ui/Select'
+import { FIELDS, OP_LABEL } from './filterSpec'
 
 type Option = { value: string; label: string }
 
@@ -53,54 +54,6 @@ function MultiValue({
 }
 
 export type FilterOptions = { statuses: Option[]; members: Option[]; fields?: FieldView[] }
-
-const OP_LABEL: Record<string, string> = {
-  any_of: 'is any of',
-  none_of: 'is none of',
-  all_of: 'has all of',
-  contains: 'contains',
-  not_contains: 'does not contain',
-  is_set: 'is set',
-  is_empty: 'is empty',
-  before: 'is before',
-  after: 'is after',
-  on: 'is on',
-  overdue: 'is overdue',
-  include: 'include subtasks',
-  exclude: 'exclude subtasks',
-  is_true: 'is blocked',
-  is_false: 'is not blocked',
-}
-
-type Kind = 'text' | 'priority' | 'status' | 'assignee' | 'tags' | 'date' | 'none'
-
-const FIELDS: Record<string, { label: string; ops: string[]; kind: Kind }> = {
-  title: { label: 'Title', ops: ['contains', 'not_contains'], kind: 'text' },
-  priority: {
-    label: 'Priority',
-    ops: ['any_of', 'none_of', 'is_set', 'is_empty'],
-    kind: 'priority',
-  },
-  status: { label: 'Status', ops: ['any_of', 'none_of'], kind: 'status' },
-  assignee: {
-    label: 'Assignee',
-    ops: ['any_of', 'all_of', 'none_of', 'is_empty', 'is_set'],
-    kind: 'assignee',
-  },
-  tag: { label: 'Tag', ops: ['any_of', 'all_of', 'none_of', 'is_empty'], kind: 'tags' },
-  dueDate: {
-    label: 'Due date',
-    ops: ['before', 'after', 'on', 'is_empty', 'is_set', 'overdue'],
-    kind: 'date',
-  },
-  startDate: {
-    label: 'Start date',
-    ops: ['before', 'after', 'on', 'is_empty', 'is_set'],
-    kind: 'date',
-  },
-  subtasks: { label: 'Subtasks', ops: ['include', 'exclude'], kind: 'none' },
-  blocked: { label: 'Blocked', ops: ['is_true', 'is_false'], kind: 'none' },
-}
 
 const NO_VALUE = new Set([
   'is_set',
@@ -179,26 +132,26 @@ export function FilterGroup({ node, depth, options, onChange, onRemove }: Props)
           </Button>
         )}
       </div>
-      {items.map((item, i) =>
-        item.items ? (
-          <FilterGroup
-            key={i}
-            node={item}
-            depth={depth + 1}
-            options={options}
-            onChange={(next) => setItem(i, next)}
-            onRemove={() => removeItem(i)}
-          />
-        ) : (
-          <ConditionRow
-            key={i}
-            node={item}
-            options={options}
-            onChange={(next) => setItem(i, next)}
-            onRemove={() => removeItem(i)}
-          />
-        ),
-      )}
+      {items.map((item, i) => (
+        <div key={i} data-item-index={i}>
+          {item.items ? (
+            <FilterGroup
+              node={item}
+              depth={depth + 1}
+              options={options}
+              onChange={(next) => setItem(i, next)}
+              onRemove={() => removeItem(i)}
+            />
+          ) : (
+            <ConditionRow
+              node={item}
+              options={options}
+              onChange={(next) => setItem(i, next)}
+              onRemove={() => removeItem(i)}
+            />
+          )}
+        </div>
+      ))}
       <div className="flex gap-2 text-[13px]">
         <Button onClick={() => onChange({ ...node, items: [...items, newCondition()] })}>
           + Add filter

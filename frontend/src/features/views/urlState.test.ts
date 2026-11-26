@@ -3,6 +3,7 @@ import {
   applyUrlState,
   clearUrlState,
   configHash,
+  isDirty,
   customRefs,
   encodeFilter,
   parseUrlState,
@@ -162,5 +163,60 @@ describe('VIEW-3 blocked filter in the URL (FR-7)', () => {
     const parsed = parseUrlState(new URLSearchParams(params.toString()))
     expect(parsed.dropped).toEqual([])
     expect(parsed.state.f).toEqual(state.f)
+  })
+})
+
+describe('AD-5 isDirty compares the URL with the saved view', () => {
+  const urgent = { op: 'AND', items: [{ field: 'priority', op: 'any_of', value: ['URGENT'] }] }
+  const saved = {
+    v: 1,
+    filter: urgent,
+    group: 'status',
+    sort: [{ key: 'dueDate', dir: 'asc' }],
+    columns: [{ field: 'title', width: 300 }, { field: 'status' }],
+    mode: 'week',
+  }
+
+  it('is not dirty with no parameter or with parameters equal to the saved values', () => {
+    expect(isDirty(saved, {})).toBe(false)
+    expect(
+      isDirty(saved, {
+        f: JSON.parse(JSON.stringify(urgent)),
+        g: 'status',
+        s: [{ key: 'dueDate', dir: 'asc' }],
+        c: [{ field: 'title', width: 300 }, { field: 'status' }],
+        m: 'week',
+      }),
+    ).toBe(false)
+  })
+
+  it('is dirty when any one of filter, group, sort, columns or mode differs', () => {
+    expect(isDirty(saved, { f: { op: 'AND', items: [] } })).toBe(true)
+    expect(isDirty(saved, { g: 'priority' })).toBe(true)
+    expect(isDirty(saved, { s: [{ key: 'dueDate', dir: 'desc' }] })).toBe(true)
+    expect(isDirty(saved, { c: [{ field: 'title' }] })).toBe(true)
+    expect(isDirty(saved, { m: 'month' })).toBe(true)
+  })
+
+  it('never counts the Calendar day', () => {
+    expect(isDirty(saved, { d: '2026-11-25' })).toBe(false)
+  })
+
+  it('normalises the defaults', () => {
+    const empty = { v: 1 }
+    expect(isDirty(empty, { f: { op: 'AND', items: [] } })).toBe(false)
+    expect(isDirty(empty, { f: { op: 'OR', items: [] } })).toBe(false)
+    expect(isDirty(empty, { g: 'none' })).toBe(false)
+    expect(isDirty(empty, { s: [{ key: 'manual', dir: 'asc' }] })).toBe(false)
+    expect(isDirty(empty, { m: 'month' })).toBe(false)
+    expect(isDirty(empty, { m: 'week' })).toBe(true)
+    expect(isDirty(empty, { s: [{ key: 'manual', dir: 'desc' }] })).toBe(true)
+  })
+
+  it('treats a leaf filter root as a one-item AND group', () => {
+    const leaf = { field: 'priority', op: 'any_of', value: ['URGENT'] }
+    expect(isDirty({ v: 1, filter: leaf }, { f: { op: 'AND', items: [leaf] } })).toBe(false)
+    expect(isDirty({ v: 1, filter: { op: 'AND', items: [leaf] } }, { f: leaf })).toBe(false)
+    expect(isDirty({ v: 1, filter: leaf }, { f: { op: 'AND', items: [] } })).toBe(true)
   })
 })

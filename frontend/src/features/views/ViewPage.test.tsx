@@ -109,4 +109,27 @@ describe('VIEW-3 view page and URL state', () => {
     await waitFor(() => expect(screen.getByTestId('where').textContent).toContain('g=priority'))
     expect(screen.getByTestId('where').textContent).toContain('s=dueDate.asc')
   })
+
+  it('on a Calendar view Month/Week shows the save bar and the day alone does not', async () => {
+    installFetch({
+      ...baseRoutes,
+      'GET /api/v1/locations/:id/views': {
+        items: [
+          { id: 'cal', name: 'Plan', type: 'CALENDAR', visibility: 'SHARED', config: { v: 1 } },
+        ],
+      },
+      'POST /api/v1/views/query': json({ items: [] }),
+    })
+    const user = userEvent.setup()
+    renderPage('/w/w1/l/l1/v/cal?d=2026-11-10')
+    const bar = () => screen.queryByRole('group', { name: 'Unsaved view changes' })
+    await screen.findByRole('grid', { name: 'Calendar' })
+    expect(bar()).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await waitFor(() => expect(screen.getByTestId('where').textContent).toContain('d=2026-12'))
+    expect(bar()).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Week' }))
+    expect(await screen.findByRole('group', { name: 'Unsaved view changes' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Save view' })).toBeVisible()
+  })
 })

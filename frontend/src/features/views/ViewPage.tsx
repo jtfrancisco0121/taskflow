@@ -16,7 +16,7 @@ import { useViewState } from './useViewState'
 import { ViewParamsContext } from './viewParams'
 import { useViews, viewKey } from './useViews'
 import { ViewTabs } from './ViewTabs'
-import { ViewToolbar } from './ViewToolbar'
+import { ChipBar } from './ChipBar'
 
 const TYPE_NAME = { SPACE: 'Space', FOLDER: 'Folder', LIST: 'List' } as const
 const EMPTY_BASE = { v: 1 }
@@ -143,7 +143,7 @@ function ViewBody({
         dirty={state.dirty}
         clearParams={state.reset}
       />
-      <ViewToolbar
+      <ChipBar
         scope={scope}
         config={config}
         update={state.update}
