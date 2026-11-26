@@ -7,9 +7,11 @@
 // Usage:
 //   node scripts/e2e-failures.mjs <results.json> <out dir>   copies and lists the failed attempts
 //   node scripts/e2e-failures.mjs --self-test                runs the parser on a fixture (passed, failed, flaky)
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+// Test of the entry guard (paths with spaces, symlinks): node --test scripts/e2e-failures.test.mjs
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const BAD = new Set(['failed', 'timedOut', 'interrupted'])
 
@@ -160,7 +162,8 @@ function selfTest() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// import.meta.url is percent-encoded and resolved through symlinks, so compare it with the real path as a URL.
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   if (process.argv[2] === '--self-test') selfTest()
   else if (process.argv.length >= 4) main(process.argv[2], process.argv[3])
   else {

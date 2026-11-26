@@ -19,7 +19,7 @@ export function ValueChip({ field, value }: { field: FieldView; value: unknown }
     <span
       title={label}
       aria-label={label}
-      className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-900"
+      className="inline-flex items-center rounded-full border border-line bg-surface px-2 py-0.5 text-xs text-fg"
     >
       {text}
     </span>

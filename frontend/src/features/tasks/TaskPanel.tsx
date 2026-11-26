@@ -92,6 +92,8 @@ export function TaskPanel({ taskId, onClose, children }: TaskPanelProps) {
   const setMode = useUiStore((state) => state.setTaskDetailMode)
   const mode = stored ?? readTaskDetailMode()
   const titleRef = useRef<HTMLInputElement>(null)
+  // The element the body focused on mount: the modal Dialog focuses the same one (its effect runs after the body's).
+  const focusRef = useRef<HTMLElement | null>(null)
   const frameRef = useRef<HTMLElement>(null)
   // Where focus goes when a body mounts: the title on a fresh open, the frame after a task switch (the body of
   // the previous task was shown), the toggle after a frame switch. Refs are read only from effects and handlers.
@@ -159,6 +161,7 @@ export function TaskPanel({ taskId, onClose, children }: TaskPanelProps) {
       task={task}
       layout={mode}
       titleRef={titleRef}
+      focusRef={focusRef}
       takeFocusTarget={takeFocusTarget}
       onClose={onClose}
       onToggle={() => {
@@ -175,7 +178,7 @@ export function TaskPanel({ taskId, onClose, children }: TaskPanelProps) {
       <Dialog
         title={name}
         size="task"
-        initialFocus={titleRef}
+        initialFocus={focusRef}
         closeOnEscape={escapeClosesDetail}
         onClose={onClose}
       >
@@ -213,6 +216,7 @@ type BodyProps = {
   task: TaskView
   layout: 'modal' | 'docked'
   titleRef: RefObject<HTMLInputElement | null>
+  focusRef: RefObject<HTMLElement | null>
   takeFocusTarget: (id: string | undefined) => 'title' | 'frame' | 'toggle'
   onClose: () => void
   onToggle: () => void
@@ -223,6 +227,7 @@ function TaskDetailBody({
   task,
   layout,
   titleRef,
+  focusRef,
   takeFocusTarget,
   onClose,
   onToggle,
@@ -242,9 +247,14 @@ function TaskDetailBody({
 
   useEffect(() => {
     const where = takeFocusTarget(task.id)
-    if (where === 'toggle') toggleRef.current?.focus()
-    else if (where === 'frame') rootRef.current?.parentElement?.focus()
-    else titleRef.current?.focus()
+    const target =
+      where === 'toggle'
+        ? toggleRef.current
+        : where === 'frame'
+          ? rootRef.current?.parentElement
+          : titleRef.current
+    focusRef.current = target ?? null
+    target?.focus()
     // Focus moves in once, when this body mounts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FieldView } from '../../api/types'
 import { Checkbox } from '../../shared/ui/Checkbox'
 import { Select } from '../../shared/ui/Select'
@@ -84,6 +84,40 @@ function DayInput({
   )
 }
 
+/** The checkboxes of an any_of / all_of / none_of filter. The next list is built from the latest one, not the
+ * rendered prop, so two quick clicks before a re-render both land. */
+function ChoiceGroup({
+  choices,
+  selected,
+  onChange,
+}: {
+  choices: Array<{ value: string; label: string }>
+  selected: string[]
+  onChange: (next: string[]) => void
+}) {
+  const latest = useRef(selected)
+  useEffect(() => {
+    latest.current = selected
+  }, [selected])
+  return (
+    <span role="group" aria-label="Filter value" className="flex flex-wrap gap-2">
+      {choices.map((option) => (
+        <Checkbox
+          key={option.value}
+          label={option.label}
+          checked={selected.includes(option.value)}
+          onCheckedChange={(checked) => {
+            const rest = latest.current.filter((id) => id !== option.value)
+            const next = checked ? [...rest, option.value] : rest
+            latest.current = next
+            onChange(next)
+          }}
+        />
+      ))}
+    </span>
+  )
+}
+
 /** The value input of a custom field filter condition (AD-12), by the field's type and operator. */
 export function FilterInput({ field, op, value, onChange, people }: FilterInputProps) {
   if (isValueless(op)) return null
@@ -99,28 +133,11 @@ export function FilterInput({ field, op, value, onChange, people }: FilterInputP
     )
   }
   if (['any_of', 'all_of', 'none_of'].includes(op)) {
-    const selected = list as string[]
-    return (
-      <span role="group" aria-label="Filter value" className="flex flex-wrap gap-2">
-        {(field.type === 'PEOPLE'
-          ? (people ?? [])
-          : (field.options ?? []).map((o) => ({ value: o.id!, label: o.name ?? '' }))
-        ).map((option) => (
-          <Checkbox
-            key={option.value}
-            label={option.label}
-            checked={selected.includes(option.value)}
-            onCheckedChange={(checked) =>
-              onChange(
-                checked
-                  ? [...selected, option.value]
-                  : selected.filter((id) => id !== option.value),
-              )
-            }
-          />
-        ))}
-      </span>
-    )
+    const choices =
+      field.type === 'PEOPLE'
+        ? (people ?? [])
+        : (field.options ?? []).map((o) => ({ value: o.id!, label: o.name ?? '' }))
+    return <ChoiceGroup choices={choices} selected={list as string[]} onChange={onChange} />
   }
   if (field.type === 'DATE') {
     if (op === 'between') {

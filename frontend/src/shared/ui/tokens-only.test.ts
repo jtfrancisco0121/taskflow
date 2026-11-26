@@ -28,6 +28,9 @@ describe('the library, /design, the shell and the rebuilt feature files use toke
       '../../features/notifications/WatchControl.tsx',
       '../../features/fields/{ValueEditor,People}.tsx',
       '../../features/fields/FilterInput.tsx',
+      // slice 6: the Board
+      '../../features/fields/{ValueChip,OptionChip}.tsx',
+      '../../features/views/{BoardRenderer,BoardColumn,BoardCard}.tsx',
     ],
     {
       query: '?raw',
@@ -54,5 +57,11 @@ describe('the library, /design, the shell and the rebuilt feature files use toke
       if (m) offenders.push(`${file}: ${m[0]}`)
     }
     expect(offenders).toEqual([])
+  })
+
+  it('keeps a visible focus ring on the Board card (no outline-none, a 2px outline on focus-visible)', () => {
+    const card = Object.entries(files).find(([f]) => f.endsWith('/BoardCard.tsx'))?.[1] ?? ''
+    expect(card).not.toMatch(/\boutline-none\b/)
+    expect(card).toMatch(/focus-visible:outline-2\b/)
   })
 })

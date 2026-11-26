@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
-import { addTask, createList, createSpace, signUpAndCreateWorkspace } from './helpers'
+import {
+  addTask,
+  liftToNextColumn,
+  createList,
+  createSpace,
+  signUpAndCreateWorkspace,
+} from './helpers'
 
 /** dnd-kit's pointer sensor needs real movement: press, move in steps, release. */
 async function dragTo(
@@ -43,6 +49,60 @@ test('BOARD-1 / FR-19: dragging a card to another column survives a reload', asy
   ).toBeVisible()
   await expect(
     page.getByRole('region', { name: 'to do' }).getByText('Review the spec'),
+  ).toBeVisible()
+  await expect(page.getByRole('region', { name: 'to do' }).getByText('Write the spec')).toHaveCount(
+    0,
+  )
+})
+
+async function openBoard(page: Page, titles: string[]) {
+  await signUpAndCreateWorkspace(page, 'Board Keys Co')
+  await createSpace(page, 'Product')
+  await createList(page, 'Product', 'Sprint')
+  for (const title of titles) await addTask(page, title)
+  await page.getByRole('tab', { name: 'Board' }).click()
+  await expect(page.getByRole('region', { name: 'to do' }).getByText(titles[0])).toBeVisible()
+}
+
+test('keyboard: Tab to a card, Enter opens it, Escape returns focus to the card', async ({
+  page,
+}) => {
+  await openBoard(page, ['Write the spec'])
+  const card = page.locator('[data-task-id]').filter({ hasText: 'Write the spec' })
+  // Tab from the Board tab: the card is the only tab stop (its title link is tabindex -1).
+  await page.getByRole('tab', { name: 'Board' }).focus()
+  for (let i = 0; i < 40 && !(await card.evaluate((el) => el === document.activeElement)); i++)
+    await page.keyboard.press('Tab')
+  await expect(card).toBeFocused()
+  expect(await card.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe('none')
+  await page.keyboard.press('Enter')
+  const detail = page.getByRole('dialog', { name: /^Task / })
+  await expect(detail).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(detail).toHaveCount(0)
+  await expect(card).toBeFocused()
+})
+
+test('keyboard: Space lifts, ArrowRight, Space drops, survives a reload', async ({ page }) => {
+  await openBoard(page, ['Write the spec'])
+  const card = page.locator('[data-task-id]').filter({ hasText: 'Write the spec' })
+  await card.focus()
+  const move = page.waitForResponse(
+    (r) => /\/api\/v1\/tasks\/[^/]+\/move$/.test(r.url()) && r.request().method() === 'POST',
+  )
+  await liftToNextColumn(page, 'to do')
+  await expect(page.getByRole('region', { name: 'in progress' })).toHaveAttribute(
+    'data-over',
+    'true',
+  )
+  await page.keyboard.press('Space')
+  expect((await move).status()).toBe(200)
+  await expect(
+    page.getByRole('region', { name: 'in progress' }).getByText('Write the spec'),
+  ).toBeVisible()
+  await page.reload()
+  await expect(
+    page.getByRole('region', { name: 'in progress' }).getByText('Write the spec'),
   ).toBeVisible()
   await expect(page.getByRole('region', { name: 'to do' }).getByText('Write the spec')).toHaveCount(
     0,

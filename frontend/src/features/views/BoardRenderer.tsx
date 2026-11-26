@@ -3,29 +3,27 @@ import {
   KeyboardSensor,
   PointerSensor,
   closestCorners,
-  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query'
-import { Link, useLocation } from 'react-router'
 import { api } from '../../api/client'
+import { messageOf } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
-import type { FieldView, TaskView, ViewConfig, ViewQueryResponse } from '../../api/types'
-import { formatDay } from '../../shared/dates'
-import { BlockedBadge, completesTask, useCompletionGuard } from '../dependencies'
-import { ValueChip } from '../fields'
+import type { TaskView, ViewConfig, ViewQueryResponse } from '../../api/types'
+import { Avatar } from '../../shared/ui/Avatar'
+import { Skeleton } from '../../shared/ui/Skeleton'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { ErrorState } from '../../shared/ui/ErrorState'
+import { completesTask, useCompletionGuard } from '../dependencies'
 import { useLocationStatuses } from '../statuses'
-import { PRIORITY_LABEL, initialsOf, useOptimisticTaskMutation } from '../tasks'
+import { PriorityValue, StatusValue, useOptimisticTaskMutation } from '../tasks'
+import type { Priority } from '../../api/types'
 import { useMembers } from '../workspace'
 import { insertItem, planDrop, removeItem, targetFields } from './boardPlan'
+import { BoardColumn, type Column } from './BoardColumn'
 import { ColumnsPicker } from './ColumnsPicker'
 import { DroppedNotice, NoMatches, hasFilter } from './ResultNotices'
 import { groupLabel } from './groupLabels'
@@ -33,15 +31,6 @@ import { scopeId, type ViewScope } from './scope'
 import { configHash, type Column as ConfigColumn, type UrlState } from './urlState'
 import { customColumns, useScopeFields } from './useScopeFields'
 import { useViewTasks } from './useViewTasks'
-
-const PRIORITY_CLASS: Record<string, string> = {
-  URGENT: 'bg-red-100 text-red-800',
-  HIGH: 'bg-orange-100 text-orange-800',
-  NORMAL: 'bg-blue-100 text-blue-800',
-  LOW: 'bg-slate-100 text-slate-700',
-}
-
-type Column = { key: string; label: string; count?: number }
 
 /** BOARD-1/2: columns by status, priority or assignee, dnd-kit drops, optimistic with rollback. */
 export function BoardRenderer({
@@ -103,7 +92,11 @@ export function BoardRenderer({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+      // Space lifts and drops; Enter is left to the card (it opens the task detail).
+      keyboardCodes: { start: ['Space'], cancel: ['Escape'], end: ['Space'] },
+    }),
   )
 
   const columnQueryKey = (key: string) =>
@@ -202,6 +195,44 @@ export function BoardRenderer({
     return columns.find((c) => c.key === key)?.label ?? key
   }
 
+  // The column title in the vocabulary of its group: a status badge, a priority badge or the person's avatar.
+  function headingOf(column: Column) {
+    if (group === 'status') {
+      const status = statuses.data?.statuses?.find(
+        (s) => (s.name ?? '').trim().toLowerCase() === column.key,
+      )
+      if (status) return <StatusValue status={status} />
+    } else if (group === 'priority') {
+      return <PriorityValue priority={column.key as Priority} />
+    } else if (group === 'assignee' && column.key !== 'none') {
+      return (
+        <>
+          <Avatar name={column.label} size={20} />
+          <span className="truncate">{column.label}</span>
+        </>
+      )
+    }
+    return <span className="truncate">{column.label}</span>
+  }
+
+  if (columns.length === 0 && lead.isPending) {
+    return (
+      <div role="status" aria-label="Loading the Board" className="flex gap-3 overflow-x-auto pb-4">
+        {Array.from({ length: 3 }, (_, i) => (
+          <div key={i} className="flex w-[268px] shrink-0 flex-col gap-2 p-2">
+            <Skeleton className="h-5 w-24" />
+            {Array.from({ length: 3 }, (_, j) => (
+              <Skeleton key={j} className="h-16 w-full" />
+            ))}
+          </div>
+        ))}
+      </div>
+    )
+  }
+  if (columns.length === 0 && lead.isError) {
+    return <ErrorState message={messageOf(lead.error)} onRetry={() => void lead.refetch()} />
+  }
+
   return (
     <>
       <DroppedNotice dropped={lead.droppedFields} config={config} update={update} />
@@ -231,11 +262,17 @@ export function BoardRenderer({
           },
         }}
       >
+        {lead.isError && columns.length > 0 && (
+          <div className="mb-2">
+            <ErrorState message={messageOf(lead.error)} onRetry={() => void lead.refetch()} />
+          </div>
+        )}
         <div className="flex gap-3 overflow-x-auto pb-4" aria-label="Board">
           {columns.map((column) => (
             <BoardColumn
               key={column.key}
               column={column}
+              heading={headingOf(column)}
               scope={scope}
               config={boardConfig}
               names={names}
@@ -247,147 +284,11 @@ export function BoardRenderer({
             (hasFilter(config) ? (
               <NoMatches update={update} />
             ) : (
-              <p className="text-slate-600">No tasks in this view.</p>
+              <EmptyState title="No tasks in this view." />
             ))}
         </div>
       </DndContext>
       {guard.dialog}
     </>
-  )
-}
-
-function BoardColumn({
-  column,
-  scope,
-  config,
-  names,
-  chipFields,
-}: {
-  column: Column
-  scope: ViewScope
-  config: ViewConfig
-  names: Map<string, string>
-  chipFields: FieldView[]
-}) {
-  const query = useViewTasks(scope, config, { groupValue: column.key })
-  const { setNodeRef, isOver } = useDroppable({ id: `col:${column.key}` })
-  const tasks = query.items.flatMap((i) => (i.task ? [i.task] : []))
-  return (
-    <section
-      ref={setNodeRef}
-      aria-label={column.label}
-      className={`w-72 shrink-0 rounded bg-slate-100 p-2 ${isOver ? 'ring-2 ring-blue-400' : ''}`}
-    >
-      <h2 className="mb-2 flex justify-between px-1 text-sm font-semibold">
-        <span>{column.label}</span>
-        <span className="font-normal text-slate-500">{column.count ?? tasks.length}</span>
-      </h2>
-      <SortableContext
-        items={tasks.map((t) => `${column.key}|${t.id}`)}
-        strategy={verticalListSortingStrategy}
-      >
-        <ul className="flex min-h-12 flex-col gap-2">
-          {tasks.map((task) => (
-            <Card
-              key={task.id}
-              id={`${column.key}|${task.id}`}
-              task={task}
-              names={names}
-              chipFields={chipFields}
-            />
-          ))}
-        </ul>
-      </SortableContext>
-      {query.hasNextPage && (
-        <button
-          type="button"
-          className="mt-2 w-full rounded border border-slate-300 bg-white py-1 text-sm"
-          disabled={query.isFetchingNextPage}
-          onClick={() => void query.fetchNextPage()}
-        >
-          Load more
-        </button>
-      )}
-    </section>
-  )
-}
-
-function Card({
-  id,
-  task,
-  names,
-  chipFields,
-}: {
-  id: string
-  task: TaskView
-  names: Map<string, string>
-  chipFields: FieldView[]
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id,
-  })
-  const location = useLocation()
-  const style = {
-    transform: transform
-      ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`
-      : undefined,
-    transition: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-      ? undefined
-      : transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
-  const priority = task.priority ?? 'NONE'
-  // Up to three custom field chips of the view's columns; empty values are not drawn, "+N" for the rest.
-  const values = (task.customFields ?? {}) as Record<string, unknown>
-  const filled = chipFields.filter((f) => {
-    const v = values[f.id!]
-    return v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0)
-  })
-  return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      data-task-id={task.id}
-      {...attributes}
-      {...listeners}
-      className="cursor-grab rounded border border-slate-200 bg-white p-2 text-sm shadow-sm"
-    >
-      <Link
-        to={`/t/${task.id}`}
-        state={{ backgroundLocation: location }}
-        className="font-medium hover:underline"
-      >
-        {task.title}
-      </Link>
-      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-        <span className="font-mono">{task.readableId}</span>
-        <BlockedBadge blocked={task.blocked} count={task.blockerCount} />
-        {priority !== 'NONE' && (
-          <span className={`rounded px-1 ${PRIORITY_CLASS[priority]}`}>
-            {PRIORITY_LABEL[priority]}
-          </span>
-        )}
-        {task.dueDate && <span>{formatDay(task.dueDate)}</span>}
-        {(task.assigneeIds ?? []).map((a) => (
-          <span
-            key={a}
-            title={names.get(a) ?? 'Former member'}
-            className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-200"
-          >
-            {initialsOf(names.get(a) ?? '?')}
-          </span>
-        ))}
-      </div>
-      {filled.length > 0 && (
-        <div className="mt-1 flex flex-wrap items-center gap-1">
-          {filled.slice(0, 3).map((f) => (
-            <ValueChip key={f.id} field={f} value={values[f.id!]} />
-          ))}
-          {filled.length > 3 && (
-            <span className="text-xs text-slate-500">+{filled.length - 3}</span>
-          )}
-        </div>
-      )}
-    </li>
   )
 }

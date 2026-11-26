@@ -38,6 +38,11 @@ test('Enter opens a centered modal over the List; Docked moves it beside the Lis
   const docked = page.getByRole('complementary', { name: /^Task / })
   await expect(docked).toBeVisible()
   expect((await docked.boundingBox())!.width).toBeLessThanOrEqual(600)
+  // docked -> modal keeps focus on the toggle, then back to docked for the reload below
+  await docked.getByRole('button', { name: 'Docked' }).click()
+  await expect(modal.getByRole('button', { name: 'Docked' })).toBeFocused()
+  await modal.getByRole('button', { name: 'Docked' }).click()
+  await expect(docked).toBeVisible()
   await page.reload()
   await expect(page.getByRole('complementary', { name: /^Task / })).toBeVisible()
   await expect(page.getByRole('dialog', { name: /^Task / })).toHaveCount(0)
@@ -133,24 +138,66 @@ async function addChecklist(page: Page, name: string, items: string[]) {
   }
 }
 
-test('checklists: create Release with two items, check one, 1/2 survives a reload', async ({
+// Runs a write and waits for its response, so the reload that follows reads what the server stored.
+async function written(page: Page, write: () => Promise<void>) {
+  const response = page.waitForResponse(
+    (r) => r.url().includes('/api/') && r.request().method() !== 'GET',
+  )
+  await write()
+  expect((await response).ok()).toBe(true)
+}
+
+test('checklists: every write (check, uncheck, renames, deletes) survives a reload', async ({
   page,
 }) => {
   await setUp(page, ['Alpha'])
   await openByEnter(page, 'Alpha')
   await addChecklist(page, 'Release', ['Write notes', 'Tag the build'])
-  const detail = taskDetail(page)
-  await detail.getByRole('checkbox', { name: 'Write notes' }).click()
-  await expect(detail.getByText('1/2')).toBeVisible()
+  const detail = () => taskDetail(page)
+  await written(page, () => detail().getByRole('checkbox', { name: 'Write notes' }).click())
+  await expect(detail().getByText('1/2')).toBeVisible()
   await page.reload()
-  await expect(taskDetail(page).getByText('1/2')).toBeVisible()
-  await expect(taskDetail(page).getByRole('checkbox', { name: 'Write notes' })).toBeChecked()
-  // rename and delete an item, then the checklist
-  const reloaded = taskDetail(page)
-  await reloaded.getByRole('button', { name: 'Delete item Tag the build' }).click()
-  await expect(reloaded.getByText('1/1')).toBeVisible()
-  await reloaded.getByRole('button', { name: 'Delete checklist Release' }).click()
-  await expect(reloaded.getByText('No checklists yet.')).toBeVisible()
+  await expect(detail().getByText('1/2')).toBeVisible()
+  await expect(detail().getByRole('checkbox', { name: 'Write notes' })).toBeChecked()
+
+  // uncheck
+  await written(page, () => detail().getByRole('checkbox', { name: 'Write notes' }).click())
+  await page.reload()
+  await expect(detail().getByText('0/2')).toBeVisible()
+  await expect(detail().getByRole('checkbox', { name: 'Write notes' })).not.toBeChecked()
+
+  // rename an item
+  await written(page, async () => {
+    await detail()
+      .getByRole('textbox', { name: 'Edit item Write notes' })
+      .fill('Write release notes')
+    await page.keyboard.press('Enter')
+  })
+  await page.reload()
+  await expect(detail().getByRole('checkbox', { name: 'Write release notes' })).toBeVisible()
+  await expect(detail().getByRole('checkbox', { name: 'Write notes', exact: true })).toHaveCount(0)
+
+  // rename the checklist
+  await written(page, async () => {
+    await detail().getByRole('textbox', { name: 'Checklist name' }).fill('Ship')
+    await page.keyboard.press('Enter')
+  })
+  await page.reload()
+  await expect(detail().getByRole('region', { name: 'Checklist Ship' })).toBeVisible()
+  await expect(detail().getByRole('region', { name: 'Checklist Release' })).toHaveCount(0)
+
+  // delete an item
+  await written(page, () =>
+    detail().getByRole('button', { name: 'Delete item Tag the build' }).click(),
+  )
+  await page.reload()
+  await expect(detail().getByText('0/1')).toBeVisible()
+  await expect(detail().getByRole('checkbox', { name: 'Tag the build' })).toHaveCount(0)
+
+  // delete the checklist
+  await written(page, () => detail().getByRole('button', { name: 'Delete checklist Ship' }).click())
+  await page.reload()
+  await expect(detail().getByText('No checklists yet.')).toBeVisible()
 })
 
 for (const mode of ['modal', 'docked'] as const) {

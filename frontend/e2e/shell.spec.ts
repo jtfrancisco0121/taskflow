@@ -237,6 +237,8 @@ test('AD-9: the shortcut pressed right after a reload opens the palette and its 
 }) => {
   await setUp(page)
   await page.reload()
+  // The app must have mounted (its listener exists); the shell itself may still be booting (AD-9).
+  await page.locator('#root > *').first().waitFor()
   await page.keyboard.press('ControlOrMeta+k')
   await expect(palette(page)).toBeVisible()
   await paletteField(page).fill('Go to Inbox')
