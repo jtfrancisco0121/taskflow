@@ -599,6 +599,19 @@ describe('TaskPanel', () => {
       expect(within(docked).getByRole('button', { name: 'Docked' })).toHaveFocus()
     })
 
+    it('switching docked to modal leaves focus on the Docked toggle', async () => {
+      localStorage.setItem('taskflow:task-detail', 'docked')
+      serve()
+      const user = userEvent.setup()
+      renderPanel()
+      const docked = await screen.findByRole('complementary', { name: 'Task ACME-1' })
+      await user.click(within(docked).getByRole('button', { name: 'Docked' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Task ACME-1' })
+      await waitFor(() =>
+        expect(within(dialog).getByRole('button', { name: 'Docked' })).toHaveFocus(),
+      )
+    })
+
     it('opens docked when that was remembered, and an unknown stored value falls back to the modal', async () => {
       localStorage.setItem('taskflow:task-detail', 'docked')
       serve()

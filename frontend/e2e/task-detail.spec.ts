@@ -38,6 +38,11 @@ test('Enter opens a centered modal over the List; Docked moves it beside the Lis
   const docked = page.getByRole('complementary', { name: /^Task / })
   await expect(docked).toBeVisible()
   expect((await docked.boundingBox())!.width).toBeLessThanOrEqual(600)
+  // docked -> modal keeps focus on the toggle, then back to docked for the reload below
+  await docked.getByRole('button', { name: 'Docked' }).click()
+  await expect(modal.getByRole('button', { name: 'Docked' })).toBeFocused()
+  await modal.getByRole('button', { name: 'Docked' }).click()
+  await expect(docked).toBeVisible()
   await page.reload()
   await expect(page.getByRole('complementary', { name: /^Task / })).toBeVisible()
   await expect(page.getByRole('dialog', { name: /^Task / })).toHaveCount(0)
