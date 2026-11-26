@@ -221,3 +221,26 @@ test('bulk Delete of a parent and its subtask, then Undo, restores both with no 
   await expect(page.getByRole('link', { name: 'Child' })).toBeVisible()
   await expect(page.getByRole('alert')).toHaveCount(0)
 })
+
+test('? opens the shortcut sheet; Escape closes it and focus is back on the row', async ({
+  page,
+  request,
+}) => {
+  await openList(page, request, [{ title: 'Alpha' }])
+  await rowEl(page, 'Alpha').focus()
+  await page.keyboard.press('?')
+  const sheet = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
+  await expect(sheet).toBeVisible()
+  await expect(sheet.getByRole('region', { name: 'Global' })).toBeVisible()
+  await expect(sheet.getByRole('region', { name: 'List' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(sheet).toBeHidden()
+  await expect(rowEl(page, 'Alpha')).toBeFocused()
+
+  // In the quick-add box the ? is just a character.
+  const add = page.getByRole('textbox', { name: 'Add a task' })
+  await add.click()
+  await page.keyboard.press('?')
+  await expect(add).toHaveValue('?')
+  await expect(sheet).toBeHidden()
+})

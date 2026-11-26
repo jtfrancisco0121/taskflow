@@ -13,6 +13,7 @@ import { IconButton } from '../shared/ui/IconButton'
 import { ThemeSwitcher } from '../shared/ui/ThemeSwitcher'
 import { useUiStore } from '../shared/ui-store'
 import { CommandPalette, shortcutHint } from './palette/CommandPalette'
+import { ShortcutSheet } from './shortcuts/ShortcutSheet'
 
 function MenuIcon() {
   return (
@@ -125,6 +126,7 @@ export function AppShell() {
         </div>
       </div>
       <CommandPalette workspaceId={workspaceId} locationId={locationId} />
+      <ShortcutSheet />
     </LiveUpdates>
   )
 }
