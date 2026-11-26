@@ -55,6 +55,7 @@ export function DesignPage() {
   const [checked, setChecked] = useState(true)
   const [on, setOn] = useState(true)
   const [dialog, setDialog] = useState(false)
+  const [confirm, setConfirm] = useState(false)
   const [picked, setPicked] = useState('progress')
   const [many, setMany] = useState<string[]>(['plan'])
   const showToast = useToastStore((state) => state.show)
@@ -296,9 +297,27 @@ export function DesignPage() {
             onValueChange={setStatus}
             options={STATUSES}
           />
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex items-center justify-between">
+            <DropdownMenu
+              trigger={<Button>Dialog actions</Button>}
+              items={[
+                { label: 'Do nothing', onSelect: () => {} },
+                { label: 'Open confirmation', onSelect: () => setConfirm(true) },
+              ]}
+            />
             <Button variant="primary" onClick={() => setDialog(false)}>
               Done
+            </Button>
+          </div>
+        </Dialog>
+      )}
+      {confirm && (
+        <Dialog title="Confirm example" onClose={() => setConfirm(false)}>
+          <p className="mb-3 text-muted">A confirmation opened by a menu inside the dialog.</p>
+          <TextField label="Reason" />
+          <div className="mt-4 flex justify-end">
+            <Button variant="primary" onClick={() => setConfirm(false)}>
+              Confirm
             </Button>
           </div>
         </Dialog>
