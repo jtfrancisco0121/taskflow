@@ -69,7 +69,12 @@ test('keyboard: Tab to a card, Enter opens it, Escape returns focus to the card'
 }) => {
   await openBoard(page, ['Write the spec'])
   const card = page.locator('[data-task-id]').filter({ hasText: 'Write the spec' })
-  await card.focus()
+  // Tab from the Board tab: the card is the only tab stop (its title link is tabindex -1).
+  await page.getByRole('tab', { name: 'Board' }).focus()
+  for (let i = 0; i < 40 && !(await card.evaluate((el) => el === document.activeElement)); i++)
+    await page.keyboard.press('Tab')
+  await expect(card).toBeFocused()
+  expect(await card.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe('none')
   await page.keyboard.press('Enter')
   const detail = page.getByRole('dialog', { name: /^Task / })
   await expect(detail).toBeVisible()

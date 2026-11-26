@@ -58,7 +58,7 @@ export function BoardCard({
       {...attributes}
       {...listeners}
       onKeyDown={onKeyDown}
-      className={`cursor-grab rounded-md border bg-surface p-2 text-sm outline-none ${isDragging ? 'z-10 border-accent-line opacity-90 shadow-float' : 'border-line hover:border-line-strong'} focus-visible:outline-offset-2 focus-visible:outline-focus-ring`}
+      className={`cursor-grab rounded-md border bg-surface p-2 text-sm ${isDragging ? 'z-10 border-accent-line opacity-90 shadow-float' : 'border-line hover:border-line-strong'} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring`}
     >
       <Link
         to={`/t/${task.id}`}
