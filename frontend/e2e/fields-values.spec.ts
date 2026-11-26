@@ -6,6 +6,7 @@ import {
   createSpace,
   openFields,
   signUpAndCreateWorkspace,
+  taskDetail,
 } from './helpers'
 import { expectValue, pick } from './ui'
 import { snap } from './screenshots'
@@ -22,7 +23,7 @@ test('UJ-2: values are set and cleared in the task panel, a refusal shows the se
   await createList(page, 'Bare', 'Plain')
   await addTask(page, 'Nothing to fill')
   await page.getByRole('link', { name: 'Nothing to fill' }).click()
-  const barePanel = page.getByRole('complementary', { name: /^Task / })
+  const barePanel = taskDetail(page)
   await expect(
     barePanel.getByText("No custom fields here. Add one from the location's Fields."),
   ).toBeVisible()
@@ -41,7 +42,7 @@ test('UJ-2: values are set and cleared in the task panel, a refusal shows the se
 
   await addTask(page, 'Ship it')
   await page.getByRole('link', { name: 'Ship it' }).click()
-  const panel = page.getByRole('complementary', { name: /^Task / })
+  const panel = taskDetail(page)
   await expect(panel.getByRole('heading', { name: 'Custom fields' })).toBeVisible()
   await expect(panel.getByText('from Engineering').first()).toBeVisible()
 
@@ -67,7 +68,7 @@ test('UJ-2: values are set and cleared in the task panel, a refusal shows the se
 
   // A reload keeps every value.
   await page.reload()
-  const reloaded = page.getByRole('complementary', { name: /^Task / })
+  const reloaded = taskDetail(page)
   await expect(reloaded.getByRole('textbox', { name: /^Story points for / })).toHaveValue('5')
   await expectValue(reloaded.getByLabel(/^Customer tier for /), 'Enterprise')
   await expect(reloaded.getByRole('checkbox', { name: /^Done for / })).toBeChecked()
@@ -87,7 +88,7 @@ test('UJ-2: values are set and cleared in the task panel, a refusal shows the se
   await expect(reloaded.getByText('Saved').first()).toBeVisible()
   await pick(reloaded.getByLabel(/^Customer tier for /), '—')
   await page.reload()
-  const cleared = page.getByRole('complementary', { name: /^Task / })
+  const cleared = taskDetail(page)
   await expect(cleared.getByRole('textbox', { name: /^Story points for / })).toHaveValue('')
   await expectValue(cleared.getByLabel(/^Customer tier for /), '—')
 })

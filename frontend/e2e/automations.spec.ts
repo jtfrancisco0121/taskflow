@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { addTask, createList, createSpace, signUpAndCreateWorkspace } from './helpers'
+import { addTask, createList, createSpace, signUpAndCreateWorkspace, taskDetail } from './helpers'
 import { expectNoContrastViolations } from './a11y'
 import { open, pick } from './ui'
 import { snap } from './screenshots'
@@ -104,7 +104,7 @@ test('UJ-1: a rule built in the UI fires on a status change and is attributed to
 
   await page.getByRole('link', { name: /^Back to Platform/ }).click()
   await page.getByRole('link', { name: 'Ship it' }).click()
-  const panel = page.getByRole('complementary', { name: /^Task / })
+  const panel = taskDetail(page)
   await pick(panel.getByLabel('Status'), 'complete')
 
   // the open panel shows the rule's comment within a few seconds, without a reload

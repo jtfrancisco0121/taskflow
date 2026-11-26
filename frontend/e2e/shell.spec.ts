@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { addTask, createList, createSpace, signUpAndCreateWorkspace } from './helpers'
+import { addTask, createList, createSpace, signUpAndCreateWorkspace, taskDetail } from './helpers'
 import { tokenOf } from './a11y'
 
 // Slice 3: the app shell (AD-6), the theme switcher and its persistence (AD-1, AD-2), the command palette
@@ -98,38 +98,53 @@ const inView = (page: Page, selector: string) =>
     )
   }, selector)
 
-test('FR-12: on a long task the close button and the composer are reachable inside the panel', async ({
-  page,
-}) => {
-  await setUp(page)
-  await addTask(page, 'Long task')
-  await page.getByRole('link', { name: 'Long task' }).click()
-  const panel = page.getByRole('complementary', { name: /^Task / })
-  await expect(panel.getByLabel('Title')).toHaveValue('Long task')
-  for (let i = 1; i <= 14; i++) {
-    const composer = panel.getByRole('textbox', { name: 'Write a comment' })
-    const send = panel.getByRole('button', { name: 'Comment' })
-    // the editor can remount while the panel's data settles, so type again until the button enables
-    await expect(async () => {
-      await composer.click()
-      await page.keyboard.press('ControlOrMeta+a')
-      await page.keyboard.type(`Comment number ${i}`)
-      await expect(send).toBeEnabled({ timeout: 1000 })
-    }).toPass()
-    await send.click()
-    await expect(panel.getByText(`Comment number ${i}`)).toBeVisible()
-  }
-  await panel.evaluate((el) => (el.scrollTop = 0))
-  await expect(panel.getByRole('button', { name: 'Close task panel' })).toBeInViewport()
-  await panel.evaluate((el) => (el.scrollTop = el.scrollHeight))
-  await expect(panel.getByRole('textbox', { name: 'Write a comment' })).toBeInViewport()
-  const scrolled = await page.evaluate(() => ({
-    window: document.scrollingElement!.scrollTop,
-    main: document.querySelector('main')!.scrollTop,
-  }))
-  expect(scrolled).toEqual({ window: 0, main: 0 })
-  expect(await inView(page, '[aria-label^="Task "]')).toBe(true)
-})
+for (const mode of ['modal', 'docked'] as const) {
+  test(`FR-12: on a long task the close button and the composer are reachable in the ${mode} detail`, async ({
+    page,
+  }) => {
+    await setUp(page)
+    await addTask(page, 'Long task')
+    await page.getByRole('link', { name: 'Long task' }).click()
+    const panel = taskDetail(page)
+    await expect(panel.getByLabel('Title')).toHaveValue('Long task')
+    if (mode === 'docked') {
+      await panel.getByRole('button', { name: 'Docked' }).click()
+      await expect(page.getByRole('complementary', { name: /^Task / })).toBeVisible()
+    }
+    for (let i = 1; i <= 14; i++) {
+      const composer = panel.getByRole('textbox', { name: 'Write a comment' })
+      const send = panel.getByRole('button', { name: 'Comment' })
+      // the editor can remount while the panel's data settles, so type again until the button enables
+      await expect(async () => {
+        await composer.click()
+        await page.keyboard.press('ControlOrMeta+a')
+        await page.keyboard.type(`Comment number ${i}`)
+        await expect(send).toBeEnabled({ timeout: 1000 })
+      }).toPass()
+      await send.click()
+      await expect(panel.getByText(`Comment number ${i}`)).toBeVisible()
+    }
+    // The modal scrolls its activity column; the docked panel scrolls as a whole.
+    const scroller =
+      mode === 'modal' ? panel.getByRole('region', { name: 'Discussion and activity' }) : panel
+    await scroller.evaluate((el) => (el.scrollTop = 0))
+    await expect(panel.getByRole('button', { name: 'Close task panel' })).toBeInViewport()
+    await scroller.evaluate((el) => (el.scrollTop = el.scrollHeight))
+    await expect(panel.getByRole('textbox', { name: 'Write a comment' })).toBeInViewport()
+    await expect(panel.getByRole('button', { name: 'Close task panel' })).toBeInViewport()
+    const scrolled = await page.evaluate(() => ({
+      window: document.scrollingElement!.scrollTop,
+      main: document.querySelector('main')!.scrollTop,
+    }))
+    expect(scrolled).toEqual({ window: 0, main: 0 })
+    expect(
+      await inView(
+        page,
+        '[role="dialog"][aria-modal="true"], [role="complementary"][aria-label^="Task "]',
+      ),
+    ).toBe(true)
+  })
+}
 
 test('FR-12: over a Board wider than the window the close button stays in view while the background scrolls', async ({
   page,
@@ -139,7 +154,7 @@ test('FR-12: over a Board wider than the window the close button stays in view w
   await addTask(page, 'Write the spec')
   await page.getByRole('tab', { name: 'Board' }).click()
   await page.getByRole('region', { name: 'to do' }).getByText('Write the spec').click()
-  const panel = page.getByRole('complementary', { name: /^Task / })
+  const panel = taskDetail(page)
   await expect(panel).toBeVisible()
   const background = await page.evaluate(() => {
     const main = document.querySelector('main')!
@@ -184,7 +199,7 @@ test('SM-2: a task, a List, a Theme and the Inbox are reachable from the palette
   ).toBeVisible()
   await page.keyboard.press('Enter')
   await expect(palette(page)).toHaveCount(0)
-  await expect(page.getByRole('complementary', { name: /^Task / })).toBeVisible()
+  await expect(taskDetail(page)).toBeVisible()
   await page.keyboard.press('Escape')
 
   await page.goto('/')

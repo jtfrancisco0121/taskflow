@@ -1,5 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
-import { addTask, createList, createSpace, createView, signUpAndCreateWorkspace } from './helpers'
+import {
+  addTask,
+  createList,
+  createSpace,
+  createView,
+  signUpAndCreateWorkspace,
+  taskDetail,
+} from './helpers'
 import { expectNoContrastViolations, tokenOf, watchFontRequests } from './a11y'
 import { snap } from './screenshots'
 
@@ -130,7 +137,7 @@ for (const os of OS_SCHEMES)
       await expect(dialog).toHaveCount(0)
 
       await page.getByRole('link', { name: 'Draft launch post' }).click()
-      await expect(page.getByRole('complementary', { name: /^Task / })).toBeVisible()
+      await expect(taskDetail(page)).toBeVisible()
       await snap(page, testInfo, `task-panel-${theme}${suffix}`)
       await expectNoContrastViolations(page, `task-panel-${theme}${suffix}`)
       await page.keyboard.press('Escape')

@@ -1,11 +1,20 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { fireEvent } from '@testing-library/react'
 import { Route, Routes, useLocation } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { useUiStore } from '../../shared/ui-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { LocationViewRoute, ViewBackground } from '../views'
 import { TaskPanelRoute } from './TaskPanelRoute'
-import { expectValue, findOption, optionsOf, pick } from '../../test/ui'
+import {
+  expectValue,
+  findOption,
+  findTaskDetail,
+  optionsOf,
+  pick,
+  queryTaskDetail,
+} from '../../test/ui'
 
 const base = {
   id: 't1',
@@ -78,14 +87,21 @@ function serve(initial: Record<string, unknown> = {}, extra: Record<string, neve
   return { stub, task }
 }
 
-function renderPanel(route = '/t/t1', state?: object) {
+function renderPanel(
+  route = '/t/t1',
+  state?: object,
+  tabs?: React.ComponentProps<typeof TaskPanelRoute>['tabs'],
+) {
   return renderWithProviders(
     <>
       <Routes>
         <Route
           path="/t/:taskId"
           element={
-            <TaskPanelRoute background={(location) => <ViewBackground location={location} />} />
+            <TaskPanelRoute
+              tabs={tabs}
+              background={(location) => <ViewBackground location={location} />}
+            />
           }
         />
         <Route path="/w/:workspaceId/l/:locationId" element={<LocationViewRoute />} />
@@ -104,7 +120,7 @@ describe('TaskPanel', () => {
     serve({ tags: ['launch'], assigneeIds: ['u1'] })
     renderPanel()
 
-    const panel = await screen.findByRole('complementary', { name: 'Task ACME-1' })
+    const panel = await findTaskDetail('Task ACME-1')
     expect(within(panel).getByLabelText('Title')).toHaveValue('Draft launch post')
     await waitFor(() => expectValue(within(panel).getByLabelText('Status'), 'To do'))
     expectValue(within(panel).getByLabelText('Priority'), 'Normal')
@@ -123,15 +139,14 @@ describe('TaskPanel', () => {
     const user = userEvent.setup()
     renderPanel('/t/t1', { backgroundLocation: { pathname: '/w/w1/l/l1' } })
 
-    await screen.findByRole('complementary', { name: 'Task ACME-1' })
+    await findTaskDetail('Task ACME-1')
     await screen.findByRole('link', { name: 'Draft launch post' })
     await user.keyboard('{Escape}')
 
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/w/w1/l/l1'))
-    expect(screen.queryByRole('complementary', { name: 'Task ACME-1' })).not.toBeInTheDocument()
-    await waitFor(() =>
-      expect(screen.getByRole('link', { name: 'Draft launch post' })).toHaveFocus(),
-    )
+    expect(queryTaskDetail('Task ACME-1')).not.toBeInTheDocument()
+    // focus goes back to the row of the task last shown
+    await waitFor(() => expect(document.querySelector('[data-task-id="t1"]')).toHaveFocus())
   })
 
   it('FR-16: a row clicked behind an open panel keeps the List as background, so Escape returns to the List', async () => {
@@ -139,18 +154,18 @@ describe('TaskPanel', () => {
     const user = userEvent.setup()
     renderPanel('/t/t0', { backgroundLocation: { pathname: '/w/w1/l/l1' } })
 
-    await screen.findByRole('complementary', { name: 'Task ACME-1' })
+    await findTaskDetail('Task ACME-1')
     await user.click(await screen.findByRole('link', { name: 'Draft launch post' }))
     await user.keyboard('{Escape}')
 
     await waitFor(() => expect(screen.getByTestId('where')).toHaveTextContent('/w/w1/l/l1'))
   })
 
-  it('FR-16: a task that does not exist shows "Task not found."', async () => {
+  it('FR-16: a task that does not exist says it is gone, with a Close button', async () => {
     serve({}, { 'GET /api/v1/tasks/:id': problem(404, 'task.not_found', 'No such task') } as never)
     renderPanel('/t/nope')
 
-    expect(await screen.findByText('Task not found.')).toBeVisible()
+    expect(await screen.findByText('This task is gone or you can’t see it.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Close' })).toBeVisible()
   })
 
@@ -348,7 +363,7 @@ describe('TaskPanel', () => {
       const user = userEvent.setup()
       renderPanel()
 
-      const panel = await screen.findByRole('complementary', { name: 'Task ACME-1' })
+      const panel = await findTaskDetail('Task ACME-1')
       expect(await within(panel).findByText('from Engineering')).toBeVisible()
       const box = within(panel).getByRole('textbox', { name: 'Story points for ACME-1' })
       await user.type(box, '5{Enter}')
@@ -441,7 +456,7 @@ describe('TaskPanel', () => {
         'GET /api/v1/tasks/:id/dependencies': () => json(waiting),
       } as never)
       renderPanel()
-      const panel = await screen.findByRole('complementary', { name: 'Task ACME-1' })
+      const panel = await findTaskDetail('Task ACME-1')
       expect(within(panel).getByRole('img', { name: 'Blocked by 1 task' })).toHaveTextContent(
         'Blocked · 1',
       )
@@ -453,7 +468,7 @@ describe('TaskPanel', () => {
     it('FR-10: a task that is not blocked has no badge', async () => {
       serve()
       renderPanel()
-      const panel = await screen.findByRole('complementary', { name: 'Task ACME-1' })
+      const panel = await findTaskDetail('Task ACME-1')
       await within(panel).findByText('No dependencies yet.')
       expect(within(panel).queryByRole('img', { name: /Blocked/ })).not.toBeInTheDocument()
     })
@@ -478,7 +493,7 @@ describe('TaskPanel', () => {
       // a change that does not complete asks nothing
       await pick(user, screen.getByLabelText('Status'), 'In progress')
       await waitFor(() => expect(patches(stub)).toHaveLength(1))
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(screen.queryByRole('dialog', { name: /is waiting on/ })).not.toBeInTheDocument()
     })
 
     it('FR-6: "Complete anyway" sends the change', async () => {
@@ -493,6 +508,125 @@ describe('TaskPanel', () => {
       await user.click(await screen.findByRole('button', { name: 'Complete anyway' }))
       await waitFor(() => expect(patches(stub)).toHaveLength(1))
       expect(patches(stub)[0].body).toEqual({ statusId: 'st3' })
+    })
+  })
+
+  describe('frames (AD-1, AD-2)', () => {
+    const composer = () => (
+      <div>
+        <div contentEditable suppressContentEditableWarning role="textbox" aria-label="Composer" />
+        <button type="button">Tab button</button>
+      </div>
+    )
+
+    it('opens a 940px modal dialog named by the task, with an activity column', async () => {
+      serve()
+      renderPanel('/t/t1', undefined, composer)
+      const dialog = await findTaskDetail('Task ACME-1')
+      expect(dialog).toHaveAttribute('role', 'dialog')
+      expect(dialog).toHaveAttribute('aria-modal', 'true')
+      expect(dialog.className).toContain('max-w-[940px]')
+      const column = within(dialog).getByRole('region', { name: 'Discussion and activity' })
+      expect(column.className).toContain('w-[330px]')
+      expect(within(column).getByRole('textbox', { name: 'Composer' })).toBeInTheDocument()
+    })
+
+    it('the Docked toggle switches to a complementary panel, remembers it and keeps unsaved description text', async () => {
+      const { stub } = serve()
+      const user = userEvent.setup()
+      renderPanel()
+      const dialog = await findTaskDetail('Task ACME-1')
+      const toggle = within(dialog).getByRole('button', { name: 'Docked' })
+      expect(toggle).toHaveAttribute('aria-pressed', 'false')
+      const editor = within(dialog).getByRole('textbox', { name: 'Description' })
+      await user.click(editor)
+      await user.keyboard('Remember me')
+      await user.click(toggle)
+
+      const docked = await screen.findByRole('complementary', { name: 'Task ACME-1' })
+      expect(docked.className).toContain('w-[600px]')
+      expect(screen.queryByRole('dialog', { name: 'Task ACME-1' })).toBeNull()
+      expect(within(docked).getByRole('button', { name: 'Docked' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      )
+      expect(localStorage.getItem('taskflow:task-detail')).toBe('docked')
+      await waitFor(() => expect(patches(stub).length).toBeGreaterThan(0))
+      expect(JSON.stringify(patches(stub).at(-1)?.body)).toContain('Remember me')
+      // the toggle keeps focus after the switch
+      expect(within(docked).getByRole('button', { name: 'Docked' })).toHaveFocus()
+    })
+
+    it('opens docked when that was remembered, and an unknown stored value falls back to the modal', async () => {
+      localStorage.setItem('taskflow:task-detail', 'docked')
+      serve()
+      const first = renderPanel()
+      expect(await screen.findByRole('complementary', { name: 'Task ACME-1' })).toBeVisible()
+      first.unmount()
+      useUiStore.setState({ taskDetailMode: null })
+      localStorage.setItem('taskflow:task-detail', 'sideways')
+      renderPanel()
+      expect(await screen.findByRole('dialog', { name: 'Task ACME-1' })).toBeVisible()
+    })
+
+    it('with localStorage throwing the toggle still works and nothing is logged', async () => {
+      serve()
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+        throw new Error('denied')
+      })
+      const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('denied')
+      })
+      const user = userEvent.setup()
+      renderPanel()
+      const dialog = await findTaskDetail('Task ACME-1')
+      await user.click(within(dialog).getByRole('button', { name: 'Docked' }))
+      expect(await screen.findByRole('complementary', { name: 'Task ACME-1' })).toBeVisible()
+      expect(error).not.toHaveBeenCalled()
+      get.mockRestore()
+      set.mockRestore()
+      error.mockRestore()
+    })
+
+    it.each(['modal', 'docked'] as const)(
+      'Escape in the comment composer keeps the %s open and the text; Escape on a button closes it',
+      async (mode) => {
+        useUiStore.setState({ taskDetailMode: mode })
+        serve()
+        const user = userEvent.setup()
+        renderPanel('/t/t1', { backgroundLocation: { pathname: '/w/w1/l/l1' } }, composer)
+        const detail = await findTaskDetail('Task ACME-1')
+        const box = within(detail).getByRole('textbox', { name: 'Composer' })
+        box.textContent = 'half a comment'
+        box.focus()
+        fireEvent.keyDown(box, { key: 'Escape' })
+        expect(queryTaskDetail('Task ACME-1')).toBeInTheDocument()
+        expect(box).toHaveTextContent('half a comment')
+        within(detail).getByRole('button', { name: 'Tab button' }).focus()
+        await user.keyboard('{Escape}')
+        await waitFor(() => expect(queryTaskDetail('Task ACME-1')).toBeNull())
+      },
+    )
+
+    it('shows a retry for a server error and the gone message for a 404', async () => {
+      let calls = 0
+      serve({}, {
+        'GET /api/v1/tasks/:id': () =>
+          ++calls === 1 ? problem(500, 'boom', 'Server broke') : json(base),
+      } as never)
+      const user = userEvent.setup()
+      renderPanel()
+      expect(await screen.findByText('Server broke')).toBeVisible()
+      await user.click(screen.getByRole('button', { name: 'Retry' }))
+      expect(await findTaskDetail('Task ACME-1')).toBeVisible()
+    })
+
+    it('shows a skeleton while the task loads', async () => {
+      serve({}, { 'GET /api/v1/tasks/:id': () => new Promise<Response>(() => {}) } as never)
+      renderPanel()
+      const dialog = await screen.findByRole('dialog', { name: 'Task' })
+      expect(dialog.querySelector('[aria-busy="true"]')).not.toBeNull()
     })
   })
 })

@@ -78,6 +78,7 @@ afterEach(() => {
     paletteOpen: false,
     paletteRequested: false,
     shellReady: false,
+    taskDetailMode: null,
     expanded: {},
   })
 })

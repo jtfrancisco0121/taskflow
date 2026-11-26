@@ -10,7 +10,11 @@ export default defineConfig({
   // The JSON report lets scripts/e2e-local.sh keep the trace and screenshot of every failed attempt, also of
   // a test that passed on a retry (Playwright empties test-results/ at the start of each run).
   reporter: process.env.CI
-    ? [['list'], ['html', { open: 'never' }], ['json', { outputFile: '../artifacts/e2e-results.json' }]]
+    ? [
+        ['list'],
+        ['html', { open: 'never' }],
+        ['json', { outputFile: '../artifacts/e2e-results.json' }],
+      ]
     : [['list'], ['json', { outputFile: '../artifacts/e2e-results.json' }]],
   use: {
     baseURL: 'http://localhost:5173',

@@ -1,4 +1,4 @@
-import { waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import type { UserEvent } from '@testing-library/user-event'
 import { expect } from 'vitest'
 
@@ -113,4 +113,17 @@ export async function findOption(
   const found = textOf(await within(popup).findByRole(itemRole(popup), { name: label }))
   await close(user, popup)
   return found
+}
+
+/** The open task detail by its name, in either frame: the modal dialog or the docked complementary panel. */
+export const queryTaskDetail = (name: string | RegExp): HTMLElement | null =>
+  screen.queryByRole('dialog', { name }) ?? screen.queryByRole('complementary', { name })
+
+export async function findTaskDetail(name: string | RegExp): Promise<HTMLElement> {
+  let found: HTMLElement | null = null
+  await waitFor(() => {
+    found = queryTaskDetail(name)
+    expect(found).not.toBeNull()
+  })
+  return found as unknown as HTMLElement
 }
