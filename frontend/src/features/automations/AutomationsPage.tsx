@@ -4,6 +4,10 @@ import { messageOf } from '../../api/errors'
 import type { RuleView } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
 import { Dialog } from '../../shared/ui/Dialog'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { ErrorState } from '../../shared/ui/ErrorState'
+import { PageHeader } from '../../shared/ui/PageHeader'
+import { Skeleton } from '../../shared/ui/Skeleton'
 import { useToastStore } from '../../shared/toast-store'
 import { useLocationFields } from '../fields'
 import { useLocationInfo } from '../locations'
@@ -35,14 +39,25 @@ export function AutomationsPage() {
 
   if (list.isError || location.isError) {
     const status = (list.error as { status?: number } | null)?.status
+    const message =
+      status === 404
+        ? "This location doesn't exist or you don't have access."
+        : messageOf(list.error ?? location.error)
     return (
-      <section aria-label="Automations">
-        <p role="alert" className="text-red-700">
-          {status === 404
-            ? "This location doesn't exist or you don't have access."
-            : messageOf(list.error ?? location.error)}
-        </p>
-        <Link to={`/w/${workspaceId}`} className="text-blue-700 underline">
+      <section aria-label="Automations" className="flex flex-col gap-3">
+        <PageHeader title="Automations" />
+        <ErrorState
+          message={message}
+          onRetry={
+            status === 404
+              ? undefined
+              : () => {
+                  void list.refetch()
+                  void location.refetch()
+                }
+          }
+        />
+        <Link to={`/w/${workspaceId}`} className="text-sm text-accent underline">
           Back to the Workspace
         </Link>
       </section>
@@ -62,46 +77,50 @@ export function AutomationsPage() {
 
   return (
     <section aria-label="Automations">
-      <header className="mb-3 flex items-center gap-2">
-        <h1 className="text-2xl font-semibold">Automations</h1>
-        <span className="text-sm text-slate-500">{location.data?.name}</span>
-        <Link
-          to={`/w/${workspaceId}/l/${locationId}`}
-          className="ml-auto text-sm text-blue-700 underline"
-        >
-          Back to {location.data?.name ?? 'the location'}
-        </Link>
-        {canEdit && (
-          <Button
-            ref={newButton}
-            variant="primary"
-            disabled={atLimit}
-            onClick={() => setBuilder({})}
-          >
-            New rule
-          </Button>
-        )}
-      </header>
+      <PageHeader title="Automations">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted">{location.data?.name}</span>
+          <Link to={`/w/${workspaceId}/l/${locationId}`} className="text-sm text-accent underline">
+            Back to {location.data?.name ?? 'the location'}
+          </Link>
+          {canEdit && (
+            <Button
+              ref={newButton}
+              variant="primary"
+              disabled={atLimit}
+              onClick={() => setBuilder({})}
+            >
+              New rule
+            </Button>
+          )}
+        </div>
+      </PageHeader>
       {atLimit && canEdit && (
-        <p className="mb-2 text-sm text-amber-800">
+        <p className="mb-2 text-sm text-fg">
           This location has reached its limit of {list.data?.limit} rules. Delete one to add more.
         </p>
       )}
-      {list.isPending && <p role="status">Loading…</p>}
+      {list.isPending && (
+        <div role="status" aria-label="Loading automations" className="flex flex-col gap-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+      )}
       {list.isSuccess && !canEdit && (
-        <p className="mb-3 text-sm text-slate-600">
+        <p className="mb-3 text-sm text-muted">
           You can view rules here. Ask an editor to change them.
         </p>
       )}
       {list.isSuccess && rules.length === 0 && (
-        <div>
-          <p className="font-medium">No rules here yet</p>
-          {canEdit && (
-            <p className="text-sm text-slate-600">
-              A rule runs actions when something happens to a task in this location.
-            </p>
-          )}
-        </div>
+        <EmptyState
+          title="No rules here yet"
+          description={
+            canEdit
+              ? 'A rule runs actions when something happens to a task in this location.'
+              : undefined
+          }
+        />
       )}
       <ul className="flex flex-col gap-3">
         {rules.map((rule) => (
@@ -130,7 +149,7 @@ export function AutomationsPage() {
       {history && <RunsSheet rule={history} onClose={() => setHistory(null)} />}
       {confirm && (
         <Dialog title="Delete rule" onClose={() => setConfirm(null)}>
-          <p className="mb-4 text-sm">
+          <p className="mb-4 text-sm text-fg">
             Delete &ldquo;{confirm.name}&rdquo;? It stops running. Its run history is kept.
           </p>
           <div className="flex justify-end gap-2">

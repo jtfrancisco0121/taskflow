@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ApiError, messageOf } from '../../api/errors'
 import type { RuleAction, RuleBody, RuleCondition, RuleTrigger, RuleView } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
+import { Checkbox } from '../../shared/ui/Checkbox'
 import { Dialog } from '../../shared/ui/Dialog'
 import { Select } from '../../shared/ui/Select'
 import { TextField } from '../../shared/ui/TextField'
@@ -21,7 +22,8 @@ type Props = {
 }
 
 const EMPTY_ACTION: RuleAction = { type: 'ADD_COMMENT', text: '' }
-const selectClass = 'rounded border border-slate-300 px-2 py-1.5 text-sm'
+const selectClass =
+  'rounded-md border border-line-strong bg-surface px-2 py-1.5 text-[13px] text-fg placeholder:text-faint'
 const memberOptions = (members: Member[]) =>
   members.map((m) => ({ value: m.userId ?? '', label: m.displayName ?? '' }))
 const fieldOptions = (fields: { id?: string; name?: string }[]) =>
@@ -78,7 +80,7 @@ export function RuleBuilder({ workspaceId, locationId, rule, onClose, restoreFoc
         }}
       >
         {stale && (
-          <p role="alert" className="rounded bg-amber-50 p-2 text-sm text-amber-900">
+          <p role="alert" className="rounded-md bg-warn-soft p-2 text-sm text-fg">
             Someone else changed this rule. Close this dialog to see the latest version, then edit
             again.
           </p>
@@ -92,9 +94,9 @@ export function RuleBuilder({ workspaceId, locationId, rule, onClose, restoreFoc
           required
         />
 
-        <fieldset className="flex flex-col gap-2 rounded border border-slate-200 p-3">
-          <legend className="px-1 text-sm font-semibold">When</legend>
-          <label className="flex flex-col gap-1 text-sm">
+        <fieldset className="flex flex-col gap-2 rounded-lg border border-line p-3">
+          <legend className="px-1 text-sm font-semibold text-fg">When</legend>
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
             Trigger
             <Select
               value={trigger.type ?? ''}
@@ -104,7 +106,7 @@ export function RuleBuilder({ workspaceId, locationId, rule, onClose, restoreFoc
           </label>
           {trigger.type === 'STATUS_CHANGED' && (
             <>
-              <label className="flex flex-col gap-1 text-sm">
+              <label className="flex flex-col gap-1 text-xs font-medium text-muted">
                 From status (optional)
                 <Select
                   value={trigger.fromStatuses?.[0] ?? ''}
@@ -117,7 +119,7 @@ export function RuleBuilder({ workspaceId, locationId, rule, onClose, restoreFoc
                   ]}
                 />
               </label>
-              <label className="flex flex-col gap-1 text-sm">
+              <label className="flex flex-col gap-1 text-xs font-medium text-muted">
                 To status (optional)
                 <Select
                   value={trigger.toStatuses?.[0] ?? ''}
@@ -130,14 +132,14 @@ export function RuleBuilder({ workspaceId, locationId, rule, onClose, restoreFoc
                   ]}
                 />
               </label>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted">
                 Only statuses offered here are listed. Lists below this location that use another
                 status set will not match names they do not have.
               </p>
             </>
           )}
           {trigger.type === 'ASSIGNEE_CHANGED' && (
-            <label className="flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-1 text-xs font-medium text-muted">
               When this person is added (optional)
               <Select
                 value={trigger.personId ?? ''}
@@ -147,7 +149,7 @@ export function RuleBuilder({ workspaceId, locationId, rule, onClose, restoreFoc
             </label>
           )}
           {trigger.type === 'CUSTOM_FIELD_CHANGED' && (
-            <label className="flex flex-col gap-1 text-sm">
+            <label className="flex flex-col gap-1 text-xs font-medium text-muted">
               Field
               <Select
                 value={trigger.fieldId ?? ''}
@@ -158,16 +160,16 @@ export function RuleBuilder({ workspaceId, locationId, rule, onClose, restoreFoc
             </label>
           )}
           {triggerError && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="text-sm text-danger">
               {triggerError}
             </p>
           )}
         </fieldset>
 
-        <fieldset className="flex flex-col gap-2 rounded border border-slate-200 p-3">
-          <legend className="px-1 text-sm font-semibold">If (all must hold)</legend>
+        <fieldset className="flex flex-col gap-2 rounded-lg border border-line p-3">
+          <legend className="px-1 text-sm font-semibold text-fg">If (all must hold)</legend>
           {conditions.length === 0 && (
-            <p className="text-sm text-slate-500">No conditions: the rule runs every time.</p>
+            <p className="text-sm text-muted">No conditions: the rule runs every time.</p>
           )}
           {conditions.map((c, i) => (
             <ConditionRow
@@ -191,14 +193,14 @@ export function RuleBuilder({ workspaceId, locationId, rule, onClose, restoreFoc
             </Button>
           </div>
           {conditionError && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="text-sm text-danger">
               {conditionError}
             </p>
           )}
         </fieldset>
 
-        <fieldset className="flex flex-col gap-2 rounded border border-slate-200 p-3">
-          <legend className="px-1 text-sm font-semibold">Then</legend>
+        <fieldset className="flex flex-col gap-2 rounded-lg border border-line p-3">
+          <legend className="px-1 text-sm font-semibold text-fg">Then</legend>
           {actions.map((a, i) => (
             <ActionRow
               key={i}
@@ -220,14 +222,14 @@ export function RuleBuilder({ workspaceId, locationId, rule, onClose, restoreFoc
             </Button>
           </div>
           {actionError && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="text-sm text-danger">
               {actionError}
             </p>
           )}
         </fieldset>
 
         {otherError && (
-          <p role="alert" className="text-sm text-red-700">
+          <p role="alert" className="text-sm text-danger">
             {otherError}
           </p>
         )}
@@ -381,20 +383,17 @@ function ActionRow({
       )}
       {a.type === 'ASSIGN' && (
         <>
-          <label className="flex items-center gap-1 text-sm">
-            <input
-              type="checkbox"
-              checked={!!a.unassignAll}
-              onChange={(e) =>
-                onChange({
-                  ...a,
-                  unassignAll: e.target.checked || undefined,
-                  personIds: e.target.checked ? undefined : a.personIds,
-                })
-              }
-            />
-            Unassign everyone
-          </label>
+          <Checkbox
+            label="Unassign everyone"
+            checked={!!a.unassignAll}
+            onCheckedChange={(checked) =>
+              onChange({
+                ...a,
+                unassignAll: checked || undefined,
+                personIds: checked ? undefined : a.personIds,
+              })
+            }
+          />
           {!a.unassignAll && (
             <Select
               aria-label="Person to assign"
@@ -425,20 +424,17 @@ function ActionRow({
       )}
       {a.type === 'SET_DUE_DATE' && (
         <>
-          <label className="flex items-center gap-1 text-sm">
-            <input
-              type="checkbox"
-              checked={!!a.clearDueDate}
-              onChange={(e) =>
-                onChange({
-                  type: a.type,
-                  clearDueDate: e.target.checked || undefined,
-                  daysAfter: e.target.checked ? undefined : 0,
-                })
-              }
-            />
-            Clear the due date
-          </label>
+          <Checkbox
+            label="Clear the due date"
+            checked={!!a.clearDueDate}
+            onCheckedChange={(checked) =>
+              onChange({
+                type: a.type,
+                clearDueDate: checked || undefined,
+                daysAfter: checked ? undefined : 0,
+              })
+            }
+          />
           {!a.clearDueDate && (
             <input
               aria-label="Days after the trigger"
@@ -463,14 +459,12 @@ function ActionRow({
       {a.type === 'SEND_NOTIFICATION' && (
         <>
           {['ASSIGNEES', 'WATCHERS'].map((r) => (
-            <label key={r} className="flex items-center gap-1 text-sm">
-              <input
-                type="checkbox"
-                checked={a.recipients?.includes(r) ?? false}
-                onChange={() => toggleRecipient(r)}
-              />
-              {r === 'ASSIGNEES' ? 'Assignees' : 'Watchers'}
-            </label>
+            <Checkbox
+              key={r}
+              label={r === 'ASSIGNEES' ? 'Assignees' : 'Watchers'}
+              checked={a.recipients?.includes(r) ?? false}
+              onCheckedChange={() => toggleRecipient(r)}
+            />
           ))}
           <Select
             aria-label="Person to notify"
