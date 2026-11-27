@@ -16,7 +16,8 @@ class JwtServiceTest {
   private static final String SECRET = "unit-test-secret-unit-test-secret-0123456789";
 
   private JwtService service(String secret, Duration ttl) {
-    return new JwtService(new JwtProperties(secret, ttl, Duration.ofDays(30)));
+    return new JwtService(
+        new JwtProperties(secret, ttl, Duration.ofDays(30), Duration.ofSeconds(30)));
   }
 
   @Test
@@ -55,10 +56,13 @@ class JwtServiceTest {
 
   @Test
   void refusesToStartWithAMissingOrShortSecret() {
-    assertThatThrownBy(() -> new JwtProperties("", Duration.ofMinutes(15), Duration.ofDays(30)))
+    assertThatThrownBy(() ->
+            new JwtProperties(
+                "", Duration.ofMinutes(15), Duration.ofDays(30), Duration.ofSeconds(30)))
         .isInstanceOf(IllegalStateException.class);
-    assertThatThrownBy(
-            () -> new JwtProperties("short", Duration.ofMinutes(15), Duration.ofDays(30)))
+    assertThatThrownBy(() ->
+            new JwtProperties(
+                "short", Duration.ofMinutes(15), Duration.ofDays(30), Duration.ofSeconds(30)))
         .isInstanceOf(IllegalStateException.class);
   }
 }

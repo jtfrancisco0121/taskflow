@@ -1,6 +1,7 @@
 # 010: A refresh token whose rotation response was lost
 
-Status: proposed (needs the owner's decision on the security trade-off before it is built). Context: ClickUp
+Status: accepted. Decided by JT Francisco, 2026-11-28: option (b), the same successor for 30 s, the key derived
+from the JWT secret. Context: ClickUp
 14yq6g334jy. A page reload aborts an in-flight `POST /api/v1/auth/refresh` after the server has rotated the
 refresh token. The browser never processes the `Set-Cookie`, keeps the old token, and the reloaded page's boot
 refresh presents it. `AuthService.refresh` treats any spent token as theft and revokes the whole family, so the
@@ -36,6 +37,7 @@ fail and revoke.
 
 **(a) Grace window, re-issue.** The immediate predecessor A, presented within N seconds of its rotation while
 its successor B was never used, revokes B and issues a new B' instead of revoking the family.
+
 - Security: adds N seconds after each rotation in which a holder of A gets a live token. Theft is still caught
   when the victim next presents B (revoked, so the family dies), within one access-token lifetime.
 - Complexity: needs the A-to-B link (a `successor_id` column and migration, or "newest token of the family").
@@ -47,18 +49,21 @@ its successor B was never used, revokes B and issues a new B' instead of revokin
 **(b) Idempotent rotation (recommended).** Within the same window and conditions, replaying A returns the same
 B (with a fresh access token). B is not stored raw: it is derived, `B = base64url(HMAC-SHA256(k, A))`, so the
 server recomputes it from the A it is shown and finds the row by `sha256(B)` on the existing unique index.
+
 - Security: the same N-second widening as (a), no more. Whoever presents A in the window gets B, the token the
   real client also holds. The two then diverge on their next refresh and the second presenter of B, outside
   the window, revokes the family, so detection is delayed, not lost. The database still holds only hashes; the
   derivation key adds nothing an attacker with the JWT signing key couldn't already do (mint access tokens).
-- Complexity: small, inside `AuthService.refresh`: derive B on rotation instead of random bytes; on a spent A,
-  re-check A under `FOR UPDATE` and return B if A is not revoked or expired, was rotated less than N ago, and B
-  exists, is unrevoked and has never been rotated; otherwise revoke as today. No migration.
+- Complexity: small, inside `AuthService.refresh`: lock A's row (`FOR UPDATE`), derive B on rotation instead of
+  random bytes; on a rotated A, return B if A is not revoked or expired, was rotated less than N ago, and the
+  family's only live token is B (unrevoked, unexpired, never rotated; hashes compared with
+  `MessageDigest.isEqual`); otherwise revoke as today. No migration.
 - Multi-tab: two concurrent refreshes with A both get the same B (the loser's `UPDATE` waits for the winner's
   commit, then finds B), so the cookie jar is right whichever response lands last. Passes both race tests.
 
 **(c) Client only.** Keep the refresh alive across a reload (`fetch` `keepalive`, `sendBeacon`, a
 BroadcastChannel hand-off, or a longer-held Web Lock).
+
 - Cannot close the race: the server commits the rotation before the response is sent, and a request aborted
   after that commit loses B for good; only the server can recognise A as "just rotated". A Web Lock is
   released when its page unloads, and the reloaded page's boot refresh starts in about a second with the old
@@ -67,6 +72,7 @@ BroadcastChannel hand-off, or a longer-held Web Lock).
 - Security: none lost. Useful later as a frequency reducer, not as the fix.
 
 **(d) Others considered.**
+
 - Keep A valid until B is first used, with no time limit: widens the theft window from N seconds to the whole
   interval until the next refresh (15 minutes active, up to 30 days idle). Rejected.
 - Bind refresh tokens to a device key (DPoP-style, a non-extractable WebCrypto key signing each refresh): the
@@ -89,6 +95,7 @@ Okta's refresh-token rotation grace period and Auth0's reuse interval follow the
   presented right after rotation, before B is used, is a 401. That is exactly the case this decision makes a
   200: the server cannot tell "the client lost B" from "someone replays A within 30 s". The fix changes that
   test to replay A after B was used (covered by `RefreshReuseGuardIT`).
-- The derivation key is taken from the JWT secret with a fixed label, so production needs no new secret.
+- The derivation key is HKDF-SHA256 (RFC 5869, empty salt) of the JWT secret with the label
+  `taskflow-refresh-successor-v1`, so production needs no new secret and the key is never the signing key.
   Rotating the JWT secret breaks only replays in flight at that moment.
 - A grace replay should be logged (family id, no token), so a pattern of replays is visible.

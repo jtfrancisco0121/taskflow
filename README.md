@@ -86,6 +86,7 @@ profile: the backend refuses to start without `TASKFLOW_JWT_SECRET` (at least 32
 | Variable                                                | Default                                     | Purpose                               |
 | ------------------------------------------------------- | ------------------------------------------- | ------------------------------------- |
 | `TASKFLOW_JWT_SECRET`                                   | none (dev profile only)                     | Signs access tokens                   |
+| `TASKFLOW_REFRESH_REUSE_GRACE`                          | `PT30S`                                     | Refresh replay window (`PT0S` is off) |
 | `TASKFLOW_APP_URL`                                      | `http://localhost:5173`                     | Base of invite links                  |
 | `TASKFLOW_REDIS_HOST`, `TASKFLOW_REDIS_PORT`            | `localhost`, `6379`                         | Sign-in rate limiting                 |
 | `TASKFLOW_MAIL_HOST`, `TASKFLOW_MAIL_PORT`              | `localhost`, `1025`                         | SMTP for invite mail                  |

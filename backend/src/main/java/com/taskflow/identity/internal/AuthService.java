@@ -15,6 +15,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -37,13 +39,22 @@ class AuthService {
   record Session(UserInfo user, String accessToken, long expiresIn, String refreshToken) {}
 
   private record StoredRefresh(
-      UUID id, UUID userId, UUID familyId, Instant expiresAt, boolean spent) {}
+      UUID id,
+      UUID userId,
+      UUID familyId,
+      Instant expiresAt,
+      boolean revoked,
+      boolean rotated,
+      boolean inGrace) {}
+
+  private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
   private final JdbcTemplate jdbc;
   private final TransactionTemplate tx;
   private final JwtService jwt;
   private final JwtProperties properties;
   private final RateLimiter limiter;
+  private final RefreshSuccessor successors;
   private final PasswordEncoder encoder = new BCryptPasswordEncoder();
   private final SecureRandom random = new SecureRandom();
   private final String dummyHash = encoder.encode("not-a-real-password");
@@ -53,12 +64,14 @@ class AuthService {
       PlatformTransactionManager transactionManager,
       JwtService jwt,
       JwtProperties properties,
-      RateLimiter limiter) {
+      RateLimiter limiter,
+      RefreshSuccessor successors) {
     this.jdbc = jdbc;
     this.tx = new TransactionTemplate(transactionManager);
     this.jwt = jwt;
     this.properties = properties;
     this.limiter = limiter;
+    this.successors = successors;
   }
 
   Session signUp(String email, String password, String displayName) {
@@ -116,7 +129,12 @@ class AuthService {
     return tx.execute(status -> startSession(user.get().info(), UUID.randomUUID()));
   }
 
-  /** Rotates the refresh token; presenting a rotated one revokes its family. */
+  /**
+   * Rotates the refresh token; presenting a rotated one revokes its family, except the token
+   * rotated less than {@code refreshReuseGrace} ago whose successor is still unused: that replay
+   * gets the same successor back (decision 010: a reload that lost the rotation response, or two
+   * tabs).
+   */
   Session refresh(String rawToken) {
     if (rawToken == null || rawToken.isBlank()) {
       throw invalidRefresh();
@@ -128,56 +146,83 @@ class AuthService {
       INVALID
     }
     record Result(Outcome outcome, Session session) {}
+    long graceMillis = properties.refreshReuseGrace().toMillis();
     Result result =
         tx.execute(status -> {
+          // FOR UPDATE: a concurrent refresh with the same token waits here, then sees it rotated.
           List<StoredRefresh> found =
               jdbc.query(
-                  "SELECT id, user_id, family_id, expires_at, (rotated_at IS NOT NULL OR"
-                      + " revoked_at IS NOT NULL) AS spent FROM refresh_token WHERE token_hash = ?",
+                  "SELECT id, user_id, family_id, expires_at, revoked_at IS NOT NULL AS revoked,"
+                      + " rotated_at IS NOT NULL AS rotated, rotated_at > now() - (? * interval '1"
+                      + " millisecond') AS in_grace FROM refresh_token WHERE token_hash = ? FOR"
+                      + " UPDATE",
                   (rs, i) ->
                       new StoredRefresh(
                           rs.getObject("id", UUID.class),
                           rs.getObject("user_id", UUID.class),
                           rs.getObject("family_id", UUID.class),
                           rs.getTimestamp("expires_at").toInstant(),
-                          rs.getBoolean("spent")),
+                          rs.getBoolean("revoked"),
+                          rs.getBoolean("rotated"),
+                          rs.getBoolean("in_grace")),
+                  graceMillis,
                   hash);
           if (found.isEmpty()) {
             return new Result(Outcome.INVALID, null);
           }
           StoredRefresh stored = found.get(0);
-          int rotated =
-              stored.spent() || stored.expiresAt().isBefore(Instant.now())
-                  ? 0
-                  : jdbc.update(
-                      "UPDATE refresh_token SET rotated_at = now() WHERE id = ? AND rotated_at IS"
-                          + " NULL AND revoked_at IS NULL",
-                      stored.id());
-          if (rotated == 0) {
-            revokeFamily(stored.familyId());
-            return new Result(Outcome.REUSED, null);
+          boolean live = !stored.revoked() && !stored.expiresAt().isBefore(Instant.now());
+          String successor = successors.of(rawToken);
+          if (live && !stored.rotated()) {
+            jdbc.update("UPDATE refresh_token SET rotated_at = now() WHERE id = ?", stored.id());
+            Optional<UserInfo> user = humanUser(stored.userId());
+            if (user.isEmpty()) {
+              return new Result(Outcome.INVALID, null);
+            }
+            insertRefresh(user.get().id(), stored.familyId(), successor);
+            return new Result(Outcome.OK, session(user.get(), successor));
           }
-          Optional<UserInfo> user =
-              jdbc
-                  .query(
-                      "SELECT id, email, display_name FROM app_user WHERE id = ? AND kind = 'HUMAN'",
-                      (rs, i) ->
-                          new UserInfo(
-                              rs.getObject("id", UUID.class),
-                              rs.getString("email"),
-                              rs.getString("display_name")),
-                      stored.userId())
-                  .stream()
-                  .findFirst();
-          if (user.isEmpty()) {
-            return new Result(Outcome.INVALID, null);
+          if (live && graceMillis > 0 && stored.inGrace() && isUnusedLive(stored, successor)) {
+            Optional<UserInfo> user = humanUser(stored.userId());
+            if (user.isEmpty()) {
+              return new Result(Outcome.INVALID, null);
+            }
+            log.info(
+                "Refresh token replayed within the grace window; family {}", stored.familyId());
+            return new Result(Outcome.OK, session(user.get(), successor));
           }
-          return new Result(Outcome.OK, startSession(user.get(), stored.familyId()));
+          revokeFamily(stored.familyId());
+          return new Result(Outcome.REUSED, null);
         });
     if (result.outcome() == Outcome.OK) {
       return result.session();
     }
     throw invalidRefresh();
+  }
+
+  /** True when the family's only live token is {@code successor}, still unrotated and unexpired. */
+  private boolean isUnusedLive(StoredRefresh stored, String successor) {
+    List<String> live =
+        jdbc.queryForList(
+            "SELECT token_hash FROM refresh_token WHERE family_id = ? AND rotated_at IS NULL AND"
+                + " revoked_at IS NULL AND expires_at > now() FOR UPDATE",
+            String.class,
+            stored.familyId());
+    return live.size() == 1 && RefreshSuccessor.sameHash(sha256(successor), live.get(0));
+  }
+
+  private Optional<UserInfo> humanUser(UUID id) {
+    return jdbc
+        .query(
+            "SELECT id, email, display_name FROM app_user WHERE id = ? AND kind = 'HUMAN'",
+            (rs, i) ->
+                new UserInfo(
+                    rs.getObject("id", UUID.class),
+                    rs.getString("email"),
+                    rs.getString("display_name")),
+            id)
+        .stream()
+        .findFirst();
   }
 
   void signOut(String rawToken) {
@@ -204,15 +249,24 @@ class AuthService {
     byte[] bytes = new byte[32];
     random.nextBytes(bytes);
     String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    insertRefresh(user.id(), familyId, raw);
+    return session(user, raw);
+  }
+
+  private void insertRefresh(UUID userId, UUID familyId, String raw) {
     jdbc.update(
         "INSERT INTO refresh_token (id, user_id, family_id, token_hash, expires_at) VALUES (?, ?,"
             + " ?, ?, ?)",
         Ids.newId(),
-        user.id(),
+        userId,
         familyId,
         sha256(raw),
         java.sql.Timestamp.from(Instant.now().plus(properties.refreshTtl())));
-    return new Session(user, jwt.issue(user.id(), user.email()), jwt.expiresInSeconds(), raw);
+  }
+
+  private Session session(UserInfo user, String rawRefresh) {
+    return new Session(
+        user, jwt.issue(user.id(), user.email()), jwt.expiresInSeconds(), rawRefresh);
   }
 
   private static TaskflowException invalidRefresh() {

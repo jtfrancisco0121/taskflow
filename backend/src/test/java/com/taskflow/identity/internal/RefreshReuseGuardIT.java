@@ -105,4 +105,63 @@ class RefreshReuseGuardIT extends IntegrationTest {
 
     assertThat(refresh(a).status()).isEqualTo(401);
   }
+
+  @Test
+  void anOldTokenReplayed31SecondsAfterItsRotationRevokesTheFamily() {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    Resp toB = refresh(a);
+    assertThat(toB.status()).isEqualTo(200);
+    String b = AuthIT.refreshCookie(toB);
+    jdbc.update(
+        "UPDATE refresh_token SET rotated_at = now() - interval '31 seconds' WHERE token_hash = ?",
+        hashOf(a));
+
+    assertThat(refresh(a).status()).isEqualTo(401);
+    assertThat(refresh(b).status()).isEqualTo(401);
+    assertThat(liveTokens(up)).isZero();
+  }
+
+  @Test
+  void anOldTokenReplayed29SecondsAfterItsRotationGetsTheSameSuccessor() {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    Resp toB = refresh(a);
+    assertThat(toB.status()).isEqualTo(200);
+    String b = AuthIT.refreshCookie(toB);
+    jdbc.update(
+        "UPDATE refresh_token SET rotated_at = now() - interval '29 seconds' WHERE token_hash = ?",
+        hashOf(a));
+
+    Resp replay = refresh(a);
+
+    assertThat(replay.status()).isEqualTo(200);
+    assertThat(AuthIT.refreshCookie(replay)).isEqualTo(b);
+    // A (rotated) and B: nothing revoked and no extra token issued.
+    assertThat(liveTokens(up)).isEqualTo(2);
+  }
+
+  @Test
+  void noRawRefreshTokenIsStored() {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    Resp toB = refresh(a);
+    String b = AuthIT.refreshCookie(toB);
+    refresh(a);
+
+    for (String cookie : java.util.List.of(a, b)) {
+      String raw = cookie.substring("refresh_token=".length());
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT count(*) FROM refresh_token WHERE token_hash = ? OR token_hash = ?",
+                  Integer.class,
+                  raw,
+                  hashOf(cookie)))
+          .isEqualTo(1);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT count(*) FROM refresh_token WHERE token_hash = ?", Integer.class, raw))
+          .isZero();
+    }
+  }
 }
