@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { queryKeys } from '../../api/queryKeys'
 import type { TaskView } from '../../api/types'
+import { json } from '../../test/api'
 import { expectRestarted, put } from '../../test/firstLoadRace'
 import { useOptimisticTaskMutation } from './useOptimisticTaskMutation'
 import { useUpdateTask } from './useUpdateTask'
@@ -126,6 +127,40 @@ describe('tasks: a first list load in flight when the write lands (cancel before
   it('useOptimisticTaskMutation restarts the task detail on its first load', async () => {
     await expectRestarted(
       queryKeys.task('t1'),
+      () => ({}),
+      () => useOptimisticTaskMutation(),
+      (run, wrote) => run(job(wrote)),
+    )
+  })
+
+  const activityKey = queryKeys.activity('t1')
+
+  it('useUpdateTask restarts the activity on its first load', async () => {
+    await expectRestarted(
+      activityKey,
+      (wrote) => ({ 'PATCH /api/v1/tasks/:id': put(wrote, task(1)) }),
+      () => useUpdateTask('t1'),
+      (update) => update.mutateAsync({ title: 'New' }),
+    )
+  })
+
+  it('useUpdateTask 409 restarts the activity on its first load', async () => {
+    await expectRestarted(
+      activityKey,
+      (wrote) => ({
+        'PATCH /api/v1/tasks/:id': () => {
+          wrote()
+          return json({ current: { ...task(1), version: 2 } }, 409)
+        },
+      }),
+      () => useUpdateTask('t1'),
+      (update) => update.mutateAsync({ title: 'New' }),
+    )
+  })
+
+  it('useOptimisticTaskMutation restarts the activity on its first load', async () => {
+    await expectRestarted(
+      activityKey,
       () => ({}),
       () => useOptimisticTaskMutation(),
       (run, wrote) => run(job(wrote)),

@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate, inBackground } from '../../api/refresh'
 import type { TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 import { Button } from '../../shared/ui/Button'
@@ -57,7 +58,11 @@ export function BulkBar({
       )
     }
     clear()
-    void queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(scope.workspaceId) })
+    // A view still on its first load may have read before a write whose own restart did not run (a lost
+    // response): restart it, not just invalidate.
+    inBackground(
+      cancelThenInvalidate(queryClient, { queryKey: queryKeys.viewsAll(scope.workspaceId) }),
+    )
   }
 
   return (

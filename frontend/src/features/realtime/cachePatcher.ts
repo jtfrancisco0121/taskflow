@@ -33,47 +33,48 @@ export function createCachePatcher(
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
   /** Per Workspace, the views on their first load when an event of the pending debounce came (union). */
   const viewFirstLoads = new Map<string, Set<string>>()
-  /** Per Workspace, when the first event of the pending views debounce came. */
-  const viewsWaitingSince = new Map<string, number>()
+  /** Per debounce key, when the first event of its pending window came. */
+  const waitingSince = new Map<string, number>()
   const debounceMs = options.debounceMs ?? 500
   const maxWaitMs = options.maxWaitMs ?? 2000
   let lastFieldsAnnounce = 0
+
+  /** Trailing debounce per key, but a steady stream of events still runs `run` once per maxWait. */
+  function soon(key: string, run: () => void) {
+    const now = Date.now()
+    const since = waitingSince.get(key) ?? now
+    waitingSince.set(key, since)
+    clearTimeout(timers.get(key))
+    timers.set(
+      key,
+      setTimeout(
+        () => {
+          timers.delete(key)
+          waitingSince.delete(key)
+          run()
+        },
+        Math.max(0, Math.min(debounceMs, since + maxWaitMs - now)),
+      ),
+    )
+  }
 
   function invalidateViewsSoon(workspaceId: string) {
     const views = { queryKey: queryKeys.viewsAll(workspaceId) }
     const firstLoads = viewFirstLoads.get(workspaceId) ?? new Set<string>()
     for (const hash of firstLoadsOf(queryClient, views)) firstLoads.add(hash)
     viewFirstLoads.set(workspaceId, firstLoads)
-    const now = Date.now()
-    const since = viewsWaitingSince.get(workspaceId) ?? now
-    viewsWaitingSince.set(workspaceId, since)
-    clearTimeout(timers.get(workspaceId))
-    timers.set(
-      workspaceId,
-      setTimeout(
-        () => {
-          timers.delete(workspaceId)
-          viewFirstLoads.delete(workspaceId)
-          viewsWaitingSince.delete(workspaceId)
-          void invalidateAfterLoadsOf(queryClient, firstLoads, views)
-        },
-        // Trailing debounce, but a steady stream of events still refreshes once per maxWait.
-        Math.max(0, Math.min(debounceMs, since + maxWaitMs - now)),
-      ),
-    )
+    soon(workspaceId, () => {
+      viewFirstLoads.delete(workspaceId)
+      void invalidateAfterLoadsOf(queryClient, firstLoads, views)
+    })
   }
 
-  /** A task this tab has never seen changed in a List (a subtask added by someone else): rescan that List once per burst. */
+  /**
+   * A task this tab has never seen changed in a List (a subtask added by someone else): rescan that List once per
+   * burst, and at least once per maxWait under a steady stream.
+   */
   function invalidateSubtaskScanSoon(listId: string) {
-    const key = `subtasks:${listId}`
-    clearTimeout(timers.get(key))
-    timers.set(
-      key,
-      setTimeout(() => {
-        timers.delete(key)
-        invalidateSubtaskScans(queryClient, listId)
-      }, debounceMs),
-    )
+    soon(`subtasks:${listId}`, () => invalidateSubtaskScans(queryClient, listId))
   }
 
   /**
@@ -222,7 +223,7 @@ export function createCachePatcher(
       timers.forEach((t) => clearTimeout(t))
       timers.clear()
       viewFirstLoads.clear()
-      viewsWaitingSince.clear()
+      waitingSince.clear()
     },
   }
 }

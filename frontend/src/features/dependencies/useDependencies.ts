@@ -31,10 +31,17 @@ const ifMatch = (version: number | undefined) =>
  * A relationship change touches both tasks (versions bump on both ends), so after it the acting
  * task is replaced from the response and everything that may show either task is refreshed.
  */
-function refresh(queryClient: QueryClient, task: TaskView, otherId: string | undefined) {
+function refresh(
+  queryClient: QueryClient,
+  task: TaskView,
+  otherId: string | undefined,
+  /** `task` is not the saved one (re-reading it failed): its detail is refetched instead of written. */
+  unread = false,
+) {
   // The acting task goes into its detail; one still on its first load read before this write, so it restarts.
-  writeCurrent(queryClient, task.id!, task)
+  if (!unread) writeCurrent(queryClient, task.id!, task)
   const filters: InvalidateQueryFilters[] = []
+  if (unread) filters.push({ queryKey: queryKeys.task(task.id!), exact: true })
   for (const id of [task.id!, otherId]) {
     if (!id) continue
     filters.push({ queryKey: queryKeys.dependencies(id) }, { queryKey: queryKeys.activity(id) })
@@ -142,10 +149,11 @@ export function useRemoveDependency(task: TaskView) {
         .show(stale ? 'This task changed. Try again.' : messageOf(error), 'error')
     },
     onSuccess: async (input) => {
-      const fresh = await unwrap(
-        api.GET('/api/v1/tasks/{id}', { params: { path: { id: task.id! } } }),
-      )
-      refresh(queryClient, fresh, input.otherTaskId)
+      // The removal is saved: a failed re-read must not fail the mutation, or onError would put the row back.
+      const { data } = await api
+        .GET('/api/v1/tasks/{id}', { params: { path: { id: task.id! } } })
+        .catch(() => ({ data: undefined }))
+      refresh(queryClient, data ?? task, input.otherTaskId, !data)
     },
   })
 }

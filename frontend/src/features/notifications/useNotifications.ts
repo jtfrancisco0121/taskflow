@@ -116,6 +116,7 @@ export function useSavePreference(workspaceId: string) {
       toast(messageOf(error), 'error')
     },
     onSuccess: () => toast('Notification settings saved'),
+    // eslint-disable-next-line no-restricted-syntax -- first-load safe: onMutate always gives the query data
     onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
   })
 }

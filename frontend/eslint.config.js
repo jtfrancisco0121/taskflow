@@ -42,6 +42,18 @@ const libraryOnly = [
   },
 ]
 
+// First-load race (epic 14yq6g334e4): a plain invalidate, refetch or reset of the query cache does not restart a query
+// still on its first load (no data, fetch in flight), and that load's late response, read before the write or event,
+// clears the refresh and leaves the screen stale. Product code refreshes through src/api/refresh.ts. A plain call that
+// is safe (the query always has data there, or its first loads are restarted elsewhere) is allowed with
+// `// eslint-disable-next-line no-restricted-syntax -- first-load safe: <why>` on the line before it.
+// It is merged into the .tsx block below: a second no-restricted-syntax block for the same files would replace it.
+const firstLoadGuard = {
+  selector: 'MemberExpression[property.name=/^(invalidate|refetch|reset)Queries$/]',
+  message:
+    'A plain invalidate/refetch/resetQueries does not restart a first load in flight: use src/api/refresh.ts, or justify it with "eslint-disable-next-line no-restricted-syntax -- first-load safe: <why>".',
+}
+
 export default tseslint.config(
   { ignores: ['dist', 'coverage', 'src/api/schema.d.ts'] },
   {
@@ -120,8 +132,16 @@ export default tseslint.config(
           selector: "JSXOpeningElement[name.name='select']",
           message: 'Use Select from src/shared/ui.',
         },
+        firstLoadGuard,
       ],
     },
+  },
+  {
+    // First-load race guard for .ts product code (the .tsx files get it in the block above). src/api/refresh.ts holds
+    // the helpers; tests and src/test drive the cache directly.
+    files: ['src/**/*.ts'],
+    ignores: ['src/test/**', 'src/**/*.test.ts', 'src/api/refresh.ts'],
+    rules: { 'no-restricted-syntax': ['error', firstLoadGuard] },
   },
   {
     // Slice 1: component tests pick, read and list select-like controls only through src/test/ui.ts.

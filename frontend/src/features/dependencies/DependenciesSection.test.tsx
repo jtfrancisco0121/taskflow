@@ -152,6 +152,29 @@ describe('FR-9 Dependencies section', () => {
     expect(await screen.findByRole('link', { name: /ACME-3/ })).toBeVisible()
   })
 
+  it('keeps a removal that succeeded when re-reading the task fails afterwards', async () => {
+    let deleted = false
+    const stub = serve({ ...none, waitingOn: [item('b3', 3)] }, {
+      'GET /api/v1/tasks/:id/dependencies': () =>
+        json(deleted ? none : { ...none, waitingOn: [item('b3', 3)] }),
+      'DELETE /api/v1/tasks/:id/dependencies/:depId': () => {
+        deleted = true
+        return new Response(null, { status: 204 })
+      },
+      'GET /api/v1/tasks/:id': () => problem(500, 'x', 'Server error'),
+    } as never)
+    const user = userEvent.setup()
+    render()
+    await user.click(await screen.findByRole('button', { name: 'Remove relationship with ACME-3' }))
+    await waitFor(() => expect(stub.count('GET', /^\/api\/v1\/tasks\/t1$/)).toBe(1))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    // Not rolled back, no error toast: the removal is saved.
+    expect(screen.queryByRole('link', { name: /ACME-3/ })).not.toBeInTheDocument()
+    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual([])
+    // The panel is read again from the server, which no longer has the relationship.
+    expect(stub.count('GET', /\/dependencies$/)).toBe(2)
+  })
+
   it('adds a relationship through the picker: search, pick, POST with If-Match and a key', async () => {
     const stub = serve(none, {
       'GET /api/v1/workspaces/:id/search': () =>

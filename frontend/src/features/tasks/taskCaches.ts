@@ -20,6 +20,8 @@ function mapTaskInScans(
 
 /** Refetches the scans of one List, or of every List: after a trash, a restore or an unseen task changed. */
 export function invalidateSubtaskScans(queryClient: QueryClient, listId?: string) {
+  // The realtime caller already refetches a scan that was on its first load at event time (refreshTaskFirstLoads).
+  // eslint-disable-next-line no-restricted-syntax -- first-load safe: event-time first loads are covered
   void queryClient.invalidateQueries({
     queryKey: listId ? queryKeys.subtaskScan(listId) : queryKeys.subtaskScanAll(),
   })
