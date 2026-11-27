@@ -1,3 +1,4 @@
+import { QueryObserver } from '@tanstack/react-query'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
@@ -167,12 +168,68 @@ describe('FR-9 Dependencies section', () => {
     render()
     await user.click(await screen.findByRole('button', { name: 'Remove relationship with ACME-3' }))
     await waitFor(() => expect(stub.count('GET', /^\/api\/v1\/tasks\/t1$/)).toBe(1))
-    await new Promise((resolve) => setTimeout(resolve, 50))
-    // Not rolled back, no error toast: the removal is saved.
-    expect(screen.queryByRole('link', { name: /ACME-3/ })).not.toBeInTheDocument()
-    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual([])
     // The panel is read again from the server, which no longer has the relationship.
-    expect(stub.count('GET', /\/dependencies$/)).toBe(2)
+    await waitFor(() => expect(stub.count('GET', /\/dependencies$/)).toBe(2))
+    await waitFor(() =>
+      expect(screen.queryByRole('link', { name: /ACME-3/ })).not.toBeInTheDocument(),
+    )
+    // Not rolled back, no error toast: the removal is saved.
+    expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual([])
+  })
+
+  it('after a failed re-read the next removal sends the version the DELETE answered with', async () => {
+    const gone = new Set<string>()
+    let version = 3
+    const stub = serve(none, {
+      'GET /api/v1/tasks/:id/dependencies': () =>
+        json({
+          ...none,
+          waitingOn: [item('b3', 3), item('b4', 4)].filter((i) => !gone.has(i.dependencyId)),
+        }),
+      'DELETE /api/v1/tasks/:id/dependencies/:depId': (request: Request) => {
+        gone.add(new URL(request.url).pathname.split('/').pop()!)
+        version += 1
+        return new Response(null, { status: 204, headers: { ETag: `"${version}"` } })
+      },
+      'GET /api/v1/tasks/:id': () => problem(500, 'x', 'Server error'),
+    } as never)
+    const user = userEvent.setup()
+    const { queryClient } = render()
+    queryClient.setQueryData(queryKeys.task('t1'), task)
+    await user.click(await screen.findByRole('button', { name: 'Remove relationship with ACME-3' }))
+    await waitFor(() => expect(stub.count('GET', /^\/api\/v1\/tasks\/t1$/)).toBe(1))
+    await waitFor(() =>
+      expect(queryClient.getQueryData<TaskView>(queryKeys.task('t1'))?.version).toBe(4),
+    )
+    await user.click(await screen.findByRole('button', { name: 'Remove relationship with ACME-4' }))
+    await waitFor(() => expect(stub.count('DELETE', /dependencies/)).toBe(2))
+    const deletes = stub.calls.filter((c) => c.method === 'DELETE')
+    expect(deletes.map((c) => c.headers.get('If-Match'))).toEqual(['"3"', '"4"'])
+  })
+
+  it('after a failed re-read the open task detail is refetched from the server', async () => {
+    let detailReads = 0
+    serve({ ...none, waitingOn: [item('b3', 3)] }, {
+      'DELETE /api/v1/tasks/:id/dependencies/:depId': () =>
+        new Response(null, { status: 204, headers: { ETag: '"4"' } }),
+      'GET /api/v1/tasks/:id': () => problem(500, 'x', 'Server error'),
+    } as never)
+    const user = userEvent.setup()
+    const { queryClient } = render()
+    // The task panel's detail query (an observer, so a refresh refetches it).
+    const detail = new QueryObserver(queryClient, {
+      queryKey: queryKeys.task('t1'),
+      queryFn: async () => {
+        detailReads += 1
+        return detailReads === 1 ? task : { ...task, version: 4, blocked: true }
+      },
+    })
+    const stop = detail.subscribe(() => {})
+    await waitFor(() => expect(detail.getCurrentResult().data).toEqual(task))
+    await user.click(await screen.findByRole('button', { name: 'Remove relationship with ACME-3' }))
+    await waitFor(() => expect(detail.getCurrentResult().data?.blocked).toBe(true))
+    expect(detailReads).toBe(2)
+    stop()
   })
 
   it('adds a relationship through the picker: search, pick, POST with If-Match and a key', async () => {

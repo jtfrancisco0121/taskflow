@@ -112,7 +112,9 @@ export function useRemoveDependency(task: TaskView) {
         throw networkError()
       }
       if (!result.response.ok) throw toApiError(result.response, result.error)
-      return input
+      // The 204 carries the task's new version as its ETag.
+      const version = Number(result.response.headers.get('ETag')?.replace(/\D/g, '')) || undefined
+      return { ...input, version }
     },
     onMutate: async (input) => {
       const key = queryKeys.dependencies(task.id!)
@@ -153,6 +155,12 @@ export function useRemoveDependency(task: TaskView) {
       const { data } = await api
         .GET('/api/v1/tasks/{id}', { params: { path: { id: task.id! } } })
         .catch(() => ({ data: undefined }))
+      // Until the detail's refetch lands, the next write must not send the version from before the DELETE.
+      if (!data && input.version)
+        queryClient.setQueryData<TaskView>(queryKeys.task(task.id!), (cached) => ({
+          ...(cached ?? task),
+          version: input.version,
+        }))
       refresh(queryClient, data ?? task, input.otherTaskId, !data)
     },
   })
