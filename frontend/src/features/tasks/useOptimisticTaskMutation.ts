@@ -99,6 +99,15 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
     views.forEach(([key, data]) => queryClient.setQueryData(key, data))
     queryClient.setQueryData(queryKeys.task(id), taskBefore)
   }
+  const activity = { queryKey: queryKeys.activity(id) }
+  // No answer, or a 5xx that may come after the commit: the write may have landed. Put back what we had, then read
+  // the server's truth for everything that shows the task (cancel first, so first loads restart too).
+  const restoreAndRefresh = () => {
+    restore()
+    inBackground(
+      cancelThenInvalidate(queryClient, ...taskFirstLoadFilters(workspaceId, id), activity),
+    )
+  }
   if (job.apply) job.apply(queryClient)
   if (job.optimistic) patchTaskInCaches(queryClient, workspaceId, id, job.optimistic)
 
@@ -106,7 +115,7 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
   try {
     result = await job.send(cachedVersion(queryClient, workspaceId, id) ?? job.task.version)
   } catch {
-    restore()
+    restoreAndRefresh()
     show(messageOf(networkError()), 'error')
     return 'failed'
   }
@@ -126,18 +135,22 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
         predicate: (query) => !firstLoads.has(query.queryHash),
       })
       inBackground(restartQueries(queryClient, firstLoads))
+      // The other writer's change is in the activity; its Live event will now look stale and be dropped.
+      inBackground(cancelThenInvalidate(queryClient, activity))
       return 'conflict'
     }
   }
   if (!response.ok || !result.data) {
-    restore()
+    // A 4xx is a refusal: nothing was written, so the snapshot is the truth.
+    if (response.status >= 400 && response.status < 500) restore()
+    else restoreAndRefresh()
     const error = toApiError(response, result.error)
     show(error instanceof ApiError ? messageOf(error) : messageOf(networkError()), 'error')
     return 'failed'
   }
   writeTaskToCaches(queryClient, result.data)
   // An activity still on its first load read before this write: restart it, not just invalidate.
-  inBackground(cancelThenInvalidate(queryClient, { queryKey: queryKeys.activity(id) }))
+  inBackground(cancelThenInvalidate(queryClient, activity))
   inBackground(restartQueries(queryClient, firstLoads))
   return 'saved'
 }

@@ -1,7 +1,10 @@
+import { QueryClientProvider, QueryObserver } from '@tanstack/react-query'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { describe, expect, it } from 'vitest'
 import { queryKeys } from '../../api/queryKeys'
 import type { TaskView } from '../../api/types'
-import { json } from '../../test/api'
+import { json, newQueryClient } from '../../test/api'
 import { expectRestarted, put } from '../../test/firstLoadRace'
 import { useOptimisticTaskMutation } from './useOptimisticTaskMutation'
 import { useUpdateTask } from './useUpdateTask'
@@ -165,6 +168,124 @@ describe('tasks: a first list load in flight when the write lands (cancel before
       () => useOptimisticTaskMutation(),
       (run, wrote) => run(job(wrote)),
     )
+  })
+
+  it('useOptimisticTaskMutation 409 restarts the activity on its first load', async () => {
+    await expectRestarted(
+      activityKey,
+      () => ({}),
+      () => useOptimisticTaskMutation(),
+      (run, wrote) =>
+        run({
+          ...job(wrote),
+          send: async () => {
+            wrote()
+            return {
+              response: new Response(null, { status: 409 }),
+              error: { current: { ...taskView, version: 2 } },
+            }
+          },
+        }),
+    )
+  })
+
+  // The write may have landed although the client never saw the answer: restore, then read the server's truth.
+  const unknownOutcome = (wrote: () => void, answer: () => Response) => ({
+    ...job(wrote),
+    send: async () => {
+      wrote()
+      return { response: answer() }
+    },
+  })
+
+  it('useOptimisticTaskMutation refreshes a view on its first load after a lost response', async () => {
+    await expectRestarted(
+      viewKey,
+      () => ({}),
+      () => useOptimisticTaskMutation(),
+      (run, wrote) =>
+        run({
+          ...job(wrote),
+          send: async () => {
+            wrote()
+            throw new TypeError('network')
+          },
+        }),
+    )
+  })
+
+  it('useOptimisticTaskMutation refreshes a view on its first load after a 5xx', async () => {
+    await expectRestarted(
+      viewKey,
+      () => ({}),
+      () => useOptimisticTaskMutation(),
+      (run, wrote) => run(unknownOutcome(wrote, () => new Response(null, { status: 502 }))),
+    )
+  })
+
+  it('useOptimisticTaskMutation refreshes the activity on its first load after a 5xx', async () => {
+    await expectRestarted(
+      activityKey,
+      () => ({}),
+      () => useOptimisticTaskMutation(),
+      (run, wrote) => run(unknownOutcome(wrote, () => new Response(null, { status: 500 }))),
+    )
+  })
+
+  it('useOptimisticTaskMutation: a lost response puts the server truth back into a loaded view', async () => {
+    let server = 'before'
+    const queryClient = newQueryClient()
+    const observer = new QueryObserver(queryClient, {
+      queryKey: viewKey,
+      queryFn: async () => server,
+    })
+    const stop = observer.subscribe(() => {})
+    await waitFor(() => expect(observer.getCurrentResult().data).toBe('before'))
+    const { result } = renderHook(() => useOptimisticTaskMutation(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    })
+    const outcome = await act(() =>
+      result.current({
+        ...job(() => (server = 'after')),
+        send: async () => {
+          server = 'after'
+          throw new TypeError('network')
+        },
+      }),
+    )
+    expect(outcome).toBe('failed')
+    await waitFor(() => expect(observer.getCurrentResult().data).toBe('after'))
+    stop()
+  })
+
+  it('useOptimisticTaskMutation: a 4xx refusal (nothing written) refetches nothing', async () => {
+    let reads = 0
+    const queryClient = newQueryClient()
+    const observer = new QueryObserver(queryClient, {
+      queryKey: viewKey,
+      queryFn: async () => (reads += 1),
+    })
+    const stop = observer.subscribe(() => {})
+    await waitFor(() => expect(reads).toBe(1))
+    const { result } = renderHook(() => useOptimisticTaskMutation(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    })
+    const outcome = await act(() =>
+      result.current(
+        unknownOutcome(
+          () => {},
+          () => json({ title: 'x' }, 400),
+        ),
+      ),
+    )
+    expect(outcome).toBe('failed')
+    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 50)))
+    expect(reads).toBe(1)
+    stop()
   })
 
   it('useOptimisticTaskMutation restarts a subtask scan on its first load', async () => {
