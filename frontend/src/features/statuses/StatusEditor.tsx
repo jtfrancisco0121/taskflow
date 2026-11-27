@@ -21,7 +21,9 @@ type StatusEditorProps = {
 }
 
 const input =
-  'rounded border border-slate-300 px-1.5 py-1 text-sm focus:outline-2 focus:outline-blue-600'
+  'rounded-md border border-line-strong bg-surface px-1.5 py-1 text-[13px] text-fg focus-visible:outline-2 focus-visible:outline-focus-ring'
+const miniButton =
+  'rounded-md border border-line-strong bg-surface px-1.5 text-fg hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40'
 
 export function StatusEditor({
   workspaceId,
@@ -43,7 +45,7 @@ export function StatusEditor({
         id: inheriting ? undefined : status.id,
         name: status.name ?? '',
         group: (status.group ?? 'NOT_STARTED') as Group,
-        color: status.color ?? '#9ca3af',
+        color: status.color ?? COLOR_PRESETS[0],
       })),
     },
   })
@@ -83,7 +85,7 @@ export function StatusEditor({
   return (
     <form onSubmit={save} noValidate className="flex flex-col gap-3">
       {inheriting && (
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-muted">
           Saving creates a set of its own for this location. It starts as a copy of the inherited
           one.
         </p>
@@ -93,7 +95,7 @@ export function StatusEditor({
           const n = index + 1
           const color = drafts[index]?.color ?? field.color
           return (
-            <li key={field.fieldKey} className="rounded border border-slate-200 p-2">
+            <li key={field.fieldKey} className="rounded-lg border border-line bg-surface p-2">
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   aria-label={`Status ${n} name`}
@@ -114,7 +116,7 @@ export function StatusEditor({
                 />
                 <span
                   aria-hidden="true"
-                  className="h-4 w-4 rounded-full border border-slate-300"
+                  className="h-4 w-4 rounded-full border border-line-strong"
                   style={{ backgroundColor: color }}
                 />
                 <input
@@ -128,7 +130,7 @@ export function StatusEditor({
                     aria-label={`Move status ${n} up`}
                     disabled={index === 0}
                     onClick={() => move(index, index - 1)}
-                    className="rounded border px-1.5 disabled:opacity-40"
+                    className={miniButton}
                   >
                     ↑
                   </button>
@@ -137,7 +139,7 @@ export function StatusEditor({
                     aria-label={`Move status ${n} down`}
                     disabled={index === fields.length - 1}
                     onClick={() => move(index, index + 1)}
-                    className="rounded border px-1.5 disabled:opacity-40"
+                    className={miniButton}
                   >
                     ↓
                   </button>
@@ -146,7 +148,7 @@ export function StatusEditor({
                     aria-label={`Remove status ${n}`}
                     disabled={fields.length <= 1}
                     onClick={() => remove(index)}
-                    className="rounded border px-1.5 disabled:opacity-40"
+                    className={miniButton}
                   >
                     ×
                   </button>
@@ -168,13 +170,13 @@ export function StatusEditor({
                         shouldDirty: true,
                       })
                     }
-                    className={`h-4 w-4 rounded-full border ${color.toLowerCase() === preset ? 'ring-2 ring-blue-600' : 'border-slate-300'}`}
+                    className={`h-4 w-4 rounded-full border ${color.toLowerCase() === preset ? 'ring-2 ring-focus-ring' : 'border-line-strong'}`}
                     style={{ backgroundColor: preset }}
                   />
                 ))}
               </div>
               {rowError(index) && (
-                <p role="alert" className="mt-1 text-xs text-red-700">
+                <p role="alert" className="mt-1 text-xs text-danger">
                   {rowError(index)}
                 </p>
               )}
@@ -197,10 +199,10 @@ export function StatusEditor({
         </Button>
       </div>
       {resolution.needsChoice.length > 0 && (
-        <fieldset className="rounded border border-amber-200 bg-amber-50 p-2">
-          <legend className="px-1 text-sm font-medium">Move its tasks to</legend>
+        <fieldset className="rounded-md border border-line bg-warn-soft p-2">
+          <legend className="px-1 text-sm font-medium text-fg">Move its tasks to</legend>
           {resolution.needsChoice.map((status) => (
-            <label key={status.id} className="mb-1 flex items-center gap-2 text-sm">
+            <label key={status.id} className="mb-1 flex items-center gap-2 text-sm text-fg">
               <span className="w-40 truncate">{status.name}</span>
               <Select
                 aria-label={`Move tasks from ${status.name} to`}
@@ -216,12 +218,12 @@ export function StatusEditor({
         </fieldset>
       )}
       {setError && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           {setError}
         </p>
       )}
       {replace.isError && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-danger">
           {messageOf(replace.error)}
         </p>
       )}

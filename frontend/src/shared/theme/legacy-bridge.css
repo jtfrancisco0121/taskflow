@@ -13,10 +13,8 @@
   --color-slate-400: var(--tf-faint);
   --color-slate-500: var(--tf-muted);
   --color-slate-600: var(--tf-muted);
-  --color-slate-700: var(--tf-fg);
 
   --color-red-50: var(--tf-danger-soft);
-  --color-red-100: var(--tf-danger-soft);
   --color-red-200: var(--tf-danger);
   --color-red-300: var(--tf-danger);
   --color-red-700: var(--tf-danger);
@@ -39,9 +37,7 @@
   --color-sky-100: var(--tf-blue-soft);
   --color-sky-800: var(--tf-fg);
 
-  --color-green-100: var(--tf-ok-soft);
   --color-green-700: var(--tf-status-done);
-  --color-green-800: var(--tf-fg);
 
   --color-violet-100: var(--tf-accent-soft);
   --color-violet-800: var(--tf-fg);

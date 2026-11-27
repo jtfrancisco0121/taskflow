@@ -213,7 +213,7 @@ describe('bridged pairs in feature code', () => {
   }
 
   it('finds the pairs feature code uses', () => {
-    expect(found.size).toBeGreaterThan(20)
+    expect(found.size).toBeGreaterThan(15)
   })
 
   it('maps every palette class feature code uses', () => {
