@@ -1,9 +1,16 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InvalidateQueryFilters,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { useRef } from 'react'
 import { api } from '../../api/client'
 import { ApiError, messageOf, networkError, toApiError, unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate, inBackground } from '../../api/refresh'
 import type { DependencyList, DependencyRelation, TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 
@@ -26,18 +33,16 @@ const ifMatch = (version: number | undefined) =>
  */
 function refresh(queryClient: QueryClient, task: TaskView, otherId: string | undefined) {
   queryClient.setQueryData(queryKeys.task(task.id!), task)
+  const filters: InvalidateQueryFilters[] = []
   for (const id of [task.id!, otherId]) {
     if (!id) continue
-    void queryClient.invalidateQueries({ queryKey: queryKeys.dependencies(id) })
-    void queryClient.invalidateQueries({ queryKey: queryKeys.activity(id) })
+    filters.push({ queryKey: queryKeys.dependencies(id) }, { queryKey: queryKeys.activity(id) })
   }
-  if (otherId)
-    void queryClient.invalidateQueries({ queryKey: queryKeys.task(otherId), exact: true })
+  if (otherId) filters.push({ queryKey: queryKeys.task(otherId), exact: true })
   const ws = task.workspaceId
-  if (ws) {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.tasksAll(ws) })
-    void queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(ws) })
-  }
+  if (ws) filters.push({ queryKey: queryKeys.tasksAll(ws) }, { queryKey: queryKeys.viewsAll(ws) })
+  // Started, not awaited: the mutation settles when the write has, not when every list has refetched.
+  inBackground(cancelThenInvalidate(queryClient, ...filters))
 }
 
 /** Adds a relationship from `task`'s side (POST, If-Match, one idempotency key per submission). */

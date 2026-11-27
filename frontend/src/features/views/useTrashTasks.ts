@@ -2,9 +2,9 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../../api/client'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate, inBackground } from '../../api/refresh'
 import type { TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
-import { invalidateSubtaskScans } from '../tasks'
 import { runLimited } from './bulk'
 import type { ViewScope } from './scope'
 import { useViewStore } from './viewStore'
@@ -58,8 +58,15 @@ async function restoreAll(items: Trashed[]): Promise<number> {
 }
 
 function refresh(queryClient: QueryClient, workspaceId: string) {
-  void queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(workspaceId) })
-  invalidateSubtaskScans(queryClient) // a trashed or restored task leaves or joins a parent's subtasks
+  // A trashed or restored task leaves or joins a parent's subtasks; a first load in flight is restarted.
+  // Started, not awaited: the Undo toast does not wait for a refetch.
+  inBackground(
+    cancelThenInvalidate(
+      queryClient,
+      { queryKey: queryKeys.viewsAll(workspaceId) },
+      { queryKey: queryKeys.subtaskScanAll() },
+    ),
+  )
 }
 
 /**

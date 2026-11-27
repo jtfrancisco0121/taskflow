@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate } from '../../api/refresh'
 import type { components } from '../../api/schema'
 
 export type ReplaceBody = components['schemas']['ReplaceStatusesRequest']
@@ -11,12 +12,13 @@ export type RemapEntry = components['schemas']['RemapRequest']
 function useRefreshAfterWrite(workspaceId: string) {
   const queryClient = useQueryClient()
   return () =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.statusesAll(workspaceId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasksAll(workspaceId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(workspaceId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.taskAll() }),
-    ])
+    cancelThenInvalidate(
+      queryClient,
+      { queryKey: queryKeys.statusesAll(workspaceId) },
+      { queryKey: queryKeys.tasksAll(workspaceId) },
+      { queryKey: queryKeys.viewsAll(workspaceId) },
+      { queryKey: queryKeys.taskAll() },
+    )
 }
 
 export function useReplaceStatuses(workspaceId: string, locationId: string) {

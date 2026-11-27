@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate } from '../../api/refresh'
 import type { components } from '../../api/schema'
 
 export type CreateFieldBody = components['schemas']['CreateFieldRequest']
@@ -13,14 +14,13 @@ export type UpdateFieldBody = components['schemas']['UpdateFieldRequest']
 function useRefresh(workspaceId: string) {
   const queryClient = useQueryClient()
   return () =>
-    Promise.all([
-      queryClient.invalidateQueries({
-        predicate: (q) => q.queryKey[0] === 'location' && q.queryKey[2] === 'fields',
-      }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasksAll(workspaceId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(workspaceId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.taskAll() }),
-    ])
+    cancelThenInvalidate(
+      queryClient,
+      { predicate: (q) => q.queryKey[0] === 'location' && q.queryKey[2] === 'fields' },
+      { queryKey: queryKeys.tasksAll(workspaceId) },
+      { queryKey: queryKeys.viewsAll(workspaceId) },
+      { queryKey: queryKeys.taskAll() },
+    )
 }
 
 export function useCreateField(workspaceId: string, locationId: string) {

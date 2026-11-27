@@ -8,6 +8,7 @@ import { useRef } from 'react'
 import { api } from '../../api/client'
 import { networkError, toApiError } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
+import { firstLoadsOf, inBackground, restartQueries } from '../../api/refresh'
 import type { components } from '../../api/schema'
 import type { TaskView } from '../../api/types'
 import { writeTaskToCaches } from './taskCaches'
@@ -32,6 +33,18 @@ function replaceInLists(queryClient: QueryClient, task: TaskView) {
           items: page.items?.map((item) => (item.id === task.id ? task : item)),
         })),
       },
+  )
+}
+
+/** Lists, the task and the subtask scans still on their first load may have read the server before this write. */
+function firstLoadsAt(queryClient: QueryClient, task: TaskView) {
+  if (!task.workspaceId) return new Set<string>()
+  return firstLoadsOf(
+    queryClient,
+    { queryKey: queryKeys.tasksAll(task.workspaceId) },
+    { queryKey: queryKeys.viewsAll(task.workspaceId) },
+    { queryKey: queryKeys.task(task.id!), exact: true },
+    { queryKey: queryKeys.subtaskScanAll() },
   )
 }
 
@@ -63,15 +76,19 @@ export function useUpdateTask(taskId: string) {
     if (response.status === 409) {
       const current = (result.error as { current?: TaskView } | undefined)?.current
       if (current) {
+        const firstLoads = firstLoadsAt(queryClient, current)
         writeTaskToCaches(queryClient, current)
         replaceInLists(queryClient, current)
+        inBackground(restartQueries(queryClient, firstLoads))
         void queryClient.invalidateQueries({ queryKey: queryKeys.activity(taskId) })
         return { kind: 'conflict', current, attempted: patch }
       }
     }
     if (!response.ok || !result.data) throw toApiError(response, result.error)
+    const firstLoads = firstLoadsAt(queryClient, result.data)
     writeTaskToCaches(queryClient, result.data)
     replaceInLists(queryClient, result.data)
+    inBackground(restartQueries(queryClient, firstLoads))
     void queryClient.invalidateQueries({ queryKey: queryKeys.activity(taskId) })
     return { kind: 'saved', task: result.data }
   }

@@ -1,1 +1,5 @@
-{ "baselineKiB": 389.83, "maxIncreasePct": 15 }
+{
+  "baselineKiB": 390.4349,
+  "maxIncreasePct": 15,
+  "note": "Cap 449.0 KiB (459,776 gzip bytes): approved by JT Francisco 2026-11-27 for PR #27 (first-load race fixes); was 448.3 (baselineKiB 389.83)"
+}
