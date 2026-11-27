@@ -35,8 +35,6 @@ export function createCachePatcher(
   const viewFirstLoads = new Map<string, Set<string>>()
   /** Per Workspace, when the first event of the pending views debounce came. */
   const viewsWaitingSince = new Map<string, number>()
-  /** Per List, the scans refreshTaskFirstLoads already refetches after their first load (the debounce skips them). */
-  const scanFirstLoads = new Map<string, Set<string>>()
   const debounceMs = options.debounceMs ?? 500
   const maxWaitMs = options.maxWaitMs ?? 2000
   let lastFieldsAnnounce = 0
@@ -73,9 +71,7 @@ export function createCachePatcher(
       key,
       setTimeout(() => {
         timers.delete(key)
-        const covered = scanFirstLoads.get(listId)
-        scanFirstLoads.delete(listId)
-        invalidateSubtaskScans(queryClient, listId, covered)
+        invalidateSubtaskScans(queryClient, listId)
       }, debounceMs),
     )
   }
@@ -83,21 +79,16 @@ export function createCachePatcher(
   /**
    * The task's detail, and the subtask scans of the event's List, that are on their first load now read
    * before this event (writeTaskToCaches would be overwritten by that load, or finds no scan to patch):
-   * each is refetched once after that load lands. Loaded ones are patched or rescanned as before; the
-   * debounced rescan skips a scan refetched here.
+   * each is refetched once after that load lands. Loaded ones are patched or rescanned as before. The
+   * debounced rescan still runs for a scan refetched here (a burst can cost one more read): skipping it
+   * could drop a subtask added after that catch-up read.
    */
   function refreshTaskFirstLoads(event: LiveEvent) {
     const filters: InvalidateQueryFilters[] = [
       { queryKey: queryKeys.task(event.entityId), exact: true },
     ]
     if (event.listId) filters.push({ queryKey: queryKeys.subtaskScan(event.listId) })
-    const firstLoads = firstLoadsOf(queryClient, ...filters)
-    if (event.listId) {
-      const covered = scanFirstLoads.get(event.listId) ?? new Set<string>()
-      for (const hash of firstLoadsOf(queryClient, filters[1])) covered.add(hash)
-      scanFirstLoads.set(event.listId, covered)
-    }
-    void invalidateAfterLoadsOf(queryClient, firstLoads)
+    void invalidateAfterLoadsOf(queryClient, firstLoadsOf(queryClient, ...filters))
   }
 
   /**
@@ -232,7 +223,6 @@ export function createCachePatcher(
       timers.clear()
       viewFirstLoads.clear()
       viewsWaitingSince.clear()
-      scanFirstLoads.clear()
     },
   }
 }

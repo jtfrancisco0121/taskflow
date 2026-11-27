@@ -1,9 +1,10 @@
 import { QueryClientProvider, useQuery } from '@tanstack/react-query'
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '../../api/queryKeys'
-import { installFetch, newQueryClient, problem } from '../../test/api'
+import { installFetch, json, newQueryClient, problem, renderWithProviders } from '../../test/api'
+import { NotificationBell } from './NotificationBell'
 import { expectRestarted, put } from '../../test/firstLoadRace'
 import {
   useLiveRefreshInbox,
@@ -12,6 +13,15 @@ import {
   useSetRead,
 } from './useNotifications'
 import { useSetWatching } from './useWatchers'
+
+/** The bell's Live subscription, captured so a test can push events (the realtime client itself is not needed). */
+const live = vi.hoisted(() => ({ event: (() => {}) as (event: unknown) => void }))
+vi.mock('../realtime', async (actual) => ({
+  ...(await actual<typeof import('../realtime')>()),
+  useUserTopic: (handler: (event: unknown) => void) => {
+    live.event = handler
+  },
+}))
 
 const w = 'w1'
 
@@ -114,5 +124,30 @@ describe('the onMutate window: a first load that starts after the optimistic can
       (save) => save.mutateAsync({ kind: 'ASSIGNED', inApp: false, emailDigest: false }),
       { startDuringWrite: true },
     )
+  })
+})
+
+describe('NotificationBell: Live events during the unread count first load', () => {
+  it('a steady stream of notification events does not keep the count from loading', async () => {
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+    let reads = 0
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    installFetch({
+      'GET /api/v1/workspaces/:id/notifications/unread-count': async () => {
+        reads += 1
+        if (reads === 1) await held // the first load is still in flight when the stream starts
+        await sleep(30) // each read takes 30 ms
+        return json({ count: 3 })
+      },
+    })
+    renderWithProviders(<NotificationBell workspaceId={w} />)
+    await waitFor(() => expect(reads).toBe(1))
+    for (let i = 0; i < 10; i += 1) {
+      act(() => live.event({ entity: 'notification', type: 'notification.created' }))
+      if (i === 0) release()
+      await act(() => sleep(10)) // an event every 10 ms for 100 ms
+    }
+    expect(screen.getByRole('button', { name: 'Notifications, 3 unread' })).toBeVisible()
   })
 })
