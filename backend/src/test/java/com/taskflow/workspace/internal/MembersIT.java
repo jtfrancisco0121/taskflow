@@ -126,6 +126,51 @@ class MembersIT extends IntegrationTest {
   }
 
   @Test
+  void ownerDemotedWhileWaitingForTheLockCannotGrantOwner() throws Exception {
+    Ws ws = workspaceWithAllRoles();
+    addMember(ws.id(), ws.admin(), "OWNER");
+    java.util.concurrent.CompletableFuture<Resp> grant;
+    try (java.sql.Connection holder = jdbc.getDataSource().getConnection()) {
+      holder.setAutoCommit(false);
+      try (java.sql.PreparedStatement lock =
+          holder.prepareStatement("SELECT 1 FROM workspace WHERE id = ? FOR UPDATE")) {
+        lock.setObject(1, ws.id());
+        lock.executeQuery();
+      }
+      // The second owner passes the permission check, then waits on the workspace lock.
+      grant =
+          java.util.concurrent.CompletableFuture.supplyAsync(() ->
+              patch(
+                  members(ws) + "/" + ws.member().id(),
+                  ws.admin().token(),
+                  Map.of("role", "OWNER")));
+      long deadline = System.currentTimeMillis() + 10_000;
+      while (jdbc.queryForObject(
+              "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'", Integer.class)
+          == 0) {
+        assertThat(System.currentTimeMillis()).isLessThan(deadline);
+        Thread.sleep(20);
+      }
+      try (java.sql.PreparedStatement demote =
+          holder.prepareStatement(
+              "UPDATE workspace_member SET role = 'MEMBER' WHERE workspace_id = ? AND user_id = ?")) {
+        demote.setObject(1, ws.id());
+        demote.setObject(2, ws.admin().id());
+        demote.executeUpdate();
+      }
+      holder.commit();
+    }
+    assertThat(grant.get().status()).isEqualTo(403);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT role FROM workspace_member WHERE workspace_id = ? AND user_id = ?",
+                String.class,
+                ws.id(),
+                ws.member().id()))
+        .isEqualTo("MEMBER");
+  }
+
+  @Test
   void concurrentDemotionsOfTwoOwnersLeaveOne() throws Exception {
     Ws ws = workspaceWithAllRoles();
     addMember(ws.id(), ws.admin(), "OWNER");
@@ -143,8 +188,13 @@ class MembersIT extends IntegrationTest {
               members(ws) + "/" + ws.admin().id(), ws.owner().token(), Map.of("role", "MEMBER"));
         });
     go.countDown();
-    assertThat(java.util.List.of(a.get().status(), b.get().status()))
-        .containsExactlyInAnyOrder(200, 409);
+    // Whichever demotion commits first wins (200). The other either reached the last-owner guard
+    // under the lock (409) or was checked after the winner committed, when its caller was no
+    // longer an owner (403). Both leave one owner; a second 200 never happens.
+    int sa = a.get().status();
+    int sb = b.get().status();
+    assertThat(java.util.List.of(sa, sb)).containsOnlyOnce(200);
+    assertThat(sa == 200 ? sb : sa).isIn(403, 409);
     assertThat(
             jdbc.queryForObject(
                 "SELECT count(*) FROM workspace_member WHERE workspace_id = ? AND role = 'OWNER'",
