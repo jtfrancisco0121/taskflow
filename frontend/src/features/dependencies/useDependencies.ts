@@ -1,10 +1,16 @@
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InvalidateQueryFilters,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { useRef } from 'react'
 import { api } from '../../api/client'
 import { ApiError, messageOf, networkError, toApiError, unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
 import { queryKeys } from '../../api/queryKeys'
-import { cancelThenInvalidate } from '../../api/refresh'
+import { cancelThenInvalidate, inBackground } from '../../api/refresh'
 import type { DependencyList, DependencyRelation, TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 
@@ -25,28 +31,18 @@ const ifMatch = (version: number | undefined) =>
  * A relationship change touches both tasks (versions bump on both ends), so after it the acting
  * task is replaced from the response and everything that may show either task is refreshed.
  */
-function refresh(
-  queryClient: QueryClient,
-  task: TaskView,
-  otherId: string | undefined,
-): Promise<void> {
+function refresh(queryClient: QueryClient, task: TaskView, otherId: string | undefined) {
   queryClient.setQueryData(queryKeys.task(task.id!), task)
+  const filters: InvalidateQueryFilters[] = []
   for (const id of [task.id!, otherId]) {
     if (!id) continue
-    void queryClient.invalidateQueries({ queryKey: queryKeys.dependencies(id) })
-    void queryClient.invalidateQueries({ queryKey: queryKeys.activity(id) })
+    filters.push({ queryKey: queryKeys.dependencies(id) }, { queryKey: queryKeys.activity(id) })
   }
-  if (otherId)
-    void queryClient.invalidateQueries({ queryKey: queryKeys.task(otherId), exact: true })
+  if (otherId) filters.push({ queryKey: queryKeys.task(otherId), exact: true })
   const ws = task.workspaceId
-  if (ws) {
-    return cancelThenInvalidate(
-      queryClient,
-      { queryKey: queryKeys.tasksAll(ws) },
-      { queryKey: queryKeys.viewsAll(ws) },
-    )
-  }
-  return Promise.resolve()
+  if (ws) filters.push({ queryKey: queryKeys.tasksAll(ws) }, { queryKey: queryKeys.viewsAll(ws) })
+  // Started, not awaited: the mutation settles when the write has, not when every list has refetched.
+  inBackground(cancelThenInvalidate(queryClient, ...filters))
 }
 
 /** Adds a relationship from `task`'s side (POST, If-Match, one idempotency key per submission). */
@@ -77,7 +73,7 @@ export function useAddDependency(task: TaskView) {
     },
     onSuccess: (added) => {
       keys.current.done()
-      if (added.task) return refresh(queryClient, added.task, added.otherTaskId)
+      if (added.task) refresh(queryClient, added.task, added.otherTaskId)
     },
   })
 }
@@ -135,7 +131,7 @@ export function useRemoveDependency(task: TaskView) {
       const fresh = await unwrap(
         api.GET('/api/v1/tasks/{id}', { params: { path: { id: task.id! } } }),
       )
-      await refresh(queryClient, fresh, input.otherTaskId)
+      refresh(queryClient, fresh, input.otherTaskId)
     },
   })
 }

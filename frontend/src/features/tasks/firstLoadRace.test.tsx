@@ -1,4 +1,4 @@
-import { describe, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { queryKeys } from '../../api/queryKeys'
 import type { TaskView } from '../../api/types'
 import { expectRestarted, put } from '../../test/firstLoadRace'
@@ -62,6 +62,50 @@ describe('tasks: a first list load in flight when the write lands (cancel before
             }
           },
         }),
+    )
+  })
+
+  const job = (wrote: () => void, sent?: () => void) => ({
+    task: { id: 't1', workspaceId: w, version: 1 },
+    optimistic: { priority: 'HIGH' as const },
+    send: async () => {
+      wrote()
+      sent?.()
+      return { response: new Response(null, { status: 200 }), data: taskView }
+    },
+  })
+
+  it('useOptimisticTaskMutation: saved and the next queued write do not wait for the refetch', async () => {
+    let sends = 0
+    await expectRestarted(
+      viewKey,
+      () => ({}),
+      () => useOptimisticTaskMutation(),
+      async (run, wrote) => {
+        const first = run(job(wrote, () => (sends += 1)))
+        const second = run(job(wrote, () => (sends += 1)))
+        expect(await first).toBe('saved')
+        expect(await second).toBe('saved')
+      },
+      { holdRefetch: true, check: () => expect(sends).toBe(2) },
+    )
+  })
+
+  it('useOptimisticTaskMutation restarts the task detail on its first load', async () => {
+    await expectRestarted(
+      queryKeys.task('t1'),
+      () => ({}),
+      () => useOptimisticTaskMutation(),
+      (run, wrote) => run(job(wrote)),
+    )
+  })
+
+  it('useOptimisticTaskMutation restarts a subtask scan on its first load', async () => {
+    await expectRestarted(
+      queryKeys.subtaskScan('l1'),
+      () => ({}),
+      () => useOptimisticTaskMutation(),
+      (run, wrote) => run(job(wrote)),
     )
   })
 })

@@ -34,6 +34,19 @@ describe('restartFirstLoads', () => {
     stop()
   })
 
+  it('does not refetch a query that failed (no data, not fetching)', async () => {
+    const queryClient = newQueryClient()
+    const key = ['ws', 'w1', 'view']
+    const queryFn = vi.fn(async () => {
+      throw new Error('boom')
+    })
+    const stop = new QueryObserver(queryClient, { queryKey: key, queryFn }).subscribe(() => {})
+    await vi.waitFor(() => expect(queryClient.getQueryState(key)?.status).toBe('error'))
+    await restartFirstLoads(queryClient, { queryKey: key })
+    expect(queryFn).toHaveBeenCalledTimes(1)
+    stop()
+  })
+
   it('ignores a query of another key still loading', async () => {
     const queryClient = newQueryClient()
     const queryFn = vi.fn(() => new Promise<string>(() => {}))

@@ -16,6 +16,11 @@ export async function expectRestarted<T>(
   routes: (wrote: () => void) => Record<string, StubHandler | Response | object>,
   useWrite: () => T,
   fire: (write: T, wrote: () => void) => Promise<unknown>,
+  /**
+   * `holdRefetch`: the restart's refetch never answers. The write must still settle (the UI is not blocked on the
+   * refetch), the restart must have started, and `check` sees the hook state while the refetch is pending.
+   */
+  options: { holdRefetch?: boolean; check?: (state: { write: T }) => void } = {},
 ) {
   let release: () => void = () => {}
   const opened = new Promise<void>((resolve) => (release = resolve))
@@ -39,6 +44,7 @@ export async function expectRestarted<T>(
           reads += 1
           const seen = written
           if (reads === 1) await opened // the server read the list before the write
+          if (reads > 1 && options.holdRefetch) await new Promise(() => {})
           return seen ? 'after' : 'before'
         },
       }),
@@ -54,6 +60,12 @@ export async function expectRestarted<T>(
   await waitFor(() => expect(written).toBe(true))
   release()
   await act(() => firing)
+  if (options.holdRefetch) {
+    await waitFor(() => expect(reads).toBe(2))
+    expect(result.current.probe.data).toBeUndefined()
+    options.check?.(result.current)
+    return
+  }
   await waitFor(() => expect(result.current.probe.data).toBe('after'))
   expect(reads).toBe(2)
 }

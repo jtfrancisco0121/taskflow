@@ -2,7 +2,7 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { ApiError, messageOf, networkError, toApiError } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
-import { restartFirstLoads } from '../../api/refresh'
+import { firstLoadsOf, inBackground, restartQueries } from '../../api/refresh'
 import type { TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 import { cachedVersion, patchTaskInCaches, writeTaskToCaches } from './taskCaches'
@@ -82,10 +82,15 @@ export function useOptimisticTaskMutation() {
   )
 }
 
-/** The task lists a write can have missed while their first load was in flight (see restartFirstLoads). */
-const firstLoadKeys = (workspaceId: string) => [
+/**
+ * What a write can have missed while it was on its first load (see restartFirstLoads): the task lists, the task's own
+ * detail and the subtask scans. Snapshot it before the response is written into the caches.
+ */
+const firstLoadKeys = (workspaceId: string, taskId: string) => [
   { queryKey: queryKeys.viewsAll(workspaceId) },
   { queryKey: queryKeys.tasksAll(workspaceId) },
+  { queryKey: queryKeys.task(taskId), exact: true },
+  { queryKey: queryKeys.subtaskScanAll() },
 ]
 
 async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutcome> {
@@ -112,6 +117,7 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
     return 'failed'
   }
   const { response } = result
+  const firstLoads = firstLoadsOf(queryClient, ...firstLoadKeys(workspaceId, id))
   if (response.status === 409) {
     const current = (result.error as { current?: TaskView } | undefined)?.current
     if (current) {
@@ -120,7 +126,7 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
       writeTaskToCaches(queryClient, current)
       show(CONFLICT_MESSAGE, 'error')
       void queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(workspaceId) })
-      await restartFirstLoads(queryClient, ...firstLoadKeys(workspaceId))
+      inBackground(restartQueries(queryClient, firstLoads))
       return 'conflict'
     }
   }
@@ -132,6 +138,6 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
   }
   writeTaskToCaches(queryClient, result.data)
   void queryClient.invalidateQueries({ queryKey: queryKeys.activity(id) })
-  await restartFirstLoads(queryClient, ...firstLoadKeys(workspaceId))
+  inBackground(restartQueries(queryClient, firstLoads))
   return 'saved'
 }

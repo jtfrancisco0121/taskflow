@@ -2,7 +2,7 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../../api/client'
 import { queryKeys } from '../../api/queryKeys'
-import { cancelThenInvalidate } from '../../api/refresh'
+import { cancelThenInvalidate, inBackground } from '../../api/refresh'
 import type { TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 import { runLimited } from './bulk'
@@ -59,10 +59,13 @@ async function restoreAll(items: Trashed[]): Promise<number> {
 
 function refresh(queryClient: QueryClient, workspaceId: string) {
   // A trashed or restored task leaves or joins a parent's subtasks; a first load in flight is restarted.
-  return cancelThenInvalidate(
-    queryClient,
-    { queryKey: queryKeys.viewsAll(workspaceId) },
-    { queryKey: queryKeys.subtaskScanAll() },
+  // Started, not awaited: the Undo toast does not wait for a refetch.
+  inBackground(
+    cancelThenInvalidate(
+      queryClient,
+      { queryKey: queryKeys.viewsAll(workspaceId) },
+      { queryKey: queryKeys.subtaskScanAll() },
+    ),
   )
 }
 
@@ -84,7 +87,7 @@ export function useTrashTasks(scope: ViewScope) {
     const show = useToastStore.getState().show
     if (failed) show(`${tasksText(failed)} could not be restored.`, 'error')
     else show(`Restored ${tasksText(count)}.`)
-    await refresh(queryClient, scope.workspaceId)
+    refresh(queryClient, scope.workspaceId)
   }
 
   /**
@@ -128,7 +131,7 @@ export function useTrashTasks(scope: ViewScope) {
         show(`Not deleted: ${failed.map((f) => f.item.readableId).join(', ')}`, 'error')
       }
       useViewStore.getState().clearSelection()
-      await refresh(queryClient, scope.workspaceId)
+      refresh(queryClient, scope.workspaceId)
       if (done.length === 0) return
       // Tasks that rode along with a trashed parent count as moved.
       const moved = selected.length - failed.length
