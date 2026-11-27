@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { toApiError, unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate } from '../../api/refresh'
 import type { ViewConfig, ViewDto } from '../../api/types'
 import { DEFAULT_BOARD_ID, DEFAULT_LIST_ID, scopeId, type ViewScope } from './scope'
 
@@ -79,7 +80,7 @@ export function useSaveView(scope: ViewScope) {
       return result.data
     },
     onSuccess: () =>
-      queryClient.invalidateQueries({
+      cancelThenInvalidate(queryClient, {
         queryKey: queryKeys.viewList(scope.workspaceId, scopeId(scope)),
       }),
   })
@@ -96,7 +97,7 @@ export function useDeleteView(scope: ViewScope) {
       if (!response.ok) throw toApiError(response, error)
     },
     onSuccess: () =>
-      queryClient.invalidateQueries({
+      cancelThenInvalidate(queryClient, {
         queryKey: queryKeys.viewList(scope.workspaceId, scopeId(scope)),
       }),
   })

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { queryKeys } from '../../api/queryKeys'
 import type { TaskView } from '../../api/types'
+import { problem } from '../../test/api'
 import { expectRestarted, put } from '../../test/firstLoadRace'
 import { useAddDependency, useRemoveDependency } from './useDependencies'
 
@@ -90,6 +91,31 @@ describe('dependencies: a first list load in flight when the write lands (cancel
       () => useAddDependency(taskView),
       (a) => a.mutateAsync({ otherTaskId: 't2', relation: 'BLOCKS' } as never),
       { holdRefetch: true, check: ({ write }) => expect(write.isPending).toBe(false) },
+    )
+  })
+  // A 409 answers with the current task, written into task(id): a detail still on its first load is restarted.
+  const conflict = (wrote: () => void) => () => {
+    wrote()
+    return problem(409, 'task.version_conflict', 'stale', { current: { ...task(1), version: 2 } })
+  }
+
+  it('useAddDependency 409 restarts the acting task detail on its first load', async () => {
+    await expectRestarted(
+      queryKeys.task('t1'),
+      (wrote) => ({ 'POST /api/v1/tasks/:id/dependencies': conflict(wrote) }),
+      () => useAddDependency(taskView),
+      (a) =>
+        a.mutateAsync({ otherTaskId: 't2', relation: 'BLOCKS' } as never).catch(() => undefined),
+    )
+  })
+
+  it('useRemoveDependency 409 restarts the acting task detail on its first load', async () => {
+    await expectRestarted(
+      queryKeys.task('t1'),
+      (wrote) => ({ 'DELETE /api/v1/tasks/:id/dependencies/:dependencyId': conflict(wrote) }),
+      () => useRemoveDependency(taskView),
+      (remove) =>
+        remove.mutateAsync({ dependencyId: 'd1', otherTaskId: 't2' }).catch(() => undefined),
     )
   })
 })

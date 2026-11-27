@@ -1,4 +1,4 @@
-import type { InvalidateQueryFilters, QueryClient } from '@tanstack/react-query'
+import type { InvalidateQueryFilters, Query, QueryClient } from '@tanstack/react-query'
 
 /**
  * After a write, refetch every query matching `filters`, including one whose first load is still in flight.
@@ -23,9 +23,12 @@ export function firstLoadsOf(queryClient: QueryClient, ...filters: InvalidateQue
   const hashes = new Set<string>()
   for (const filter of filters)
     for (const query of queryClient.getQueryCache().findAll(filter))
-      if (query.state.data === undefined && query.state.fetchStatus === 'fetching')
-        hashes.add(query.queryHash)
+      if (isFirstLoad(query)) hashes.add(query.queryHash)
   return hashes
+}
+
+function isFirstLoad(query: Query) {
+  return query.state.data === undefined && query.state.fetchStatus === 'fetching'
 }
 
 /** Cancels and refetches the queries of a `firstLoadsOf` snapshot. */
@@ -40,6 +43,50 @@ export async function restartQueries(queryClient: QueryClient, hashes: Set<strin
  */
 export function restartFirstLoads(queryClient: QueryClient, ...filters: InvalidateQueryFilters[]) {
   return restartQueries(queryClient, firstLoadsOf(queryClient, ...filters))
+}
+
+const waitingOnFirstLoad = new WeakMap<QueryClient, Set<string>>()
+
+/**
+ * The form for refreshes nobody waits on that can come in bursts (Live events, a reconnect). Invalidates `filters`;
+ * a query still on its first load (its response may have been read before the event) is not cancelled but refetched
+ * once after that load lands. A burst during one first load waits on it once, so it ends with one extra read, and a
+ * user's write that restarts the load (cancelThenInvalidate) is not fought: a cancelled load adds no read.
+ */
+export function invalidateAfterFirstLoads(
+  queryClient: QueryClient,
+  ...filters: InvalidateQueryFilters[]
+) {
+  return invalidateAfterLoadsOf(queryClient, firstLoadsOf(queryClient, ...filters), ...filters)
+}
+
+/**
+ * invalidateAfterFirstLoads for a refresh that runs later than its events (a debounce): `firstLoads` is the
+ * `firstLoadsOf` snapshot taken when the events came. Only those queries, if still on that first load, are refetched
+ * after it lands; a query whose first load started after the events read after them and needs no extra read.
+ */
+export function invalidateAfterLoadsOf(
+  queryClient: QueryClient,
+  firstLoads: Set<string>,
+  ...filters: InvalidateQueryFilters[]
+) {
+  let waiting = waitingOnFirstLoad.get(queryClient)
+  if (!waiting) waitingOnFirstLoad.set(queryClient, (waiting = new Set()))
+  const pending = waiting
+  for (const hash of firstLoads) {
+    const query = queryClient.getQueryCache().get(hash)
+    const load = query?.promise
+    if (!query || !isFirstLoad(query) || !load || pending.has(hash)) continue
+    pending.add(hash)
+    load.then(
+      () => {
+        pending.delete(hash)
+        void queryClient.invalidateQueries({ predicate: (q) => q === query })
+      },
+      () => pending.delete(hash),
+    )
+  }
+  return Promise.all(filters.map((filter) => queryClient.invalidateQueries(filter)))
 }
 
 /**

@@ -2,7 +2,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { clientId } from '../../api/clientId'
 import { getAccessToken, getSessionUser, refreshSession } from '../../api/session'
-import { queryKeys } from '../../api/queryKeys'
 import { useTreeChildren } from '../locations'
 import { useMembers } from '../workspace'
 import { createCachePatcher } from './cachePatcher'
@@ -90,16 +89,12 @@ export function LiveUpdates({
         }
       }),
     )
-    // After a reconnect the open views are refetched once (messages may have been missed).
-    const offReconnect = client.onReconnect(() => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(workspaceId) })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.treeAll(workspaceId) })
-    })
+    const offReconnect = client.onReconnect(() => void patcher.reconnected(workspaceId))
     return () => {
       off.forEach((fn) => fn())
       offReconnect()
     }
-  }, [client, workspaceId, topicKey, patcher, queryClient])
+  }, [client, workspaceId, topicKey, patcher])
 
   return (
     <RealtimeContext.Provider value={client}>

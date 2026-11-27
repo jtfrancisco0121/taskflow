@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { queryKeys } from '../../api/queryKeys'
+import { firstLoadsOf, invalidateAfterFirstLoads, invalidateAfterLoadsOf } from '../../api/refresh'
 import {
   cachedVersion,
   invalidateSubtaskScans,
@@ -16,22 +17,31 @@ export type PatchResult = 'own' | 'stale' | 'held' | 'applied' | 'invalidated'
  * cached one cause nothing; otherwise the task is refetched and patched in every cached view page,
  * and the Workspace's view queries are invalidated (debounced 500 ms) because membership may have
  * changed. While the user's own mutation on that task is pending the event is held (AD-20).
+ * Every refresh here also covers a list still on its first load (read before the event): it is
+ * refetched once after that load lands, never cancelled, so a burst of events costs one extra read.
  */
 export function createCachePatcher(
   queryClient: QueryClient,
   options: { clientId: string; debounceMs?: number; announce?: (message: string) => void },
 ) {
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
+  /** Per Workspace, the views on their first load when an event of the pending debounce came (union). */
+  const viewFirstLoads = new Map<string, Set<string>>()
   const debounceMs = options.debounceMs ?? 500
   let lastFieldsAnnounce = 0
 
   function invalidateViewsSoon(workspaceId: string) {
+    const views = { queryKey: queryKeys.viewsAll(workspaceId) }
+    const firstLoads = viewFirstLoads.get(workspaceId) ?? new Set<string>()
+    for (const hash of firstLoadsOf(queryClient, views)) firstLoads.add(hash)
+    viewFirstLoads.set(workspaceId, firstLoads)
     clearTimeout(timers.get(workspaceId))
     timers.set(
       workspaceId,
       setTimeout(() => {
         timers.delete(workspaceId)
-        void queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(workspaceId) })
+        viewFirstLoads.delete(workspaceId)
+        void invalidateAfterLoadsOf(queryClient, firstLoads, views)
       }, debounceMs),
     )
   }
@@ -59,7 +69,9 @@ export function createCachePatcher(
       taskMutationGate.whenSettled(event.entityId, () => void handleBlocker(workspaceId, event))
       return 'held'
     }
-    void queryClient.invalidateQueries({ queryKey: queryKeys.dependencies(event.entityId) })
+    void invalidateAfterFirstLoads(queryClient, {
+      queryKey: queryKeys.dependencies(event.entityId),
+    })
     invalidateViewsSoon(workspaceId)
     if (cachedVersion(queryClient, workspaceId, event.entityId) == null) return 'invalidated'
     const { data } = await api.GET('/api/v1/tasks/{id}', {
@@ -67,7 +79,7 @@ export function createCachePatcher(
     })
     if (data) {
       writeTaskToCaches(queryClient, data)
-      void queryClient.invalidateQueries({ queryKey: queryKeys.activity(event.entityId) })
+      void invalidateAfterFirstLoads(queryClient, { queryKey: queryKeys.activity(event.entityId) })
       options.announce?.(
         data.blocked
           ? `${data.readableId ?? 'A task'} is blocked.`
@@ -84,11 +96,11 @@ export function createCachePatcher(
     if (event.entity === 'location' && event.type.startsWith('custom_field.')) {
       // A definition changed (3A, AD-12): refresh the field lists and columns, and everything that
       // shows values, since a renamed Option or a retired field changes how they read.
-      void queryClient.invalidateQueries({
+      void invalidateAfterFirstLoads(queryClient, {
         predicate: (q) => q.queryKey[0] === 'location' && q.queryKey[2] === 'fields',
       })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.taskAll() })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.tasksAll(workspaceId) })
+      void invalidateAfterFirstLoads(queryClient, { queryKey: queryKeys.taskAll() })
+      void invalidateAfterFirstLoads(queryClient, { queryKey: queryKeys.tasksAll(workspaceId) })
       invalidateViewsSoon(workspaceId)
       // One announcement for a burst of definition events (a new field with several Options).
       const now = Date.now()
@@ -99,19 +111,19 @@ export function createCachePatcher(
       return 'invalidated'
     }
     if (event.entity === 'location') {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.treeAll(workspaceId) })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.viewListAll(workspaceId) })
-      void queryClient.invalidateQueries({ queryKey: ['location'] })
+      void invalidateAfterFirstLoads(queryClient, { queryKey: queryKeys.treeAll(workspaceId) })
+      void invalidateAfterFirstLoads(queryClient, { queryKey: queryKeys.viewListAll(workspaceId) })
+      void invalidateAfterFirstLoads(queryClient, { queryKey: ['location'] })
       invalidateViewsSoon(workspaceId)
       options.announce?.('The workspace structure changed.')
       return 'invalidated'
     }
     if (event.entity === 'automation') {
       // A rule changed or ran (3C): refresh the rule lists and their run histories.
-      void queryClient.invalidateQueries({
+      void invalidateAfterFirstLoads(queryClient, {
         predicate: (q) => q.queryKey[0] === 'location' && q.queryKey[2] === 'automations',
       })
-      void queryClient.invalidateQueries({ queryKey: ['automation'] })
+      void invalidateAfterFirstLoads(queryClient, { queryKey: ['automation'] })
       return 'invalidated'
     }
     if (event.entity === 'notification') {
@@ -119,7 +131,7 @@ export function createCachePatcher(
       return 'invalidated'
     }
     if (event.entity !== 'task') {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces() })
+      void invalidateAfterFirstLoads(queryClient, { queryKey: queryKeys.workspaces() })
       return 'invalidated'
     }
     if (event.type === 'task.blocker_resolved' || event.type === 'task.blocker_reopened') {
@@ -127,12 +139,14 @@ export function createCachePatcher(
     }
     if (event.type === 'task.dependency_added' || event.type === 'task.dependency_removed') {
       // The relationship list of either end changed; the task itself follows the version rules.
-      void queryClient.invalidateQueries({ queryKey: queryKeys.dependencies(event.entityId) })
+      void invalidateAfterFirstLoads(queryClient, {
+        queryKey: queryKeys.dependencies(event.entityId),
+      })
     }
     if (event.type.startsWith('comment.')) {
       // A comment does not change the task's version: refresh its tabs before the version check.
-      void queryClient.invalidateQueries({ queryKey: queryKeys.comments(event.entityId) })
-      void queryClient.invalidateQueries({ queryKey: queryKeys.activity(event.entityId) })
+      void invalidateAfterFirstLoads(queryClient, { queryKey: queryKeys.comments(event.entityId) })
+      void invalidateAfterFirstLoads(queryClient, { queryKey: queryKeys.activity(event.entityId) })
     }
     const cached = cachedVersion(queryClient, workspaceId, event.entityId)
     if (cached != null && event.version != null && event.version <= cached) return 'stale'
@@ -151,17 +165,28 @@ export function createCachePatcher(
     })
     if (data) {
       writeTaskToCaches(queryClient, data)
-      void queryClient.invalidateQueries({ queryKey: queryKeys.activity(event.entityId) })
+      void invalidateAfterFirstLoads(queryClient, { queryKey: queryKeys.activity(event.entityId) })
       options.announce?.(`${data.readableId ?? 'A task'} was updated.`)
     }
     return 'applied'
   }
 
+  /** After a reconnect the open views and the tree are refetched once (messages may have been missed). */
+  function reconnected(workspaceId: string) {
+    return invalidateAfterFirstLoads(
+      queryClient,
+      { queryKey: queryKeys.viewsAll(workspaceId) },
+      { queryKey: queryKeys.treeAll(workspaceId) },
+    )
+  }
+
   return {
     handle,
+    reconnected,
     dispose() {
       timers.forEach((t) => clearTimeout(t))
       timers.clear()
+      viewFirstLoads.clear()
     },
   }
 }
