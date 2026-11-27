@@ -417,6 +417,56 @@ describe('CAL-1 Calendar view', () => {
     expect(await screen.findByRole('link', { name: 'Task 1' })).toBeVisible()
   })
 
+  function paged(second: () => Response | Promise<Response>) {
+    return installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': (_r: Request, body: unknown) => {
+        const b = body as { config: { group?: string }; cursor?: string }
+        if (b.config.group === 'dueDate') return json({ items: [] })
+        if (b.cursor === 'c2') return second()
+        return json({
+          items: [{ task: dated(1, '2026-11-22') }],
+          nextCursor: 'c2',
+        })
+      },
+    } as never)
+  }
+
+  it('CAL-1: no empty state while later pages load; the task shows once page 2 arrives', async () => {
+    let release: (r: Response) => void = () => {}
+    paged(() => new Promise<Response>((res) => (release = res)))
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
+      route,
+    })
+    expect(await screen.findByRole('status', { name: 'Loading the Calendar' })).toBeVisible()
+    await waitFor(() => expect(release).not.toBe(undefined))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(screen.queryByText('No tasks due in this range.')).toBeNull()
+    expect(screen.getByRole('status', { name: 'Loading the Calendar' })).toBeVisible()
+    release(json({ items: [{ task: dated(2, '2026-11-25') }] }))
+    expect(await screen.findByRole('link', { name: 'Task 2' })).toBeVisible()
+    expect(screen.queryByText('No tasks due in this range.')).toBeNull()
+    expect(screen.queryByRole('status', { name: 'Loading the Calendar' })).toBeNull()
+  })
+
+  it('CAL-1: when every page is out of range the empty state shows after the last page', async () => {
+    paged(() => json({ items: [{ task: dated(3, '2026-11-30') }] }))
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
+      route,
+    })
+    expect(await screen.findByText('No tasks due in this range.')).toBeVisible()
+    expect(screen.queryByRole('status', { name: 'Loading the Calendar' })).toBeNull()
+  })
+
+  it('CAL-1: a failed later page shows the ErrorState, not an endless loading', async () => {
+    paged(() => problem(500, 'server.error', 'Boom'))
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
+      route,
+    })
+    expect(await screen.findByRole('alert')).toBeVisible()
+    expect(screen.queryByText('No tasks due in this range.')).toBeNull()
+  })
+
   it('CAL-1: an empty range says so and still shows the grid', async () => {
     serve([], () => json({}))
     renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
