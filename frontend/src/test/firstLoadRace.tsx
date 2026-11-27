@@ -68,12 +68,14 @@ export async function expectRestarted<T>(
   if (options.holdRefetch) {
     const expectedReads = options.expectedReads ?? 2
     await waitFor(() => expect(reads).toBeGreaterThanOrEqual(expectedReads)) // one restart per saved write
+    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 50))) // a late extra read must fail
     expect(reads).toBe(expectedReads)
     expect(result.current.probe.data).toBeUndefined()
     options.check?.(result.current)
     return
   }
   await waitFor(() => expect(result.current.probe.data).toBe('after'))
+  await act(() => new Promise<void>((resolve) => setTimeout(resolve, 50)))
   expect(reads).toBe(2)
 }
 

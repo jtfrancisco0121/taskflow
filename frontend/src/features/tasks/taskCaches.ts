@@ -1,7 +1,5 @@
-import type { QueryClient } from '@tanstack/react-query'
-import type { InfiniteData } from '@tanstack/react-query'
+import type { InfiniteData, InvalidateQueryFilters, QueryClient } from '@tanstack/react-query'
 import { queryKeys } from '../../api/queryKeys'
-import type { InvalidateQueryFilters } from '@tanstack/react-query'
 import type { TaskView, ViewItem, ViewQueryResponse } from '../../api/types'
 
 type ViewPages = InfiniteData<ViewQueryResponse>

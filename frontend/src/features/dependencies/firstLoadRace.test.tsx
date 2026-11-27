@@ -71,6 +71,18 @@ describe('dependencies: a first list load in flight when the write lands (cancel
     )
   })
 
+  it('useRemoveDependency restarts the acting task detail on its first load', async () => {
+    await expectRestarted(
+      queryKeys.task('t1'),
+      (wrote) => ({
+        'DELETE /api/v1/tasks/:id/dependencies/:dependencyId': put(wrote, {}),
+        'GET /api/v1/tasks/:id': { ...task(1) },
+      }),
+      () => useRemoveDependency(taskView),
+      (remove) => remove.mutateAsync({ dependencyId: 'd1', otherTaskId: 't2' }),
+    )
+  })
+
   it('useAddDependency settles without waiting for the refetch of the lists', async () => {
     await expectRestarted(
       viewKey,

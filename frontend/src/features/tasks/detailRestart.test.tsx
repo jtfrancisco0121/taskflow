@@ -51,6 +51,9 @@ async function setup() {
   return { result, release, ifMatch, queryClient, reads: () => reads }
 }
 
+/** Lets late answers and background restarts land before the assertions. */
+const settle = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 50)))
+
 describe('task detail on its first load when a write lands', () => {
   it('useUpdateTask: the written task stays visible, with its version for If-Match', async () => {
     const { result, release, ifMatch, queryClient, reads } = await setup()
@@ -58,7 +61,9 @@ describe('task detail on its first load when a write lands', () => {
     await waitFor(() => expect(reads()).toBe(2)) // the restart cancelled the first read and refetches
     expect(result.current.detail.data).toEqual(written)
     release() // the stale first read answers late
+    await settle()
     expect(result.current.detail.data).toEqual(written)
+    expect(reads()).toBe(2)
     expect(queryClient.getQueryData<TaskView>(queryKeys.task('t1'))?.version).toBe(2)
     await act(() => result.current.update.mutateAsync({ title: 'Again' }))
     expect(ifMatch[1]).toBe('"2"')
@@ -84,6 +89,7 @@ describe('task detail on its first load when a write lands', () => {
     )
     release()
     await waitFor(() => expect(reads()).toBeGreaterThanOrEqual(2))
+    await settle()
     expect(result.current.detail.data).toEqual(written)
     expect(queryClient.getQueryData<TaskView>(queryKeys.task('t1'))?.version).toBe(2)
     expect(sentWith).toBe(2)
