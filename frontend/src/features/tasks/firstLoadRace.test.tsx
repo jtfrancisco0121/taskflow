@@ -64,6 +64,7 @@ describe('tasks: a first list load in flight when the write lands (cancel before
       },
       {
         holdRefetch: true,
+        expectedReads: 3,
         check: ({ write }) => {
           expect(patches).toBeGreaterThanOrEqual(2)
           expect(write.isPending).toBe(false)
@@ -114,7 +115,11 @@ describe('tasks: a first list load in flight when the write lands (cancel before
         expect(await first).toBe('saved')
         expect(await second).toBe('saved')
       },
-      { holdRefetch: true, check: () => expect(sends).toBe(2) },
+      {
+        holdRefetch: true,
+        expectedReads: 2, // the second write's snapshot runs before the first restart's refetch starts, so one refetch covers both
+        check: () => expect(sends).toBe(2),
+      },
     )
   })
 
