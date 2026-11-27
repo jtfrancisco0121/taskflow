@@ -41,7 +41,7 @@ describe('realtime: a first load in flight when a Live event arrives', () => {
     )
   })
 
-  it('a field definition event refreshes the task lists on their first load (cachePatcher :91)', async () => {
+  it('a field definition event refreshes the task lists on their first load', async () => {
     await expectRestarted(
       queryKeys.tasks(w, 'l1'),
       () => ({}),
@@ -53,7 +53,7 @@ describe('realtime: a first load in flight when a Live event arrives', () => {
     )
   })
 
-  it('a task event refreshes the views on their first load after the debounce (cachePatcher :34)', async () => {
+  it('a task event refreshes the views on their first load after the debounce', async () => {
     await expectRestarted(
       queryKeys.view(w, 'l1', 'h'),
       () => ({}),
@@ -78,7 +78,7 @@ describe('realtime: a first load in flight when a Live event arrives', () => {
     )
   })
 
-  it('a reconnect refreshes the views on their first load (LiveUpdates :95)', async () => {
+  it('a reconnect refreshes the open views on their first load', async () => {
     await expectRestarted(
       queryKeys.view(w, 'l1', 'h'),
       () => ({}),
@@ -90,7 +90,7 @@ describe('realtime: a first load in flight when a Live event arrives', () => {
     )
   })
 
-  it('a reconnect refreshes the sidebar tree on its first load (LiveUpdates :96)', async () => {
+  it('a reconnect refreshes the sidebar tree on its first load', async () => {
     await expectRestarted(
       queryKeys.tree(w, 'root'),
       () => ({}),

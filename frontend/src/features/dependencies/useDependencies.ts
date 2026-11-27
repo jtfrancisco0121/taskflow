@@ -32,12 +32,8 @@ const ifMatch = (version: number | undefined) =>
  * task is replaced from the response and everything that may show either task is refreshed.
  */
 function refresh(queryClient: QueryClient, task: TaskView, otherId: string | undefined) {
-  // The acting task is written into its detail below; one still on its first load read before this write, so restart it.
-  const ownFirstLoad = firstLoadsOf(queryClient, {
-    queryKey: queryKeys.task(task.id!),
-    exact: true,
-  })
-  queryClient.setQueryData(queryKeys.task(task.id!), task)
+  // The acting task goes into its detail; one still on its first load read before this write, so it restarts.
+  writeCurrent(queryClient, task.id!, task)
   const filters: InvalidateQueryFilters[] = []
   for (const id of [task.id!, otherId]) {
     if (!id) continue
@@ -48,12 +44,11 @@ function refresh(queryClient: QueryClient, task: TaskView, otherId: string | und
   if (ws) filters.push({ queryKey: queryKeys.tasksAll(ws) }, { queryKey: queryKeys.viewsAll(ws) })
   // Started, not awaited: the mutation settles when the write has, not when every list has refetched.
   inBackground(cancelThenInvalidate(queryClient, ...filters))
-  inBackground(restartQueries(queryClient, ownFirstLoad))
 }
 
 /**
- * A 409 answers with the task as it is now: it is written into the task's detail, and a detail still on its first
- * load (read before the conflicting write) is restarted in the background.
+ * Writes `current` (a saved task, or the one a 409 answers with) into the task's detail; a detail still on its first
+ * load (read before that write) is restarted in the background.
  */
 function writeCurrent(queryClient: QueryClient, id: string, current: TaskView) {
   const firstLoad = firstLoadsOf(queryClient, { queryKey: queryKeys.task(id), exact: true })
