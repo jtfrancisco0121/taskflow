@@ -3,6 +3,7 @@ import { TaskPanel } from './TaskPanel'
 import { useTask } from './useTask'
 import type { TaskView } from '../../api/types'
 import type { ReactNode } from 'react'
+import { MODAL_DIALOG } from '../../shared/ui/floating'
 
 type RouterLocation = { pathname: string; search?: string }
 type BackgroundState = { backgroundLocation?: RouterLocation }
@@ -31,7 +32,7 @@ function poll(id: string, attempts: number, isCancelled: () => boolean, done: ()
     const path = window.location.pathname
     if (path.startsWith('/t/') && path !== `/t/${id}`) return done()
     const detailOpen = document.querySelector(
-      '[role="dialog"][aria-modal="true"], [role="complementary"][aria-label^="Task "]',
+      `${MODAL_DIALOG}, [role="complementary"][aria-label^="Task "]`,
     )
     const row = detailOpen
       ? null
