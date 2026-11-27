@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
-import { FOCUSABLE } from './floating'
+import { FOCUSABLE, handedBackFocus } from './floating'
 
 type DialogProps = {
   title: string
@@ -53,8 +53,11 @@ export function Dialog({
     const first = initialFocus?.current ?? node?.querySelector<HTMLElement>(FOCUSABLE)
     ;(first ?? node)?.focus()
     return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
-      else restoreRef.current?.()?.focus()
+      // The opener is gone, or was the body (a layer closed as the dialog opened): restoreFocus, else the
+      // trigger of that layer (AD-5), so focus never ends on nothing.
+      if (opener instanceof HTMLElement && opener.isConnected && opener !== document.body)
+        opener.focus()
+      else (restoreRef.current?.() ?? (node && handedBackFocus(node)))?.focus()
     }
     // Focus moves in once, when the dialog opens: a later change of `initialFocus` must not move it again.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,5 +1,5 @@
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import type { ReactElement, ReactNode } from 'react'
+import { useRef, type ReactElement, type ReactNode } from 'react'
 import { floatingClass, floatingProps, keepFocusIfMoved } from './floating'
 
 type PopoverProps = {
@@ -14,15 +14,18 @@ type PopoverProps = {
 
 /** A floating panel anchored to its trigger. */
 export function Popover({ trigger, children, open, onOpenChange, label }: PopoverProps) {
+  const triggerRef = useRef<HTMLButtonElement>(null)
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={onOpenChange}>
-      <PopoverPrimitive.Trigger asChild>{trigger}</PopoverPrimitive.Trigger>
+      <PopoverPrimitive.Trigger asChild ref={triggerRef}>
+        {trigger}
+      </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
           aria-label={label}
           sideOffset={6}
           {...floatingProps}
-          onCloseAutoFocus={keepFocusIfMoved}
+          onCloseAutoFocus={(event) => keepFocusIfMoved(event, triggerRef.current)}
           className={`${floatingClass} p-3`}
         >
           {children}
