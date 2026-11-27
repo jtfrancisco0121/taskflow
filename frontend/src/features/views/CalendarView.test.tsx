@@ -417,6 +417,83 @@ describe('CAL-1 Calendar view', () => {
     expect(await screen.findByRole('link', { name: 'Task 1' })).toBeVisible()
   })
 
+  // Dates come from the visible range: the widened edge day is out of range, a middle day is in.
+  const range = calendarRange('week', '2026-11-25')
+  const outDay = fetchSpan(range).start
+  const inDay = range.days[2]
+  const EMPTY = 'No tasks due in this range.'
+
+  function paged(second: () => Response | Promise<Response>) {
+    const seen = { page2: 0 }
+    installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': (_r: Request, body: unknown) => {
+        const b = body as { config: { group?: string }; cursor?: string }
+        if (b.config.group === 'dueDate') return json({ items: [] })
+        if (b.cursor === 'c2') {
+          seen.page2 += 1
+          return second()
+        }
+        return json({ items: [{ task: dated(1, outDay) }], nextCursor: 'c2' })
+      },
+    } as never)
+    return seen
+  }
+
+  /** A page 2 that stays pending until the test releases it. */
+  function held() {
+    let release: (r: Response) => void = () => {}
+    const gate = new Promise<Response>((res) => (release = res))
+    return { gate, release: (r: Response) => release(r) }
+  }
+
+  it('CAL-1: no empty state while later pages load; the task shows once page 2 arrives', async () => {
+    const page2 = held()
+    const seen = paged(() => page2.gate)
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
+      route,
+    })
+    await waitFor(() => expect(seen.page2).toBe(1))
+    expect(screen.queryByText(EMPTY)).toBeNull()
+    expect(screen.getByRole('status', { name: 'Loading the Calendar' })).toBeVisible()
+    page2.release(json({ items: [{ task: dated(2, inDay) }] }))
+    expect(await screen.findByRole('link', { name: 'Task 2' })).toBeVisible()
+    expect(screen.queryByText(EMPTY)).toBeNull()
+    expect(screen.queryByRole('status', { name: 'Loading the Calendar' })).toBeNull()
+  })
+
+  it('CAL-1: when every page is out of range the empty state waits for the last page', async () => {
+    const page2 = held()
+    const seen = paged(() => page2.gate)
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
+      route,
+    })
+    await waitFor(() => expect(seen.page2).toBe(1))
+    expect(screen.queryByText(EMPTY)).toBeNull()
+    page2.release(json({ items: [{ task: dated(3, fetchSpan(range).end) }] }))
+    expect(await screen.findByText(EMPTY)).toBeVisible()
+    expect(screen.queryByRole('status', { name: 'Loading the Calendar' })).toBeNull()
+  })
+
+  it('CAL-1: a failed later page shows the ErrorState, not an endless loading', async () => {
+    paged(() => problem(500, 'server.error', 'Boom'))
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
+      route,
+    })
+    expect(await screen.findByRole('alert')).toBeVisible()
+    expect(screen.queryByText(EMPTY)).toBeNull()
+  })
+
+  it('CAL-1: a failed later page is fetched once, not retried in a loop', async () => {
+    const seen = paged(() => problem(500, 'server.error', 'Boom'))
+    renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {
+      route,
+    })
+    expect(await screen.findByRole('alert')).toBeVisible()
+    await new Promise((r) => setTimeout(r, 300))
+    expect(seen.page2).toBe(1)
+  })
+
   it('CAL-1: an empty range says so and still shows the grid', async () => {
     serve([], () => json({}))
     renderWithProviders(<CalendarRenderer scope={scope} config={week} update={vi.fn()} />, {

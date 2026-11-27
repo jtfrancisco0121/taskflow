@@ -116,6 +116,9 @@ export function CalendarRenderer({
     byDay.set(day, [...(byDay.get(day) ?? []), task])
   }
 
+  // Later pages may still hold in-range tasks: nothing in range yet is loading, not empty, until paging is done.
+  const loading = query.isPending || (shown === 0 && (hasNextPage || isFetchingNextPage))
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: dayCoordinates }),
@@ -193,7 +196,7 @@ export function CalendarRenderer({
               ))}
             </div>
           </DndContext>
-          {query.isPending && (
+          {loading && (
             <div
               role="status"
               aria-label="Loading the Calendar"
@@ -203,7 +206,7 @@ export function CalendarRenderer({
               <Skeleton className="h-4 w-1/4" />
             </div>
           )}
-          {query.isSuccess && shown === 0 && <EmptyState title="No tasks due in this range." />}
+          {!loading && shown === 0 && <EmptyState title="No tasks due in this range." />}
         </>
       )}
       {undated != null && undated > 0 && (
