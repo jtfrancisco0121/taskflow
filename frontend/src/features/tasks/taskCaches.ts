@@ -18,10 +18,18 @@ function mapTaskInScans(
   )
 }
 
-/** Refetches the scans of one List, or of every List: after a trash, a restore or an unseen task changed. */
-export function invalidateSubtaskScans(queryClient: QueryClient, listId?: string) {
+/**
+ * Refetches the scans of one List, or of every List: after a trash, a restore or an unseen task changed. `skip`: scans
+ * (query hashes) already refetched another way, left alone.
+ */
+export function invalidateSubtaskScans(
+  queryClient: QueryClient,
+  listId?: string,
+  skip?: Set<string>,
+) {
   void queryClient.invalidateQueries({
     queryKey: listId ? queryKeys.subtaskScan(listId) : queryKeys.subtaskScanAll(),
+    predicate: (query) => !skip?.has(query.queryHash),
   })
 }
 

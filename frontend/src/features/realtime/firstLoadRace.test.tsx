@@ -173,6 +173,22 @@ describe('realtime: a task event while that task detail or its subtask scan is o
     )
   })
 
+  it('a stale event (a view already holds its version) still refetches the detail on its first load', async () => {
+    await expectRestarted(
+      queryKeys.task('t1'),
+      routes,
+      usePatcher,
+      async ({ patcher, queryClient }, wrote) => {
+        queryClient.setQueryData(queryKeys.view(w, 'l1', 'h'), {
+          pages: [{ items: [{ task: { id: 't1', workspaceId: w, version: 2 } }] }],
+          pageParams: [undefined],
+        })
+        wrote()
+        expect(await patcher.handle(w, taskEvent)).toBe('stale')
+      },
+    )
+  })
+
   it('an unseen task: the subtask scan of its List on its first load is refetched after that load', async () => {
     await expectRestarted(
       queryKeys.subtaskScan('l1'),
@@ -220,6 +236,56 @@ describe('realtime: the debounced views refresh takes its first loads from the e
     await pastDebounce()
     expect(view.reads()).toBe(1)
     view.stop()
+    patcher.dispose()
+  })
+
+  it('a comment event does not refetch a subtask scan on its first load', async () => {
+    installFetch({})
+    const queryClient = newQueryClient()
+    const patcher = createCachePatcher(queryClient, { clientId: 'me', debounceMs })
+    const scan = watch(queryClient, queryKeys.subtaskScan('l1'))
+    await waitFor(() => expect(scan.reads()).toBe(1))
+    await patcher.handle(w, event({ type: 'comment.created', entity: 'task', listId: 'l1' }))
+    scan.release()
+    await waitFor(() => expect(scan.data()).toBe(1))
+    await pastDebounce()
+    expect(scan.reads()).toBe(1)
+    scan.stop()
+    patcher.dispose()
+  })
+
+  it('a task event with no listId does not refetch the scans of other Lists', async () => {
+    installFetch({})
+    const queryClient = newQueryClient()
+    const patcher = createCachePatcher(queryClient, { clientId: 'me', debounceMs })
+    const scan = watch(queryClient, queryKeys.subtaskScan('l1'))
+    await waitFor(() => expect(scan.reads()).toBe(1))
+    await patcher.handle(w, event({ type: 'task.updated', entity: 'task', entityId: 't5' }))
+    scan.release()
+    await waitFor(() => expect(scan.data()).toBe(1))
+    await pastDebounce()
+    expect(scan.reads()).toBe(1)
+    scan.stop()
+    patcher.dispose()
+  })
+
+  it('a burst of unseen-task events during a scan first load ends with exactly one extra read', async () => {
+    installFetch({})
+    const queryClient = newQueryClient()
+    const patcher = createCachePatcher(queryClient, { clientId: 'me', debounceMs })
+    const scan = watch(queryClient, queryKeys.subtaskScan('l1'))
+    await waitFor(() => expect(scan.reads()).toBe(1))
+    for (let i = 0; i < 3; i += 1)
+      await patcher.handle(
+        w,
+        event({ type: 'task.created', entity: 'task', entityId: 't5', listId: 'l1' }),
+      )
+    scan.release() // the first load lands before the debounced rescan fires
+    await waitFor(() => expect(scan.data()).toBe(2))
+    await pastDebounce()
+    await pastDebounce()
+    expect(scan.reads()).toBe(2)
+    scan.stop()
     patcher.dispose()
   })
 

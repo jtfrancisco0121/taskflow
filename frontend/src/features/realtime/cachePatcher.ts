@@ -1,4 +1,4 @@
-import type { QueryClient } from '@tanstack/react-query'
+import type { InvalidateQueryFilters, QueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { queryKeys } from '../../api/queryKeys'
 import { firstLoadsOf, invalidateAfterFirstLoads, invalidateAfterLoadsOf } from '../../api/refresh'
@@ -35,6 +35,8 @@ export function createCachePatcher(
   const viewFirstLoads = new Map<string, Set<string>>()
   /** Per Workspace, when the first event of the pending views debounce came. */
   const viewsWaitingSince = new Map<string, number>()
+  /** Per List, the scans refreshTaskFirstLoads already refetches after their first load (the debounce skips them). */
+  const scanFirstLoads = new Map<string, Set<string>>()
   const debounceMs = options.debounceMs ?? 500
   const maxWaitMs = options.maxWaitMs ?? 2000
   let lastFieldsAnnounce = 0
@@ -71,23 +73,30 @@ export function createCachePatcher(
       key,
       setTimeout(() => {
         timers.delete(key)
-        invalidateSubtaskScans(queryClient, listId)
+        const covered = scanFirstLoads.get(listId)
+        scanFirstLoads.delete(listId)
+        invalidateSubtaskScans(queryClient, listId, covered)
       }, debounceMs),
     )
   }
 
   /**
-   * The task's detail and the subtask scans of its List that are on their first load now read before
-   * this event (writeTaskToCaches would be overwritten by that load, or finds no scan to patch): each
-   * is refetched once after that load lands. Loaded ones are patched or rescanned as before.
+   * The task's detail, and the subtask scans of the event's List, that are on their first load now read
+   * before this event (writeTaskToCaches would be overwritten by that load, or finds no scan to patch):
+   * each is refetched once after that load lands. Loaded ones are patched or rescanned as before; the
+   * debounced rescan skips a scan refetched here.
    */
   function refreshTaskFirstLoads(event: LiveEvent) {
-    const scans = event.listId ? queryKeys.subtaskScan(event.listId) : queryKeys.subtaskScanAll()
-    const firstLoads = firstLoadsOf(
-      queryClient,
+    const filters: InvalidateQueryFilters[] = [
       { queryKey: queryKeys.task(event.entityId), exact: true },
-      { queryKey: scans },
-    )
+    ]
+    if (event.listId) filters.push({ queryKey: queryKeys.subtaskScan(event.listId) })
+    const firstLoads = firstLoadsOf(queryClient, ...filters)
+    if (event.listId) {
+      const covered = scanFirstLoads.get(event.listId) ?? new Set<string>()
+      for (const hash of firstLoadsOf(queryClient, filters[1])) covered.add(hash)
+      scanFirstLoads.set(event.listId, covered)
+    }
     void invalidateAfterLoadsOf(queryClient, firstLoads)
   }
 
@@ -176,11 +185,14 @@ export function createCachePatcher(
         queryKey: queryKeys.dependencies(event.entityId),
       })
     }
-    if (event.type.startsWith('comment.')) {
+    const comment = event.type.startsWith('comment.')
+    if (comment) {
       // A comment does not change the task's version: refresh its tabs before the version check.
       void invalidateAfterFirstLoads(queryClient, { queryKey: queryKeys.comments(event.entityId) })
       void invalidateAfterFirstLoads(queryClient, { queryKey: queryKeys.activity(event.entityId) })
     }
+    // Before the version check: a view may hold this version while the detail's first load read before it.
+    if (!comment) refreshTaskFirstLoads(event)
     const cached = cachedVersion(queryClient, workspaceId, event.entityId)
     if (cached != null && event.version != null && event.version <= cached) return 'stale'
     if (taskMutationGate.isPending(event.entityId)) {
@@ -188,10 +200,8 @@ export function createCachePatcher(
       return 'held'
     }
     invalidateViewsSoon(workspaceId)
-    refreshTaskFirstLoads(event)
     if (cached == null) {
-      if (event.listId && !event.type.startsWith('comment.'))
-        invalidateSubtaskScanSoon(event.listId)
+      if (event.listId && !comment) invalidateSubtaskScanSoon(event.listId)
       return 'invalidated'
     }
     const { data } = await api.GET('/api/v1/tasks/{id}', {
@@ -222,6 +232,7 @@ export function createCachePatcher(
       timers.clear()
       viewFirstLoads.clear()
       viewsWaitingSince.clear()
+      scanFirstLoads.clear()
     },
   }
 }
