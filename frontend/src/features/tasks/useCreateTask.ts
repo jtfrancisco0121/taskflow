@@ -23,12 +23,13 @@ export function useCreateTask(workspaceId: string, listId: string) {
     },
     onSuccess: async (_task, { parentTaskId }) => {
       keys.current.done()
-      if (parentTaskId) invalidateSubtaskScans(queryClient, listId)
       // A first load still in flight may have read the server before this task existed. invalidateQueries
       // does not restart a fetch that has no data yet, and its late response would clear the invalidation
       // and leave the task missing until a reload: cancel it first, so the invalidation fetches again.
+      if (parentTaskId) await queryClient.cancelQueries({ queryKey: queryKeys.subtaskScan(listId) })
       await queryClient.cancelQueries({ queryKey: queryKeys.tasksAll(workspaceId) })
       await queryClient.cancelQueries({ queryKey: queryKeys.viewsAll(workspaceId) })
+      if (parentTaskId) invalidateSubtaskScans(queryClient, listId)
       await queryClient.invalidateQueries({ queryKey: queryKeys.tasksAll(workspaceId) })
       await queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(workspaceId) })
     },
