@@ -17,6 +17,12 @@ export function QuickAdd({
   const create = useCreateTask(workspaceId, listId)
   const pending = create.isPending
 
+  // Focus on mount, but not out of an open dialog (the Command palette opened while the List was loading).
+  useEffect(() => {
+    if (!autoFocus || document.activeElement?.closest('[role="dialog"]')) return
+    inputRef.current?.focus()
+  }, [autoFocus])
+
   const wasPending = useRef(false)
   useEffect(() => {
     // Disabled inputs lose focus; give it back when the create finishes.
@@ -38,7 +44,6 @@ export function QuickAdd({
         placeholder="Add a task"
         value={title}
         disabled={pending}
-        autoFocus={autoFocus}
         onChange={(event) => setTitle(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter') {

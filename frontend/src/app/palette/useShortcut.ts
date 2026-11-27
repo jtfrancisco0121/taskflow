@@ -14,6 +14,7 @@ import { useUiStore } from '../../shared/ui-store'
  * palette's own listener.
  */
 export function useShortcut(enabled = true) {
+  const mounted = useRef(true)
   useEffect(() => {
     if (!enabled) return
     function onKey(event: KeyboardEvent) {
@@ -29,11 +30,22 @@ export function useShortcut(enabled = true) {
     return () => window.removeEventListener('keydown', onKey, true)
   }, [enabled])
 
+  // Both drops are safe under StrictMode's effect replay (mount, unmount, mount again in one task): a route change
+  // is a key different from the one seen before, and an unmount counts only if no remount follows at once.
   const key = useLocation().key
-  const first = useRef(true)
+  const seenKey = useRef(key)
   useEffect(() => {
-    if (first.current) first.current = false
-    else useUiStore.getState().setPaletteRequested(false)
+    if (seenKey.current === key) return
+    seenKey.current = key
+    useUiStore.getState().setPaletteRequested(false)
   }, [key])
-  useEffect(() => () => useUiStore.getState().setPaletteRequested(false), [])
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      queueMicrotask(() => {
+        if (!mounted.current) useUiStore.getState().setPaletteRequested(false)
+      })
+    }
+  }, [])
 }
