@@ -51,6 +51,16 @@ function refresh(queryClient: QueryClient, task: TaskView, otherId: string | und
   inBackground(restartQueries(queryClient, ownFirstLoad))
 }
 
+/**
+ * A 409 answers with the task as it is now: it is written into the task's detail, and a detail still on its first
+ * load (read before the conflicting write) is restarted in the background.
+ */
+function writeCurrent(queryClient: QueryClient, id: string, current: TaskView) {
+  const firstLoad = firstLoadsOf(queryClient, { queryKey: queryKeys.task(id), exact: true })
+  queryClient.setQueryData(queryKeys.task(id), current)
+  inBackground(restartQueries(queryClient, firstLoad))
+}
+
 /** Adds a relationship from `task`'s side (POST, If-Match, one idempotency key per submission). */
 export function useAddDependency(task: TaskView) {
   const queryClient = useQueryClient()
@@ -71,7 +81,7 @@ export function useAddDependency(task: TaskView) {
       if (!result.response.ok || !result.data) {
         if (result.response.status === 409) {
           const current = (result.error as { current?: TaskView } | undefined)?.current
-          if (current) queryClient.setQueryData(queryKeys.task(task.id!), current)
+          if (current) writeCurrent(queryClient, task.id!, current)
         }
         throw toApiError(result.response, result.error)
       }
@@ -127,7 +137,7 @@ export function useRemoveDependency(task: TaskView) {
       const stale = error instanceof ApiError && error.code === 'task.version_conflict'
       if (stale) {
         const current = (error.body as { current?: TaskView } | undefined)?.current
-        if (current) queryClient.setQueryData(queryKeys.task(task.id!), current)
+        if (current) writeCurrent(queryClient, task.id!, current)
       }
       useToastStore
         .getState()

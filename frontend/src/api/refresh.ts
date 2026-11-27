@@ -42,6 +42,39 @@ export function restartFirstLoads(queryClient: QueryClient, ...filters: Invalida
   return restartQueries(queryClient, firstLoadsOf(queryClient, ...filters))
 }
 
+const waitingOnFirstLoad = new WeakMap<QueryClient, Set<string>>()
+
+/**
+ * The form for refreshes nobody waits on that can come in bursts (Live events, a reconnect). Invalidates `filters`;
+ * a query still on its first load (its response may have been read before the event) is not cancelled but refetched
+ * once after that load lands. A burst during one first load waits on it once, so it ends with one extra read, and a
+ * user's write that restarts the load (cancelThenInvalidate) is not fought: a cancelled load adds no read.
+ */
+export function invalidateAfterFirstLoads(
+  queryClient: QueryClient,
+  ...filters: InvalidateQueryFilters[]
+) {
+  let waiting = waitingOnFirstLoad.get(queryClient)
+  if (!waiting) waitingOnFirstLoad.set(queryClient, (waiting = new Set()))
+  const pending = waiting
+  for (const filter of filters)
+    for (const query of queryClient.getQueryCache().findAll(filter)) {
+      const hash = query.queryHash
+      const load = query.promise
+      if (query.state.data !== undefined || query.state.fetchStatus !== 'fetching') continue
+      if (!load || pending.has(hash)) continue
+      pending.add(hash)
+      load.then(
+        () => {
+          pending.delete(hash)
+          void queryClient.invalidateQueries({ predicate: (q) => q === query })
+        },
+        () => pending.delete(hash),
+      )
+    }
+  return Promise.all(filters.map((filter) => queryClient.invalidateQueries(filter)))
+}
+
 /**
  * Starts a refresh and returns at once: the UI (a toast, a queued write, a mutation's isPending) does not wait for
  * a refetch. The cancel runs synchronously inside the call; a cancelled or failed refetch is not an error here.

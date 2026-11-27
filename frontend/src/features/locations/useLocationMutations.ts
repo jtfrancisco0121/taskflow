@@ -43,10 +43,12 @@ export function useCreateLocation(workspaceId: string) {
     },
     onSuccess: async (location, vars) => {
       keys.current.done()
+      // Also a tree list still on its first load is refetched. The nodes open after that: an expanded id that no
+      // loaded list holds yet, while nothing is fetching, is pruned by SidebarTree (FR-9).
+      await cancelThenInvalidate(queryClient, { queryKey: queryKeys.treeAll(workspaceId) })
       if (vars.parentId) setExpanded(workspaceId, vars.parentId, true)
       // A new Folder opens at once so its auto-created first List shows under it.
       if (vars.type === 'FOLDER' && location.id) setExpanded(workspaceId, location.id, true)
-      await queryClient.invalidateQueries({ queryKey: queryKeys.treeAll(workspaceId) })
       if (location.id) void navigate(`/w/${workspaceId}/l/${location.id}`)
     },
   })

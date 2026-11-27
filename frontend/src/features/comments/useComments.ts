@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate } from '../../api/refresh'
 import type { RichDoc } from '../../shared/richtext'
 
 /** Comments, oldest first; the next page holds newer comments (`id > cursor`). */
@@ -23,12 +24,13 @@ export function useComments(taskId: string) {
 
 function useRefresh(taskId: string) {
   const queryClient = useQueryClient()
-  // Every comment write refreshes the comments and the activity log (AD-5).
+  // Every comment write refreshes the comments and the activity log (AD-5), also one still on its first load.
   return () =>
-    Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.comments(taskId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.activity(taskId) }),
-    ])
+    cancelThenInvalidate(
+      queryClient,
+      { queryKey: queryKeys.comments(taskId) },
+      { queryKey: queryKeys.activity(taskId) },
+    )
 }
 
 export function useCreateComment(taskId: string) {
