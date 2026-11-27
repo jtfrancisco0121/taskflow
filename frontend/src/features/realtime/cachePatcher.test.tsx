@@ -345,4 +345,23 @@ describe('RT-3 cache patcher', () => {
       expect(stale('l2')).toBe(false)
     })
   })
+
+  it('a steady stream of task events still refreshes the views within maxWait (2 s)', async () => {
+    const { patcher, queryClient } = setup()
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    const viewRefreshes = () =>
+      invalidate.mock.calls.filter(
+        ([f]) => JSON.stringify(f?.queryKey) === JSON.stringify(queryKeys.viewsAll('w1')),
+      ).length
+    // An event every 300 ms for 3 s: each one would push a plain 500 ms debounce out again.
+    for (let i = 0; i < 10; i += 1) {
+      await patcher.handle('w1', event({ type: 'location.updated', entity: 'location' }))
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300)
+      })
+      if (i === 6) expect(viewRefreshes()).toBe(1) // 2.1 s in: the 2 s cap fired once
+    }
+    expect(viewRefreshes()).toBe(1) // 3 s in: the next window (from 2.1 s) caps at 4.1 s
+    patcher.dispose()
+  })
 })

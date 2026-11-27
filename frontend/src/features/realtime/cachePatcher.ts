@@ -15,19 +15,28 @@ export type PatchResult = 'own' | 'stale' | 'held' | 'applied' | 'invalidated'
 /**
  * RT-3, AD-15: applies one Live message to the caches. Own client id or a version at or below the
  * cached one cause nothing; otherwise the task is refetched and patched in every cached view page,
- * and the Workspace's view queries are invalidated (debounced 500 ms) because membership may have
+ * and the Workspace's view queries are invalidated (debounced 500 ms, at most 2 s behind a steady
+ * stream of events) because membership may have
  * changed. While the user's own mutation on that task is pending the event is held (AD-20).
  * Every refresh here also covers a list still on its first load (read before the event): it is
  * refetched once after that load lands, never cancelled, so a burst of events costs one extra read.
  */
 export function createCachePatcher(
   queryClient: QueryClient,
-  options: { clientId: string; debounceMs?: number; announce?: (message: string) => void },
+  options: {
+    clientId: string
+    debounceMs?: number
+    maxWaitMs?: number
+    announce?: (message: string) => void
+  },
 ) {
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
   /** Per Workspace, the views on their first load when an event of the pending debounce came (union). */
   const viewFirstLoads = new Map<string, Set<string>>()
+  /** Per Workspace, when the first event of the pending views debounce came. */
+  const viewsWaitingSince = new Map<string, number>()
   const debounceMs = options.debounceMs ?? 500
+  const maxWaitMs = options.maxWaitMs ?? 2000
   let lastFieldsAnnounce = 0
 
   function invalidateViewsSoon(workspaceId: string) {
@@ -35,14 +44,22 @@ export function createCachePatcher(
     const firstLoads = viewFirstLoads.get(workspaceId) ?? new Set<string>()
     for (const hash of firstLoadsOf(queryClient, views)) firstLoads.add(hash)
     viewFirstLoads.set(workspaceId, firstLoads)
+    const now = Date.now()
+    const since = viewsWaitingSince.get(workspaceId) ?? now
+    viewsWaitingSince.set(workspaceId, since)
     clearTimeout(timers.get(workspaceId))
     timers.set(
       workspaceId,
-      setTimeout(() => {
-        timers.delete(workspaceId)
-        viewFirstLoads.delete(workspaceId)
-        void invalidateAfterLoadsOf(queryClient, firstLoads, views)
-      }, debounceMs),
+      setTimeout(
+        () => {
+          timers.delete(workspaceId)
+          viewFirstLoads.delete(workspaceId)
+          viewsWaitingSince.delete(workspaceId)
+          void invalidateAfterLoadsOf(queryClient, firstLoads, views)
+        },
+        // Trailing debounce, but a steady stream of events still refreshes once per maxWait.
+        Math.max(0, Math.min(debounceMs, since + maxWaitMs - now)),
+      ),
     )
   }
 
@@ -60,6 +77,21 @@ export function createCachePatcher(
   }
 
   /**
+   * The task's detail and the subtask scans of its List that are on their first load now read before
+   * this event (writeTaskToCaches would be overwritten by that load, or finds no scan to patch): each
+   * is refetched once after that load lands. Loaded ones are patched or rescanned as before.
+   */
+  function refreshTaskFirstLoads(event: LiveEvent) {
+    const scans = event.listId ? queryKeys.subtaskScan(event.listId) : queryKeys.subtaskScanAll()
+    const firstLoads = firstLoadsOf(
+      queryClient,
+      { queryKey: queryKeys.task(event.entityId), exact: true },
+      { queryKey: scans },
+    )
+    void invalidateAfterLoadsOf(queryClient, firstLoads)
+  }
+
+  /**
    * A blocker finished or came back (CAP-6): the dependent's version did not change, so there is no
    * version comparison. The dependent is refetched (its blocked flag), its relationship list and the
    * open views are refreshed, also when this tab caused it: its own write only touched the blocker.
@@ -73,6 +105,7 @@ export function createCachePatcher(
       queryKey: queryKeys.dependencies(event.entityId),
     })
     invalidateViewsSoon(workspaceId)
+    refreshTaskFirstLoads(event)
     if (cachedVersion(queryClient, workspaceId, event.entityId) == null) return 'invalidated'
     const { data } = await api.GET('/api/v1/tasks/{id}', {
       params: { path: { id: event.entityId } },
@@ -155,6 +188,7 @@ export function createCachePatcher(
       return 'held'
     }
     invalidateViewsSoon(workspaceId)
+    refreshTaskFirstLoads(event)
     if (cached == null) {
       if (event.listId && !event.type.startsWith('comment.'))
         invalidateSubtaskScanSoon(event.listId)
@@ -187,6 +221,7 @@ export function createCachePatcher(
       timers.forEach((t) => clearTimeout(t))
       timers.clear()
       viewFirstLoads.clear()
+      viewsWaitingSince.clear()
     },
   }
 }

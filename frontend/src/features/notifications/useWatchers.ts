@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate } from '../../api/refresh'
 import type { WatchView } from '../../api/types'
 
 export function useWatchers(taskId: string) {
@@ -38,6 +39,7 @@ export function useSetWatching(taskId: string) {
     onError: (_error, _vars, context) => {
       if (context?.previous) queryClient.setQueryData(key, context.previous)
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+    // A first load that started after the onMutate cancel read before the write: restart it, not just invalidate.
+    onSettled: () => cancelThenInvalidate(queryClient, { queryKey: key }),
   })
 }

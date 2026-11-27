@@ -25,6 +25,12 @@ export async function expectRestarted<T>(
     /** With `holdRefetch`: the exact number of reads of the probe (the stale first read plus one per restart). */
     expectedReads?: number
     check?: (state: { write: T }) => void
+    /**
+     * The probe's first load starts after the write began (after an optimistic onMutate cancelled the key) and
+     * before the server applied it: each write route waits until that load is in flight. The onMutate cancel cannot
+     * reach this load, so whatever runs when the write settles (onSettled, onError) has to restart it.
+     */
+    startDuringWrite?: boolean
   } = {},
 ) {
   let release: () => void = () => {}
@@ -34,34 +40,51 @@ export async function expectRestarted<T>(
   const wrote = () => {
     written = true
   }
-  installFetch(routes(wrote) as never)
+  let writeReached = false
+  let letWriteIn: () => void = () => {}
+  const probeLoading = new Promise<void>((resolve) => (letWriteIn = resolve))
+  const table = routes(wrote)
+  if (options.startDuringWrite)
+    for (const [route, handler] of Object.entries(table)) {
+      if (route.startsWith('GET ')) continue
+      table[route] = async (request: Request, body: unknown) => {
+        writeReached = true
+        await probeLoading
+        if (typeof handler === 'function') return (handler as StubHandler)(request, body)
+        return handler instanceof Response ? handler.clone() : json(handler)
+      }
+    }
+  installFetch(table as never)
   const queryClient = newQueryClient()
   const wrapper = ({ children }: { children: ReactNode }) => (
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </MemoryRouter>
   )
-  const { result } = renderHook(
-    () => ({
-      probe: useQuery({
-        queryKey: key,
-        queryFn: async () => {
-          reads += 1
-          const seen = written
-          if (reads === 1) await opened // the server read the list before the write
-          if (reads > 1 && options.holdRefetch) await new Promise(() => {})
-          return seen ? 'after' : 'before'
-        },
-      }),
-      write: useWrite(),
-    }),
-    { wrapper },
-  )
-  await waitFor(() => expect(reads).toBe(1))
+  const useProbe = () =>
+    useQuery({
+      queryKey: key,
+      queryFn: async () => {
+        reads += 1
+        const seen = written
+        if (reads === 1) await opened // the server read the list before the write
+        if (reads > 1 && options.holdRefetch) await new Promise(() => {})
+        return seen ? 'after' : 'before'
+      },
+    })
+  const writer = renderHook(() => useWrite(), { wrapper }).result
+  let probe = options.startDuringWrite ? undefined : renderHook(useProbe, { wrapper }).result
+  if (!options.startDuringWrite) await waitFor(() => expect(reads).toBe(1))
   let firing: Promise<unknown> = Promise.resolve()
   act(() => {
-    firing = fire(result.current.write, wrote)
+    firing = fire(writer.current, wrote)
   })
+  if (options.startDuringWrite) {
+    await waitFor(() => expect(writeReached).toBe(true))
+    probe = renderHook(useProbe, { wrapper }).result
+    await waitFor(() => expect(reads).toBe(1))
+    letWriteIn()
+  }
   await waitFor(() => expect(written).toBe(true))
   release()
   await act(() => firing)
@@ -70,11 +93,11 @@ export async function expectRestarted<T>(
     await waitFor(() => expect(reads).toBeGreaterThanOrEqual(expectedReads)) // one restart per saved write
     await act(() => new Promise<void>((resolve) => setTimeout(resolve, 50))) // a late extra read must fail
     expect(reads).toBe(expectedReads)
-    expect(result.current.probe.data).toBeUndefined()
-    options.check?.(result.current)
+    expect(probe!.current.data).toBeUndefined()
+    options.check?.({ write: writer.current })
     return
   }
-  await waitFor(() => expect(result.current.probe.data).toBe('after'))
+  await waitFor(() => expect(probe!.current.data).toBe('after'))
   await act(() => new Promise<void>((resolve) => setTimeout(resolve, 50)))
   expect(reads).toBe(2)
 }

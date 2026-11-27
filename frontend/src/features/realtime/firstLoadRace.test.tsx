@@ -128,6 +128,65 @@ describe('realtime: a first load in flight when a Live event arrives', () => {
   })
 })
 
+describe('realtime: a task event while that task detail or its subtask scan is on its first load', () => {
+  const taskEvent = event({ type: 'task.updated', entity: 'task', version: 2, listId: 'l1' })
+  const routes = () => ({
+    'GET /api/v1/tasks/:id': { id: 't1', workspaceId: w, listId: 'l1', version: 2 },
+  })
+
+  it('a task in no cache (detail on its first load) is refetched after that load', async () => {
+    await expectRestarted(queryKeys.task('t1'), routes, usePatcher, async ({ patcher }, wrote) => {
+      wrote()
+      await patcher.handle(w, taskEvent)
+    })
+  })
+
+  it('a task cached in a view: the patched detail is not left to its late first load', async () => {
+    await expectRestarted(
+      queryKeys.task('t1'),
+      routes,
+      usePatcher,
+      async ({ patcher, queryClient }, wrote) => {
+        queryClient.setQueryData(queryKeys.view(w, 'l1', 'h'), {
+          pages: [{ items: [{ task: { id: 't1', workspaceId: w, version: 1 } }] }],
+          pageParams: [undefined],
+        })
+        wrote()
+        await patcher.handle(w, taskEvent)
+      },
+    )
+  })
+
+  it('a blocker event: the dependent detail patched during its first load is not left to that load', async () => {
+    await expectRestarted(
+      queryKeys.task('t1'),
+      routes,
+      usePatcher,
+      async ({ patcher, queryClient }, wrote) => {
+        queryClient.setQueryData(queryKeys.view(w, 'l1', 'h'), {
+          pages: [{ items: [{ task: { id: 't1', workspaceId: w, version: 1 } }] }],
+          pageParams: [undefined],
+        })
+        wrote()
+        await patcher.handle(w, event({ type: 'task.blocker_resolved', entity: 'task' }))
+      },
+    )
+  })
+
+  it('an unseen task: the subtask scan of its List on its first load is refetched after that load', async () => {
+    await expectRestarted(
+      queryKeys.subtaskScan('l1'),
+      routes,
+      usePatcher,
+      async ({ patcher }, wrote) => {
+        wrote()
+        await patcher.handle(w, taskEvent)
+        await later() // the debounced rescan runs while the first load is still held
+      },
+    )
+  })
+})
+
 describe('realtime: the debounced views refresh takes its first loads from the events, not the timer', () => {
   /** Observes `key` (an active query, as a mounted view) with a first read held until `release()`. */
   function watch(queryClient: QueryClient, key: readonly unknown[]) {

@@ -5,6 +5,7 @@ import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate } from '../../api/refresh'
 
 export function useCreateWorkspace() {
   const queryClient = useQueryClient()
@@ -20,7 +21,8 @@ export function useCreateWorkspace() {
       ),
     onSuccess: async (workspace) => {
       keys.current.done()
-      await queryClient.invalidateQueries({ queryKey: queryKeys.workspaces() })
+      // A workspaces list still on its first load read before this write: restart it, not just invalidate.
+      await cancelThenInvalidate(queryClient, { queryKey: queryKeys.workspaces() })
       if (workspace.id) void navigate(`/w/${workspace.id}`)
     },
   })

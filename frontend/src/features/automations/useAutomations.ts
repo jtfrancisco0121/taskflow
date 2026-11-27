@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate } from '../../api/refresh'
 import type { components } from '../../api/schema'
 import type { RuleBody, RuleListView } from '../../api/types'
 
@@ -20,11 +21,14 @@ export function useAutomations(locationId: string | undefined) {
   })
 }
 
-/** A rule write changes the list of every location below it, so all lists are refreshed. */
+/**
+ * A rule write changes the list of every location below it, so all lists are refreshed, a first load in flight
+ * included: one that read before the write, or (the toggle) started after its onMutate cancel.
+ */
 function useRefresh() {
   const queryClient = useQueryClient()
   return () =>
-    queryClient.invalidateQueries({
+    cancelThenInvalidate(queryClient, {
       predicate: (q) => q.queryKey[0] === 'location' && q.queryKey[2] === 'automations',
     })
 }

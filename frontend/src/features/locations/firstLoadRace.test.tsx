@@ -7,7 +7,7 @@ import { queryKeys } from '../../api/queryKeys'
 import { useUiStore } from '../../shared/ui-store'
 import { installFetch, json, newQueryClient } from '../../test/api'
 import { expectRestarted, put } from '../../test/firstLoadRace'
-import { useCreateLocation, useMoveLocation } from './useLocationMutations'
+import { useCreateLocation, useMoveLocation, useUpdateLocation } from './useLocationMutations'
 
 const w = 'w1'
 const tasksKey = queryKeys.tasks(w, 'l1')
@@ -27,6 +27,25 @@ describe('locations: a first list load in flight when the write lands (cancel be
       (wrote) => ({ 'POST /api/v1/locations': put(wrote, { id: 's1' }) }),
       () => useCreateLocation(w),
       (create) => create.mutateAsync({ name: 'Space', type: 'SPACE' }),
+    )
+  })
+  const rename = (wrote: () => void) => ({
+    'PATCH /api/v1/locations/:id': put(wrote, { id: 'l1', name: 'Renamed' }),
+  })
+  it('useUpdateLocation restarts the parent tree list on its first load (the rename updater has no list yet)', async () => {
+    await expectRestarted(
+      queryKeys.tree(w, 'root'),
+      rename,
+      () => useUpdateLocation(w),
+      (update) => update.mutateAsync({ id: 'l1', name: 'Renamed' }),
+    )
+  })
+  it('useUpdateLocation restarts the location on its first load (its late load would overwrite the response)', async () => {
+    await expectRestarted(
+      queryKeys.location('l1'),
+      rename,
+      () => useUpdateLocation(w),
+      (update) => update.mutateAsync({ id: 'l1', name: 'Renamed' }),
     )
   })
 })

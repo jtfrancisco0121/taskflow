@@ -128,6 +128,11 @@ export function useRemoveDependency(task: TaskView) {
     onError: (error, _input, context) => {
       if (context?.before) {
         queryClient.setQueryData(queryKeys.dependencies(task.id!), context.before)
+      } else {
+        // onMutate cancelled a first load (nothing to put back): load the panel again.
+        inBackground(
+          cancelThenInvalidate(queryClient, { queryKey: queryKeys.dependencies(task.id!) }),
+        )
       }
       const stale = error instanceof ApiError && error.code === 'task.version_conflict'
       if (stale) {

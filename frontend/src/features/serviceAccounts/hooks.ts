@@ -82,11 +82,14 @@ export function useAccountActivity(workspaceId: string, id: string) {
   })
 }
 
-/** Admin actions are rare, so nothing is optimistic: every success refetches the account queries. */
+/**
+ * Admin actions are rare, so nothing is optimistic: every success refetches the account queries, a first load in
+ * flight included (it read before the write).
+ */
 function useRefresh(workspaceId: string) {
   const queryClient = useQueryClient()
   return () =>
-    queryClient.invalidateQueries({ queryKey: queryKeys.serviceAccountsAll(workspaceId) })
+    cancelThenInvalidate(queryClient, { queryKey: queryKeys.serviceAccountsAll(workspaceId) })
 }
 
 export function useCreateServiceAccount(workspaceId: string) {
