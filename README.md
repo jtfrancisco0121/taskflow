@@ -65,7 +65,7 @@ npm ci
 npm run gen:api && git diff --exit-code -- src/api/schema.d.ts   # generated client is current
 npm run lint && npm run typecheck && npm test
 npm run build && npm run check:dist
-cd .. && bash scripts/bundle-size.sh --check                     # JS/CSS size budget
+cd .. && bash scripts/bundle-size.sh --check                     # JS/CSS size cap (frontend/bundle-budget.json)
 bash scripts/secret-scan.sh                                      # gitleaks over the git history
 bash scripts/e2e-local.sh                                        # Playwright against the real stack
 ```

@@ -1,5 +1,6 @@
 {
-  "baselineKiB": 390.4349,
+  "baselineKiB": 389.83,
   "maxIncreasePct": 15,
-  "note": "Cap 449.0 KiB (459,776 gzip bytes): approved by JT Francisco 2026-11-27 for PR #27 (first-load race fixes); was 448.3 (baselineKiB 389.83)"
+  "capKiB": 550,
+  "note": "550 KiB: approved by JT Francisco 2026-11-27 (ticket 14yq6g33497); revisit at Phase 4 planning. Without capKiB the cap is baselineKiB + maxIncreasePct."
 }

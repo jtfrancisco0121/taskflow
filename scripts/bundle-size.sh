@@ -8,10 +8,11 @@
 # Usage:
 #   bash scripts/bundle-size.sh [base-ref]   delta against the merge-base with base-ref (default: main)
 #   bash scripts/bundle-size.sh --check      measures the current frontend/dist/assets (run npm run build first)
-#                                            and exits 1 when the code size is above the budget in
-#                                            frontend/bundle-budget.json: baselineKiB * (1 + maxIncreasePct / 100)
-#   bash scripts/bundle-size.sh --self-test  runs --check on a fake dist and budgets: it must fail below the
-#                                            measured size and pass at the real budget
+#                                            and exits 1 when the code size is above the cap in
+#                                            frontend/bundle-budget.json: capKiB when set (an explicit, approved
+#                                            cap), otherwise baselineKiB * (1 + maxIncreasePct / 100)
+#   bash scripts/bundle-size.sh --self-test  runs --check on a fake dist and budgets: each cap form must pass when
+#                                            the size fits and fail when the cap is lowered below it
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -45,14 +46,21 @@ kib() { awk -v b="$1" 'BEGIN { printf "%.1f", b / 1024 }'; }
 
 # check <assets dir> <budget file>: prints both sizes and the cap; returns 1 above the cap.
 check() {
-  local assets="$1" budget="$2" code fonts baseline pct cap_bytes
+  local assets="$1" budget="$2" code fonts baseline pct cap cap_bytes basis
   [ -d "$assets" ] || { echo "bundle-size: $assets is missing: run npm run build first" >&2; return 2; }
   [ -f "$budget" ] || { echo "bundle-size: $budget is missing" >&2; return 2; }
   read -r code fonts < <(measure "$assets")
   baseline="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).baselineKiB)" "$budget")"
   pct="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).maxIncreasePct)" "$budget")"
-  cap_bytes="$(awk -v b="$baseline" -v p="$pct" 'BEGIN { printf "%d", b * 1024 * (1 + p / 100) }')"
-  echo "JS/CSS (gzip -9): $(kib "$code") KiB; cap $(kib "$cap_bytes") KiB (baseline $baseline KiB + $pct%)"
+  cap="$(node -e "console.log(JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).capKiB ?? '')" "$budget")"
+  if [ -n "$cap" ]; then
+    cap_bytes="$(awk -v c="$cap" 'BEGIN { printf "%d", c * 1024 }')"
+    basis="approved capKiB"
+  else
+    cap_bytes="$(awk -v b="$baseline" -v p="$pct" 'BEGIN { printf "%d", b * 1024 * (1 + p / 100) }')"
+    basis="baseline $baseline KiB + $pct%"
+  fi
+  echo "JS/CSS (gzip -9): $(kib "$code") KiB; cap $(kib "$cap_bytes") KiB ($basis)"
   echo "Fonts (raw .woff2/.woff, not in the cap): $(kib "$fonts") KiB"
   if [ "$code" -gt "$cap_bytes" ]; then
     echo "bundle-size: FAIL, the JS/CSS bundle is above the cap" >&2
@@ -70,15 +78,24 @@ self_test() {
   local code fonts
   read -r code fonts < <(measure "$dir/assets")
   [ "$fonts" -eq 5000 ] || { echo "self-test: fonts must be counted raw and apart from code (got $fonts)" >&2; return 1; }
-  # a budget the measured size fits (at the real +15%), and one it does not fit (baseline lowered below it)
+  # Fallback (no capKiB): a budget the measured size fits (at the real +15%), and one with the baseline lowered.
   awk -v c="$code" 'BEGIN { printf "{ \"baselineKiB\": %.3f, \"maxIncreasePct\": 15 }\n", c / 1024 }' > "$dir/ok.json"
   awk -v c="$code" 'BEGIN { printf "{ \"baselineKiB\": %.3f, \"maxIncreasePct\": 15 }\n", c / 1024 / 2 }' > "$dir/low.json"
+  # Explicit capKiB: it wins over a baseline that alone would fail, and a capKiB lowered below the size fails even
+  # with a baseline that alone would pass.
+  awk -v c="$code" 'BEGIN { printf "{ \"baselineKiB\": %.3f, \"maxIncreasePct\": 15, \"capKiB\": %.3f }\n", c / 1024 / 2, c / 1024 * 2 }' > "$dir/cap-ok.json"
+  awk -v c="$code" 'BEGIN { printf "{ \"baselineKiB\": %.3f, \"maxIncreasePct\": 15, \"capKiB\": %.3f }\n", c / 1024 * 2, c / 1024 / 2 }' > "$dir/cap-low.json"
   check "$dir/assets" "$dir/ok.json" > /dev/null || { echo "self-test: the real budget must pass" >&2; return 1; }
   if check "$dir/assets" "$dir/low.json" > /dev/null 2>&1; then
     echo "self-test: a lowered budget must fail" >&2
     return 1
   fi
-  echo "bundle-size self-test: passes at the real budget, fails with the baseline lowered, fonts counted apart"
+  check "$dir/assets" "$dir/cap-ok.json" > /dev/null || { echo "self-test: an explicit capKiB above the size must pass" >&2; return 1; }
+  if check "$dir/assets" "$dir/cap-low.json" > /dev/null 2>&1; then
+    echo "self-test: an explicit capKiB lowered below the size must fail" >&2
+    return 1
+  fi
+  echo "bundle-size self-test: fallback passes at the real budget and fails with the baseline lowered; an explicit capKiB is used and fails when lowered; fonts counted apart"
 }
 
 case "${1:-}" in
