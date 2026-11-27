@@ -15,9 +15,16 @@ const EDITOR_KEYS: Record<string, EditorField> = {
 
 type KeyRow = { rowIndex: number; task: TaskView }
 
-/** Focuses the row of a task once the virtualizer has rendered it (it may have to scroll there first). */
+/**
+ * Focuses the row of a task once the virtualizer has rendered it (it may have to scroll there first). A modal
+ * dialog that took focus meanwhile (the command palette opened by Ctrl/Cmd+K in that frame) keeps it (AD-5).
+ */
 function focusRow(id: string, done: () => void, attempts = 6) {
   requestAnimationFrame(() => {
+    if (document.activeElement?.closest('[role="dialog"][aria-modal="true"]')) {
+      done()
+      return
+    }
     const el = document.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(id)}"]`)
     if (el) {
       el.focus()

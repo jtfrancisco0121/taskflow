@@ -35,13 +35,20 @@ export const FOCUSABLE = [
   .join(',')
 
 /**
+ * A floating layer that can still hold focus while it closes. The command palette is marked floating too, but it
+ * is a Dialog of its own: focus in it has moved out of the closing layer (AD-5).
+ */
+const CLOSING_LAYER = '[data-tf-floating]:not([data-tf-palette])'
+
+/**
  * `onCloseAutoFocus` for floating content. Radix gives focus back to the trigger a moment after the layer
- * closes. When the pick opened something that took focus meanwhile (a confirmation Dialog), that would steal
- * the focus from it, so the return is skipped when focus is already on a real element outside the layer.
+ * closes. When the pick opened something that took focus meanwhile (a confirmation Dialog, or the command palette
+ * opened by Ctrl/Cmd+K in that moment), that would steal the focus from it, so the return is skipped when focus is
+ * already on a real element outside the layer.
  */
 export function keepFocusIfMoved(event: Event) {
   const active = document.activeElement
-  if (active && active !== document.body && !active.closest('[data-tf-floating]')) {
+  if (active && active !== document.body && !active.closest(CLOSING_LAYER)) {
     event.preventDefault()
   }
 }
@@ -60,7 +67,7 @@ const MODAL = '[role="dialog"][aria-modal="true"]'
  */
 export function keepFocusOrEnterDialog(event: Event, trigger?: Element | null) {
   const active = document.activeElement
-  if (!active || active === document.body || active.closest('[data-tf-floating]')) {
+  if (!active || active === document.body || active.closest(CLOSING_LAYER)) {
     const dialogs = document.querySelectorAll<HTMLElement>(MODAL)
     const dialog = dialogs[dialogs.length - 1]
     if (dialog) {

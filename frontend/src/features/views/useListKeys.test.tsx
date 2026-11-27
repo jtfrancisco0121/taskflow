@@ -227,4 +227,21 @@ describe('List row keys (CAP-7)', () => {
     await user.keyboard('j')
     await waitFor(() => expect(rowOf(2)).toHaveFocus())
   })
+
+  it('a row focus that lands a frame late leaves the focus in a palette opened meanwhile (AD-5)', async () => {
+    serve()
+    await renderList()
+    rowOf(1).focus()
+    fireEvent.keyDown(rowOf(1), { key: 'j' })
+    // Ctrl/Cmd+K in the same frame: the palette opens and its field takes focus before the row focus lands.
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      '<div data-test-layer role="dialog" aria-modal="true" data-tf-floating data-tf-palette><input id="palette-field" /></div>',
+    )
+    const field = document.getElementById('palette-field') as HTMLInputElement
+    field.focus()
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(field).toHaveFocus()
+    expect(rowOf(2)).not.toHaveFocus()
+  })
 })
