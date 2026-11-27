@@ -5,7 +5,7 @@ import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
 import { queryKeys } from '../../api/queryKeys'
-import { cancelThenInvalidate, firstLoadsOf, inBackground, restartQueries } from '../../api/refresh'
+import { cancelThenInvalidate, setDataRestartingFirstLoad } from '../../api/refresh'
 import { useUiStore } from '../../shared/ui-store'
 import type { TreeNode } from './useTreeChildren'
 
@@ -74,21 +74,17 @@ export function useUpdateLocation(workspaceId: string) {
         }),
       ),
     onSuccess: (location, vars) => {
-      const parentList = queryKeys.tree(workspaceId, vars.parentId ?? 'root')
-      const firstLoads = firstLoadsOf(
+      setDataRestartingFirstLoad<TreeNode[]>(
         queryClient,
-        { queryKey: parentList, exact: true },
-        { queryKey: queryKeys.location(vars.id), exact: true },
+        queryKeys.tree(workspaceId, vars.parentId ?? 'root'),
+        (nodes) =>
+          nodes?.map((node) =>
+            node.id === vars.id
+              ? { ...node, name: location.name, isPrivate: location.isPrivate }
+              : node,
+          ),
       )
-      queryClient.setQueryData<TreeNode[]>(parentList, (nodes) =>
-        nodes?.map((node) =>
-          node.id === vars.id
-            ? { ...node, name: location.name, isPrivate: location.isPrivate }
-            : node,
-        ),
-      )
-      queryClient.setQueryData(queryKeys.location(vars.id), location)
-      inBackground(restartQueries(queryClient, firstLoads))
+      setDataRestartingFirstLoad(queryClient, queryKeys.location(vars.id), location)
     },
   })
 }
