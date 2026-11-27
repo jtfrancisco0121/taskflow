@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate } from '../../api/refresh'
 import { invalidateSubtaskScans } from './taskCaches'
 
 /** AD-13: a task create invalidates every task list of the Workspace (List, Folder and Space views). */
@@ -23,15 +24,16 @@ export function useCreateTask(workspaceId: string, listId: string) {
     },
     onSuccess: async (_task, { parentTaskId }) => {
       keys.current.done()
-      // A first load still in flight may have read the server before this task existed. invalidateQueries
-      // does not restart a fetch that has no data yet, and its late response would clear the invalidation
-      // and leave the task missing until a reload: cancel it first, so the invalidation fetches again.
-      if (parentTaskId) await queryClient.cancelQueries({ queryKey: queryKeys.subtaskScan(listId) })
-      await queryClient.cancelQueries({ queryKey: queryKeys.tasksAll(workspaceId) })
-      await queryClient.cancelQueries({ queryKey: queryKeys.viewsAll(workspaceId) })
-      if (parentTaskId) invalidateSubtaskScans(queryClient, listId)
-      await queryClient.invalidateQueries({ queryKey: queryKeys.tasksAll(workspaceId) })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(workspaceId) })
+      // A first load still in flight may have read the server before this task existed: restart it.
+      const filters = [
+        { queryKey: queryKeys.tasksAll(workspaceId) },
+        { queryKey: queryKeys.viewsAll(workspaceId) },
+      ]
+      if (parentTaskId) {
+        await queryClient.cancelQueries({ queryKey: queryKeys.subtaskScan(listId) })
+        invalidateSubtaskScans(queryClient, listId)
+      }
+      await cancelThenInvalidate(queryClient, ...filters)
     },
   })
 }

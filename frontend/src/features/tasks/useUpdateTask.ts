@@ -8,6 +8,7 @@ import { useRef } from 'react'
 import { api } from '../../api/client'
 import { networkError, toApiError } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
+import { restartFirstLoads } from '../../api/refresh'
 import type { components } from '../../api/schema'
 import type { TaskView } from '../../api/types'
 import { writeTaskToCaches } from './taskCaches'
@@ -32,6 +33,16 @@ function replaceInLists(queryClient: QueryClient, task: TaskView) {
           items: page.items?.map((item) => (item.id === task.id ? task : item)),
         })),
       },
+  )
+}
+
+/** A list still on its first load may have read the server before this write: fetch it again. */
+async function restartFirstListLoads(queryClient: QueryClient, task: TaskView) {
+  if (!task.workspaceId) return
+  await restartFirstLoads(
+    queryClient,
+    { queryKey: queryKeys.tasksAll(task.workspaceId) },
+    { queryKey: queryKeys.viewsAll(task.workspaceId) },
   )
 }
 
@@ -65,6 +76,7 @@ export function useUpdateTask(taskId: string) {
       if (current) {
         writeTaskToCaches(queryClient, current)
         replaceInLists(queryClient, current)
+        await restartFirstListLoads(queryClient, current)
         void queryClient.invalidateQueries({ queryKey: queryKeys.activity(taskId) })
         return { kind: 'conflict', current, attempted: patch }
       }
@@ -72,6 +84,7 @@ export function useUpdateTask(taskId: string) {
     if (!response.ok || !result.data) throw toApiError(response, result.error)
     writeTaskToCaches(queryClient, result.data)
     replaceInLists(queryClient, result.data)
+    await restartFirstListLoads(queryClient, result.data)
     void queryClient.invalidateQueries({ queryKey: queryKeys.activity(taskId) })
     return { kind: 'saved', task: result.data }
   }

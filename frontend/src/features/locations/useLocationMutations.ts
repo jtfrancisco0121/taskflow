@@ -5,6 +5,7 @@ import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate } from '../../api/refresh'
 import { useUiStore } from '../../shared/ui-store'
 import type { TreeNode } from './useTreeChildren'
 
@@ -96,11 +97,12 @@ export function useMoveLocation(workspaceId: string) {
       // Open the new parent and its ancestors so the moved node is visible.
       for (const open of [...(vars.expand ?? []), vars.parentId])
         setExpanded(workspaceId, open, true)
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.treeAll(workspaceId) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.location(vars.id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.tasksAll(workspaceId) }),
-      ])
+      await cancelThenInvalidate(
+        queryClient,
+        { queryKey: queryKeys.treeAll(workspaceId) },
+        { queryKey: queryKeys.location(vars.id) },
+        { queryKey: queryKeys.tasksAll(workspaceId) },
+      )
     },
   })
 }

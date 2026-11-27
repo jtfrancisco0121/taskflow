@@ -2,6 +2,7 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { ApiError, messageOf, networkError, toApiError } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
+import { restartFirstLoads } from '../../api/refresh'
 import type { TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 import { cachedVersion, patchTaskInCaches, writeTaskToCaches } from './taskCaches'
@@ -81,6 +82,12 @@ export function useOptimisticTaskMutation() {
   )
 }
 
+/** The task lists a write can have missed while their first load was in flight (see restartFirstLoads). */
+const firstLoadKeys = (workspaceId: string) => [
+  { queryKey: queryKeys.viewsAll(workspaceId) },
+  { queryKey: queryKeys.tasksAll(workspaceId) },
+]
+
 async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutcome> {
   const workspaceId = job.task.workspaceId!
   const id = job.task.id!
@@ -113,6 +120,7 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
       writeTaskToCaches(queryClient, current)
       show(CONFLICT_MESSAGE, 'error')
       void queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(workspaceId) })
+      await restartFirstLoads(queryClient, ...firstLoadKeys(workspaceId))
       return 'conflict'
     }
   }
@@ -124,5 +132,6 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
   }
   writeTaskToCaches(queryClient, result.data)
   void queryClient.invalidateQueries({ queryKey: queryKeys.activity(id) })
+  await restartFirstLoads(queryClient, ...firstLoadKeys(workspaceId))
   return 'saved'
 }

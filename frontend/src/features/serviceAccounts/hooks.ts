@@ -9,6 +9,7 @@ import { useEffect } from 'react'
 import { api } from '../../api/client'
 import { ApiError, unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate } from '../../api/refresh'
 
 /** Every service account of the Workspace (an admin has few, so all pages are fetched). */
 export function useServiceAccounts(workspaceId: string) {
@@ -165,8 +166,11 @@ export function useRestoreTask(workspaceId: string) {
       ),
     onSuccess: async () => {
       await refresh()
-      await queryClient.invalidateQueries({ queryKey: queryKeys.tasksAll(workspaceId) })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(workspaceId) })
+      await cancelThenInvalidate(
+        queryClient,
+        { queryKey: queryKeys.tasksAll(workspaceId) },
+        { queryKey: queryKeys.viewsAll(workspaceId) },
+      )
     },
   })
 }

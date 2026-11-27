@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { ApiError, messageOf, networkError, toApiError, unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate } from '../../api/refresh'
 import type { DependencyList, DependencyRelation, TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 
@@ -35,8 +36,11 @@ function refresh(queryClient: QueryClient, task: TaskView, otherId: string | und
     void queryClient.invalidateQueries({ queryKey: queryKeys.task(otherId), exact: true })
   const ws = task.workspaceId
   if (ws) {
-    void queryClient.invalidateQueries({ queryKey: queryKeys.tasksAll(ws) })
-    void queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(ws) })
+    void cancelThenInvalidate(
+      queryClient,
+      { queryKey: queryKeys.tasksAll(ws) },
+      { queryKey: queryKeys.viewsAll(ws) },
+    )
   }
 }
 
