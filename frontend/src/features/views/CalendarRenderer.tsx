@@ -99,8 +99,6 @@ export function CalendarRenderer({
   useEffect(() => {
     if (hasNextPage && !isFetchingNextPage) void fetchNextPage()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
-  // Later pages may still hold in-range tasks: not empty until paging is done.
-  const paging = hasNextPage || isFetchingNextPage
   // Tasks without a due date are not shown: say how many are hidden.
   const undated = useViewTasks(
     scope,
@@ -117,6 +115,9 @@ export function CalendarRenderer({
     const day = dayOfDue(task.dueDate)
     byDay.set(day, [...(byDay.get(day) ?? []), task])
   }
+
+  // Later pages may still hold in-range tasks: nothing in range yet is loading, not empty, until paging is done.
+  const loading = query.isPending || (shown === 0 && (hasNextPage || isFetchingNextPage))
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -195,7 +196,7 @@ export function CalendarRenderer({
               ))}
             </div>
           </DndContext>
-          {(query.isPending || (shown === 0 && paging)) && (
+          {loading && (
             <div
               role="status"
               aria-label="Loading the Calendar"
@@ -205,9 +206,7 @@ export function CalendarRenderer({
               <Skeleton className="h-4 w-1/4" />
             </div>
           )}
-          {query.isSuccess && shown === 0 && !paging && (
-            <EmptyState title="No tasks due in this range." />
-          )}
+          {!loading && shown === 0 && <EmptyState title="No tasks due in this range." />}
         </>
       )}
       {undated != null && undated > 0 && (
