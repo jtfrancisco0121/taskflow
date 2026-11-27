@@ -1,6 +1,7 @@
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Link, Route, Routes, useLocation } from 'react-router'
+import { StrictMode } from 'react'
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router'
 import { describe, expect, it } from 'vitest'
 import { useThemeStore } from '../../shared/theme/theme-store'
 import { useUiStore } from '../../shared/ui-store'
@@ -117,5 +118,122 @@ describe('palette shortcut while the shell mounts', () => {
     await screen.findByRole('button', { name: 'Toggle sidebar' })
     expect(screen.queryByRole('dialog', { name: 'Command palette' })).toBeNull()
     expect(useUiStore.getState().paletteRequested).toBe(false)
+  })
+
+  // main.tsx runs the app in StrictMode: React mounts, unmounts and mounts every effect again. That replay must
+  // neither drop a queued request (the shell's own listener mounting) nor let it open the palette later.
+  it('under StrictMode a key queued during the boot still opens the palette once the shell is ready', async () => {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => (release = resolve))
+    installFetch({
+      'POST /api/v1/auth/refresh': async () => {
+        await held
+        return json({ accessToken: 'tok', user: { id: 'u1' } })
+      },
+      'GET /api/v1/workspaces': { items: [{ id: 'w1', name: 'Acme', role: 'OWNER' }] },
+      'GET /api/v1/workspaces/:id/notifications/unread-count': { count: 0 },
+      'GET /api/v1/workspaces/:id/tree': { items: [] },
+    })
+    const user = userEvent.setup()
+    renderWithProviders(
+      <StrictMode>
+        <Routes>
+          <Route element={<RequireSession />}>
+            <Route element={<AppShell />}>
+              <Route path="/w/:workspaceId" element={<Where />} />
+            </Route>
+          </Route>
+        </Routes>
+      </StrictMode>,
+      { route: '/w/w1' },
+    )
+    await user.keyboard(CTRL_K)
+    await act(async () => release())
+    expect(await screen.findByRole('dialog', { name: 'Command palette' })).toBeInTheDocument()
+    expect(useUiStore.getState().paletteRequested).toBe(false)
+  })
+
+  it('under StrictMode a request is still dropped when the route changes before the shell is ready', async () => {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => (release = resolve))
+    installFetch({
+      'POST /api/v1/auth/refresh': async () => {
+        await held
+        return json({ accessToken: 'tok', user: { id: 'u1' } })
+      },
+      'GET /api/v1/workspaces': { items: [] },
+    })
+    const user = userEvent.setup()
+    renderWithProviders(
+      <StrictMode>
+        <Link to="/setup">elsewhere</Link>
+        <Routes>
+          <Route element={<RequireSession />}>
+            <Route element={<AppShell />}>
+              <Route path="/" element={<Where />} />
+              <Route path="/setup" element={<Where />} />
+            </Route>
+          </Route>
+        </Routes>
+      </StrictMode>,
+      { route: '/' },
+    )
+    await user.keyboard(CTRL_K)
+    await user.click(screen.getByRole('link', { name: 'elsewhere' }))
+    await act(async () => release())
+    await screen.findByRole('button', { name: 'Toggle sidebar' })
+    expect(screen.queryByRole('dialog', { name: 'Command palette' })).toBeNull()
+    expect(useUiStore.getState().paletteRequested).toBe(false)
+  })
+
+  it('under StrictMode a request is dropped when the app unmounts before the shell is ready', async () => {
+    installFetch({ 'POST /api/v1/auth/refresh': () => new Promise<Response>(() => {}) })
+    const user = userEvent.setup()
+    const view = renderWithProviders(
+      <StrictMode>
+        <Routes>
+          <Route element={<RequireSession />}>
+            <Route path="/" element={<Where />} />
+          </Route>
+        </Routes>
+      </StrictMode>,
+      { route: '/' },
+    )
+    await user.keyboard(CTRL_K)
+    expect(useUiStore.getState().paletteRequested).toBe(true)
+    view.unmount()
+    await waitFor(() => expect(useUiStore.getState().paletteRequested).toBe(false))
+  })
+
+  // A redirect the user did not make (a boot redirect before the shell mounts) replaces the entry: it keeps the
+  // queued key. A user navigation (a push, see the test above) still drops it.
+  it('keeps a key queued during the boot across a replace redirect, and still opens the palette', async () => {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => (release = resolve))
+    installFetch({
+      'POST /api/v1/auth/refresh': async () => {
+        await held
+        return json({ accessToken: 'tok', user: { id: 'u1' } })
+      },
+      'GET /api/v1/workspaces': { items: [{ id: 'w1', name: 'Acme', role: 'OWNER' }] },
+      'GET /api/v1/workspaces/:id/notifications/unread-count': { count: 0 },
+      'GET /api/v1/workspaces/:id/tree': { items: [] },
+    })
+    const user = userEvent.setup()
+    renderWithProviders(
+      <Routes>
+        <Route element={<RequireSession />}>
+          <Route path="/" element={<Navigate to="/w/w1" replace />} />
+          <Route element={<AppShell />}>
+            <Route path="/w/:workspaceId" element={<Where />} />
+          </Route>
+        </Route>
+      </Routes>,
+      { route: '/' },
+    )
+    await user.keyboard(CTRL_K)
+    await act(async () => release())
+    expect(await screen.findByRole('dialog', { name: 'Command palette' })).toBeInTheDocument()
+    expect(screen.getByTestId('where')).toHaveTextContent('/w/w1')
   })
 })
