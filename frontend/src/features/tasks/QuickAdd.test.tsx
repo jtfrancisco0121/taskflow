@@ -1,4 +1,5 @@
-import { screen } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
+import { useState } from 'react'
 import { describe, expect, it } from 'vitest'
 import { installFetch, renderWithProviders } from '../../test/api'
 import { QuickAdd } from './QuickAdd'
@@ -33,5 +34,40 @@ describe('QuickAdd focus', () => {
     installFetch({})
     renderWithProviders(<QuickAdd workspaceId="w1" listId="l1" autoFocus={false} />)
     expect(screen.getByRole('textbox', { name: 'Add a task' })).not.toHaveFocus()
+  })
+
+  it('leaves focus alone while another text field holds it', () => {
+    installFetch({})
+    const field = document.createElement('input')
+    document.body.append(field)
+    field.focus()
+    try {
+      renderWithProviders(<QuickAdd workspaceId="w1" listId="l1" />)
+      expect(field).toHaveFocus()
+    } finally {
+      field.remove()
+    }
+  })
+
+  it('does not take focus again when autoFocus flips off and on after mount', () => {
+    installFetch({})
+    let setAuto!: (value: boolean) => void
+    function Harness() {
+      const [auto, set] = useState(true)
+      setAuto = set
+      return <QuickAdd workspaceId="w1" listId="l1" autoFocus={auto} />
+    }
+    renderWithProviders(<Harness />)
+    expect(screen.getByRole('textbox', { name: 'Add a task' })).toHaveFocus()
+    const field = document.createElement('input')
+    document.body.append(field)
+    field.focus()
+    try {
+      act(() => setAuto(false))
+      act(() => setAuto(true))
+      expect(field).toHaveFocus()
+    } finally {
+      field.remove()
+    }
   })
 })

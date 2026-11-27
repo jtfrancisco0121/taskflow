@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useLocation } from 'react-router'
+import { useLocation, useNavigationType } from 'react-router'
 import { isShortcutBlocked } from '../../shared/ui/shortcutGuard'
 import { useUiStore } from '../../shared/ui-store'
 
@@ -9,12 +9,12 @@ import { useUiStore } from '../../shared/ui-store'
  * or while a floating layer is open (a modal menu, Select or popover traps focus and the pointer).
  *
  * Before the shell is ready (session boot, shell mounting) the key is queued as `paletteRequested` and the palette
- * opens once when the shell is ready. A queued request is dropped on a route change and on unmount, so it never
- * opens the palette later, unasked. `enabled` lets RequireSession listen during the boot, then hand over to the
+ * opens once when the shell is ready. A queued request is dropped on a user's route change and on unmount, so it never
+ * opens the palette later, unasked. A route change drops it only when the user made it (a push or a back/forward);
+ * a replace (a redirect during the boot) keeps it. `enabled` lets RequireSession listen during the boot, then hand over to the
  * palette's own listener.
  */
 export function useShortcut(enabled = true) {
-  const mounted = useRef(true)
   useEffect(() => {
     if (!enabled) return
     function onKey(event: KeyboardEvent) {
@@ -31,21 +31,26 @@ export function useShortcut(enabled = true) {
   }, [enabled])
 
   // Both drops are safe under StrictMode's effect replay (mount, unmount, mount again in one task): a route change
-  // is a key different from the one seen before, and an unmount counts only if no remount follows at once.
-  const key = useLocation().key
-  const seenKey = useRef(key)
+  // is a key different from the one seen before, and an unmount counts only if no consumer mounts after it in the
+  // same task (the replay, or the next consumer taking over).
+  const location = useLocation()
+  const navigationType = useNavigationType()
+  const seenKey = useRef(location.key)
   useEffect(() => {
-    if (seenKey.current === key) return
-    seenKey.current = key
-    useUiStore.getState().setPaletteRequested(false)
-  }, [key])
+    if (seenKey.current === location.key) return
+    seenKey.current = location.key
+    if (navigationType !== 'REPLACE') useUiStore.getState().setPaletteRequested(false)
+  }, [location.key, navigationType])
   useEffect(() => {
-    mounted.current = true
+    mountCount += 1
     return () => {
-      mounted.current = false
+      const seen = mountCount
       queueMicrotask(() => {
-        if (!mounted.current) useUiStore.getState().setPaletteRequested(false)
+        if (mountCount === seen) useUiStore.getState().setPaletteRequested(false)
       })
     }
   }, [])
 }
+
+/** Counts every mount of the hook, so an unmount can tell whether another consumer mounted right after it. */
+let mountCount = 0

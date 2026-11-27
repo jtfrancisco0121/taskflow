@@ -17,9 +17,15 @@ export function QuickAdd({
   const create = useCreateTask(workspaceId, listId)
   const pending = create.isPending
 
-  // Focus on mount, but not out of an open dialog (the Command palette opened while the List was loading).
+  // Focus once, on mount: not out of an open dialog (the Command palette opened while the List was loading) or
+  // a field the user is already in, and not later when autoFocus flips.
+  const focusTried = useRef(false)
   useEffect(() => {
-    if (!autoFocus || document.activeElement?.closest('[role="dialog"]')) return
+    if (!autoFocus || focusTried.current) return
+    focusTried.current = true
+    const active = document.activeElement
+    if (active?.closest('[role="dialog"], input, textarea, select, [contenteditable="true"]'))
+      return
     inputRef.current?.focus()
   }, [autoFocus])
 
