@@ -6,6 +6,7 @@ import { queryKeys } from '../../api/queryKeys'
 import type { TaskView } from '../../api/types'
 import { json, newQueryClient } from '../../test/api'
 import { expectRestarted, put } from '../../test/firstLoadRace'
+import { useChecklistWrites } from './useChecklists'
 import { useOptimisticTaskMutation } from './useOptimisticTaskMutation'
 import { useUpdateTask } from './useUpdateTask'
 
@@ -286,6 +287,17 @@ describe('tasks: a first list load in flight when the write lands (cancel before
     await act(() => new Promise<void>((resolve) => setTimeout(resolve, 50)))
     expect(reads).toBe(1)
     stop()
+  })
+
+  it('useChecklistWrites.add restarts the checklists on their first load', async () => {
+    await expectRestarted(
+      queryKeys.checklists('t1'),
+      (wrote) => ({
+        'POST /api/v1/tasks/:id/checklists': put(wrote, { id: 'c1', name: 'QA', items: [] }),
+      }),
+      () => useChecklistWrites('t1'),
+      (writes) => writes.add('QA'),
+    )
   })
 
   it('useOptimisticTaskMutation restarts a subtask scan on its first load', async () => {
