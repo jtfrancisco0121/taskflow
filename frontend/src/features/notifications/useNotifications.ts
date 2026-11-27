@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { api } from '../../api/client'
 import { messageOf, unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
-import { cancelThenInvalidate, inBackground } from '../../api/refresh'
+import { cancelThenInvalidate, inBackground, invalidateAfterFirstLoads } from '../../api/refresh'
 import { useToastStore } from '../../shared/toast-store'
 
 export function useUnreadCount(workspaceId: string | undefined) {
@@ -33,7 +33,7 @@ export function useInbox(workspaceId: string | undefined, unread: boolean, limit
   })
 }
 
-/** Refreshes the count and every open list of the Workspace (a first load in flight too), in the background. */
+/** After a write: refreshes the count and every open list (a first load in flight too), in the background. */
 export function useRefreshInbox(workspaceId: string | undefined) {
   const queryClient = useQueryClient()
   return () => {
@@ -41,6 +41,20 @@ export function useRefreshInbox(workspaceId: string | undefined) {
     inBackground(
       cancelThenInvalidate(queryClient, { queryKey: queryKeys.notificationsAll(workspaceId) }),
     )
+  }
+}
+
+/**
+ * The same refresh for Live notification events and reconnects, which come in bursts: a first load in flight is not
+ * cancelled per event (a steady stream would keep it loading) but refetched once after it lands.
+ */
+export function useLiveRefreshInbox(workspaceId: string | undefined) {
+  const queryClient = useQueryClient()
+  return () => {
+    if (!workspaceId) return
+    void invalidateAfterFirstLoads(queryClient, {
+      queryKey: queryKeys.notificationsAll(workspaceId),
+    })
   }
 }
 
@@ -90,6 +104,8 @@ export function useSavePreference(workspaceId: string) {
     onMutate: async (pref) => {
       await queryClient.cancelQueries({ queryKey: key })
       const previous = queryClient.getQueryData<Prefs>(key)
+      // Written unconditionally (no `if (previous)`): the query then always has data, so no later fetch is a first
+      // load and the plain onSettled invalidate below restarts it. Guarded by firstLoadRace.test.tsx.
       queryClient.setQueryData<Prefs>(key, {
         kinds: previous?.kinds?.map((k) => (k.kind === pref.kind ? { ...k, ...pref } : k)),
       })
