@@ -1,7 +1,11 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { queryKeys } from '../../api/queryKeys'
-import { invalidateAfterFirstLoads } from '../../api/refresh'
+import {
+  firstLoadsOf,
+  invalidateAfterFirstLoads,
+  invalidateAfterLoadsOf,
+} from '../../api/refresh'
 import {
   cachedVersion,
   invalidateSubtaskScans,
@@ -25,16 +29,23 @@ export function createCachePatcher(
   options: { clientId: string; debounceMs?: number; announce?: (message: string) => void },
 ) {
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
+  /** Per Workspace, the views on their first load when an event of the pending debounce came (union). */
+  const viewFirstLoads = new Map<string, Set<string>>()
   const debounceMs = options.debounceMs ?? 500
   let lastFieldsAnnounce = 0
 
   function invalidateViewsSoon(workspaceId: string) {
+    const views = { queryKey: queryKeys.viewsAll(workspaceId) }
+    const firstLoads = viewFirstLoads.get(workspaceId) ?? new Set<string>()
+    for (const hash of firstLoadsOf(queryClient, views)) firstLoads.add(hash)
+    viewFirstLoads.set(workspaceId, firstLoads)
     clearTimeout(timers.get(workspaceId))
     timers.set(
       workspaceId,
       setTimeout(() => {
         timers.delete(workspaceId)
-        void invalidateAfterFirstLoads(queryClient, { queryKey: queryKeys.viewsAll(workspaceId) })
+        viewFirstLoads.delete(workspaceId)
+        void invalidateAfterLoadsOf(queryClient, firstLoads, views)
       }, debounceMs),
     )
   }
@@ -179,6 +190,7 @@ export function createCachePatcher(
     dispose() {
       timers.forEach((t) => clearTimeout(t))
       timers.clear()
+      viewFirstLoads.clear()
     },
   }
 }

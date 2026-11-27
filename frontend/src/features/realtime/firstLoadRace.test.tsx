@@ -1,8 +1,10 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { type QueryClient, QueryObserver, useQueryClient } from '@tanstack/react-query'
+import { waitFor } from '@testing-library/react'
 import { useMemo } from 'react'
-import { describe, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { queryKeys } from '../../api/queryKeys'
 import { cancelThenInvalidate } from '../../api/refresh'
+import { installFetch, newQueryClient } from '../../test/api'
 import { expectRestarted } from '../../test/firstLoadRace'
 import { createCachePatcher } from './cachePatcher'
 
@@ -123,5 +125,58 @@ describe('realtime: a first load in flight when a Live event arrives', () => {
         await cancelThenInvalidate(queryClient, { queryKey: queryKeys.comments('t1') })
       },
     ) // the cancelled first load and the user's restart; the event's wait ends with the cancel
+  })
+})
+
+describe('realtime: the debounced views refresh takes its first loads from the events, not the timer', () => {
+  /** Observes `key` (an active query, as a mounted view) with a first read held until `release()`. */
+  function watch(queryClient: QueryClient, key: readonly unknown[]) {
+    let reads = 0
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    const observer = new QueryObserver(queryClient, {
+      queryKey: key,
+      queryFn: async () => {
+        reads += 1
+        if (reads === 1) await held
+        return reads
+      },
+    })
+    const stop = observer.subscribe(() => {})
+    return { reads: () => reads, release, stop, data: () => observer.getCurrentResult().data }
+  }
+  const taskEvent = event({ type: 'task.updated', entity: 'task', entityId: 't9' })
+  const debounceMs = 20
+  const pastDebounce = () => new Promise<void>((resolve) => setTimeout(resolve, debounceMs * 3))
+
+  it('a view mounted after the event (its first load read after it) gets no extra read', async () => {
+    installFetch({})
+    const queryClient = newQueryClient()
+    const patcher = createCachePatcher(queryClient, { clientId: 'me', debounceMs })
+    await patcher.handle(w, taskEvent)
+    const view = watch(queryClient, queryKeys.view(w, 'l1', 'h'))
+    await pastDebounce() // the timer fires while that first load is still in flight
+    view.release()
+    await waitFor(() => expect(view.data()).toBe(1))
+    await pastDebounce()
+    expect(view.reads()).toBe(1)
+    view.stop()
+    patcher.dispose()
+  })
+
+  it('a view on its first load when the event came still gets its one refetch', async () => {
+    installFetch({})
+    const queryClient = newQueryClient()
+    const patcher = createCachePatcher(queryClient, { clientId: 'me', debounceMs })
+    const view = watch(queryClient, queryKeys.view(w, 'l1', 'h'))
+    await waitFor(() => expect(view.reads()).toBe(1))
+    await patcher.handle(w, taskEvent)
+    await pastDebounce() // still in flight when the timer fires
+    view.release()
+    await waitFor(() => expect(view.data()).toBe(2))
+    await pastDebounce()
+    expect(view.reads()).toBe(2)
+    view.stop()
+    patcher.dispose()
   })
 })
