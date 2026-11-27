@@ -61,7 +61,7 @@ export async function expectRestarted<T>(
   release()
   await act(() => firing)
   if (options.holdRefetch) {
-    await waitFor(() => expect(reads).toBe(2))
+    await waitFor(() => expect(reads).toBeGreaterThanOrEqual(2)) // one restart per saved write
     expect(result.current.probe.data).toBeUndefined()
     options.check?.(result.current)
     return

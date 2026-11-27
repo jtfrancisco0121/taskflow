@@ -45,6 +45,33 @@ describe('tasks: a first list load in flight when the write lands (cancel before
     )
   })
 
+  it('useUpdateTask: saved and the next queued edit do not wait for the refetch', async () => {
+    let patches = 0
+    await expectRestarted(
+      tasksKey,
+      (wrote) => ({
+        'PATCH /api/v1/tasks/:id': () => {
+          patches += 1
+          return put(wrote, task(1))(new Request('http://x'), null)
+        },
+      }),
+      () => useUpdateTask('t1'),
+      async (update) => {
+        const first = update.mutateAsync({ title: 'One' })
+        const second = update.mutateAsync({ title: 'Two' })
+        await first
+        await second
+      },
+      {
+        holdRefetch: true,
+        check: ({ write }) => {
+          expect(patches).toBeGreaterThanOrEqual(2)
+          expect(write.isPending).toBe(false)
+        },
+      },
+    )
+  })
+
   it('useOptimisticTaskMutation (409 conflict path)', async () => {
     await expectRestarted(
       viewKey,
