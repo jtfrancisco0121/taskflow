@@ -118,4 +118,19 @@ describe('dependencies: a first list load in flight when the write lands (cancel
         remove.mutateAsync({ dependencyId: 'd1', otherTaskId: 't2' }).catch(() => undefined),
     )
   })
+
+  it('useRemoveDependency refetches the panel its onMutate cancelled when the write fails', async () => {
+    await expectRestarted(
+      queryKeys.dependencies('t1'),
+      (wrote) => ({
+        'DELETE /api/v1/tasks/:id/dependencies/:dependencyId': () => {
+          wrote()
+          return problem(500, 'internal', 'Failed')
+        },
+      }),
+      () => useRemoveDependency(taskView),
+      (remove) =>
+        remove.mutateAsync({ dependencyId: 'd1', otherTaskId: 't2' }).catch(() => undefined),
+    )
+  })
 })

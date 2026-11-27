@@ -10,8 +10,8 @@ import { inboxPath, notificationSettingsPath } from './routes'
 import { notificationText } from './notificationText'
 import {
   useInbox,
+  useLiveRefreshInbox,
   useMarkAllRead,
-  useRefreshInbox,
   useSetRead,
   useUnreadCount,
 } from './useNotifications'
@@ -19,7 +19,7 @@ import {
 /** The bell in the header: unread count (hidden at 0, "99+"), a popover of the 20 newest (CAP-11). */
 export function NotificationBell({ workspaceId }: { workspaceId: string }) {
   const count = useUnreadCount(workspaceId)
-  const refresh = useRefreshInbox(workspaceId)
+  const refresh = useLiveRefreshInbox(workspaceId)
   const [open, setOpen] = useState(false)
   const unread = count.data?.count ?? 0
   const label = unread > 99 ? '99+' : String(unread)

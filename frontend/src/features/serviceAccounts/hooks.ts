@@ -82,11 +82,14 @@ export function useAccountActivity(workspaceId: string, id: string) {
   })
 }
 
-/** Admin actions are rare, so nothing is optimistic: every success refetches the account queries. */
+/**
+ * Admin actions are rare, so nothing is optimistic: every success refetches the account queries, a first load in
+ * flight included (it read before the write).
+ */
 function useRefresh(workspaceId: string) {
   const queryClient = useQueryClient()
   return () =>
-    queryClient.invalidateQueries({ queryKey: queryKeys.serviceAccountsAll(workspaceId) })
+    cancelThenInvalidate(queryClient, { queryKey: queryKeys.serviceAccountsAll(workspaceId) })
 }
 
 export function useCreateServiceAccount(workspaceId: string) {
@@ -155,7 +158,6 @@ export function useRevokeApiKey(workspaceId: string, id: string) {
 
 /** Restores a trashed task with the version the trash event recorded (If-Match). */
 export function useRestoreTask(workspaceId: string) {
-  const refresh = useRefresh(workspaceId)
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (vars: { taskId: string; version: number }) =>
@@ -164,14 +166,14 @@ export function useRestoreTask(workspaceId: string) {
           params: { path: { id: vars.taskId }, header: { 'If-Match': `"${vars.version}"` } },
         }),
       ),
-    onSuccess: async () => {
-      await refresh()
-      await cancelThenInvalidate(
+    // One round: the account queries and the task lists and views refetch together.
+    onSuccess: () =>
+      cancelThenInvalidate(
         queryClient,
+        { queryKey: queryKeys.serviceAccountsAll(workspaceId) },
         { queryKey: queryKeys.tasksAll(workspaceId) },
         { queryKey: queryKeys.viewsAll(workspaceId) },
-      )
-    },
+      ),
   })
 }
 

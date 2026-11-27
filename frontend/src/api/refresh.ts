@@ -1,4 +1,10 @@
-import type { InvalidateQueryFilters, Query, QueryClient } from '@tanstack/react-query'
+import type {
+  InvalidateQueryFilters,
+  Query,
+  QueryClient,
+  QueryKey,
+  Updater,
+} from '@tanstack/react-query'
 
 /**
  * After a write, refetch every query matching `filters`, including one whose first load is still in flight.
@@ -35,6 +41,20 @@ function isFirstLoad(query: Query) {
 export async function restartQueries(queryClient: QueryClient, hashes: Set<string>) {
   if (hashes.size === 0) return
   await cancelThenInvalidate(queryClient, { predicate: (query) => hashes.has(query.queryHash) })
+}
+
+/**
+ * setQueryData for a write (a response, a 409 body) on a query that may still be on its first load: that load read
+ * before the write and would overwrite it, so it is snapshotted before the write and restarted in the background.
+ */
+export function setDataRestartingFirstLoad<T>(
+  queryClient: QueryClient,
+  queryKey: QueryKey,
+  updater: Updater<T | undefined, T | undefined>,
+) {
+  const firstLoad = firstLoadsOf(queryClient, { queryKey, exact: true })
+  queryClient.setQueryData<T>(queryKey, updater)
+  inBackground(restartQueries(queryClient, firstLoad))
 }
 
 /**

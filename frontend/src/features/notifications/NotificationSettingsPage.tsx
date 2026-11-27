@@ -1,17 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
 import { api } from '../../api/client'
 import { messageOf, unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
-import { useToastStore } from '../../shared/toast-store'
 import { EmptyState } from '../../shared/ui/EmptyState'
 import { ErrorState } from '../../shared/ui/ErrorState'
 import { PageHeader } from '../../shared/ui/PageHeader'
 import { Skeleton } from '../../shared/ui/Skeleton'
 import { Switch } from '../../shared/ui/Switch'
-
-type Pref = { kind?: string; inApp?: boolean; emailDigest?: boolean }
-type Prefs = { kinds?: Pref[] }
+import { useSavePreference, type Pref } from './useNotifications'
 
 const LABEL: Record<string, string> = {
   ASSIGNED: 'Assigned to me',
@@ -26,8 +23,6 @@ const LABEL: Record<string, string> = {
 /** `/w/:ws/settings/notifications`: which events reach the inbox and the email digest (CAP-13). */
 export function NotificationSettingsPage() {
   const { workspaceId = '' } = useParams()
-  const queryClient = useQueryClient()
-  const toast = useToastStore((s) => s.show)
   const key = queryKeys.notificationPreferences(workspaceId)
   const prefs = useQuery({
     queryKey: key,
@@ -38,30 +33,7 @@ export function NotificationSettingsPage() {
         }),
       ),
   })
-  const save = useMutation({
-    mutationFn: (pref: Required<Pref>) =>
-      unwrap(
-        api.PUT('/api/v1/workspaces/{id}/notification-preferences', {
-          params: { path: { id: workspaceId } },
-          body: { kinds: [pref] },
-        }),
-      ),
-    // Optimistic: the switch moves at once and goes back when the server refuses.
-    onMutate: async (pref) => {
-      await queryClient.cancelQueries({ queryKey: key })
-      const previous = queryClient.getQueryData<Prefs>(key)
-      queryClient.setQueryData<Prefs>(key, {
-        kinds: previous?.kinds?.map((k) => (k.kind === pref.kind ? { ...k, ...pref } : k)),
-      })
-      return { previous }
-    },
-    onError: (error, _pref, context) => {
-      if (context?.previous) queryClient.setQueryData(key, context.previous)
-      toast(messageOf(error), 'error')
-    },
-    onSuccess: () => toast('Notification settings saved'),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
-  })
+  const save = useSavePreference(workspaceId)
 
   const kinds = prefs.data?.kinds ?? []
   return (

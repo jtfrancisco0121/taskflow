@@ -5,7 +5,7 @@ import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
 import { queryKeys } from '../../api/queryKeys'
-import { cancelThenInvalidate } from '../../api/refresh'
+import { cancelThenInvalidate, setDataRestartingFirstLoad } from '../../api/refresh'
 import { useUiStore } from '../../shared/ui-store'
 import type { TreeNode } from './useTreeChildren'
 
@@ -55,7 +55,11 @@ export function useCreateLocation(workspaceId: string) {
   })
 }
 
-/** Rename or privacy change: the response is written into the parent's tree list and the location. */
+/**
+ * Rename or privacy change: the response is written into the parent's tree list and the location. Either one still
+ * on its first load read before the write (the list updater has nothing to map, the location's late load would
+ * overwrite the response), so it is restarted in the background.
+ */
 export function useUpdateLocation(workspaceId: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -70,7 +74,8 @@ export function useUpdateLocation(workspaceId: string) {
         }),
       ),
     onSuccess: (location, vars) => {
-      queryClient.setQueryData<TreeNode[]>(
+      setDataRestartingFirstLoad<TreeNode[]>(
+        queryClient,
         queryKeys.tree(workspaceId, vars.parentId ?? 'root'),
         (nodes) =>
           nodes?.map((node) =>
@@ -79,7 +84,7 @@ export function useUpdateLocation(workspaceId: string) {
               : node,
           ),
       )
-      queryClient.setQueryData(queryKeys.location(vars.id), location)
+      setDataRestartingFirstLoad(queryClient, queryKeys.location(vars.id), location)
     },
   })
 }
