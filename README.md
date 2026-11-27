@@ -22,14 +22,16 @@ search, create, update and delete tasks.
 You need Docker, Java 21 and Node 26 (see `frontend/.nvmrc`). The defaults need no `.env`.
 
 ```bash
+# Run every step from the repository root, each in its own terminal where noted.
+
 # 1. Infrastructure: Postgres, Redis, RabbitMQ, MinIO, Mailpit
 docker compose -f deploy/compose.yaml up -d --wait
 
 # 2. Backend on http://localhost:8080 (the dev profile supplies a development-only JWT secret)
-cd backend && SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
+(cd backend && SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run)
 
 # 3. Frontend on http://localhost:5173, in a second terminal
-cd frontend && npm ci && npm run dev
+(cd frontend && npm ci && npm run dev)
 
 # 4. Optional demo data, in a third terminal (needs Mailpit from step 1)
 node scripts/seed/demo.mjs
