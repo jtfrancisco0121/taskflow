@@ -97,5 +97,15 @@ Okta's refresh-token rotation grace period and Auth0's reuse interval follow the
   test to replay A after B was used (covered by `RefreshReuseGuardIT`).
 - The derivation key is HKDF-SHA256 (RFC 5869, empty salt) of the JWT secret with the label
   `taskflow-refresh-successor-v1`, so production needs no new secret and the key is never the signing key.
-  Rotating the JWT secret breaks only replays in flight at that moment.
+  A grace replay derives the successor with the key it runs under, so a replay of A after the JWT secret
+  changed mid-grace, or one that reaches an instance with the other secret during a rolling change, does not
+  find B as the family's live token: it revokes the family and the user is logged out, as without this
+  decision. Rotate the secret when a few sign-outs are acceptable.
+- `refresh-reuse-grace` above `PT5M` is refused at startup (`JwtProperties`): a longer window is no longer a
+  lost response, it only widens what a thief gets.
+- Every refresh and sign-out takes a transaction-scoped advisory lock on the token's family
+  (`pg_advisory_xact_lock(hashtextextended('refresh_family:' || family_id, 0))`) before any token row lock,
+  so requests on one family run one after another. Without it, the token row lock and the family-wide
+  statements (the live-successor check, the family revocation) could deadlock, and a sign-out racing a
+  rotation could miss the new successor (`RefreshFamilyLockIT`).
 - A grace replay should be logged (family id, no token), so a pattern of replays is visible.
