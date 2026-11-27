@@ -1,6 +1,7 @@
 import type { Virtualizer } from '@tanstack/react-virtual'
 import { useRef, type KeyboardEvent } from 'react'
 import type { TaskView } from '../../api/types'
+import { MODAL_DIALOG } from '../../shared/ui/floating'
 import { isShortcutBlocked } from '../../shared/ui/shortcutGuard'
 import { isTrashPending, useTrashTasks } from './useTrashTasks'
 import type { ViewScope } from './scope'
@@ -21,7 +22,7 @@ type KeyRow = { rowIndex: number; task: TaskView }
  */
 function focusRow(id: string, done: () => void, attempts = 6) {
   requestAnimationFrame(() => {
-    if (document.activeElement?.closest('[role="dialog"][aria-modal="true"]')) {
+    if (document.activeElement?.closest(MODAL_DIALOG)) {
       done()
       return
     }

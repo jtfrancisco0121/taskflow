@@ -34,26 +34,45 @@ export const FOCUSABLE = [
   .map((selector) => `${selector}:not([aria-hidden="true"]):not([tabindex="-1"])`)
   .join(',')
 
+/** A modal dialog: our Dialog (the command palette included) or the task detail frame. */
+export const MODAL_DIALOG = '[role="dialog"][aria-modal="true"]'
+
 /**
- * A floating layer that can still hold focus while it closes. The command palette is marked floating too, but it
- * is a Dialog of its own: focus in it has moved out of the closing layer (AD-5).
+ * Any floating layer of the library except the command palette. Radix runs the close auto-focus after the
+ * closed layer has unmounted, so focus found in one of these is in another floating layer that is still open,
+ * where the return to the trigger may go ahead. The palette is marked floating too, but it is a Dialog of its own:
+ * focus in it has moved on (AD-5).
  */
-const CLOSING_LAYER = '[data-tf-floating]:not([data-tf-palette])'
+const NON_PALETTE_FLOATING_LAYER = '[data-tf-floating]:not([data-tf-palette])'
+
+/** The trigger a modal Dialog should give focus back to when it closes and its own opener is gone (AD-5). */
+const handedBack = new WeakMap<Element, HTMLElement>()
+
+/**
+ * The element a modal Dialog gives focus back to when the element that had focus as it opened was the body or is
+ * no longer in the page: the trigger of a floating layer that closed as the Dialog opened, whose return the Dialog
+ * took over (see keepFocusIfMoved).
+ */
+export function handedBackFocus(dialog: Element): HTMLElement | null {
+  const trigger = handedBack.get(dialog)
+  return trigger?.isConnected ? trigger : null
+}
 
 /**
  * `onCloseAutoFocus` for floating content. Radix gives focus back to the trigger a moment after the layer
  * closes. When the pick opened something that took focus meanwhile (a confirmation Dialog, or the command palette
  * opened by Ctrl/Cmd+K in that moment), that would steal the focus from it, so the return is skipped when focus is
- * already on a real element outside the layer.
+ * already on a real element outside every other floating layer. When that element is in a modal Dialog, the
+ * Dialog gets `trigger` to give focus back to on close, if its own opener is gone.
  */
-export function keepFocusIfMoved(event: Event) {
+export function keepFocusIfMoved(event: Event, trigger?: HTMLElement | null) {
   const active = document.activeElement
-  if (active && active !== document.body && !active.closest(CLOSING_LAYER)) {
+  if (active && active !== document.body && !active.closest(NON_PALETTE_FLOATING_LAYER)) {
     event.preventDefault()
+    const dialog = active.closest(MODAL_DIALOG)
+    if (dialog && trigger) handedBack.set(dialog, trigger)
   }
 }
-
-const MODAL = '[role="dialog"][aria-modal="true"]'
 
 /**
  * `onCloseAutoFocus` for a menu whose pick can open a Dialog. A modal Radix menu traps focus while it is still
@@ -65,10 +84,10 @@ const MODAL = '[role="dialog"][aria-modal="true"]'
  * (or stayed in the menu), the pick opened nothing above it: Radix returns focus to the trigger, not to the
  * Dialog's first field (slice-3 carry-over, AD-8).
  */
-export function keepFocusOrEnterDialog(event: Event, trigger?: Element | null) {
+export function keepFocusOrEnterDialog(event: Event, trigger?: HTMLElement | null) {
   const active = document.activeElement
-  if (!active || active === document.body || active.closest(CLOSING_LAYER)) {
-    const dialogs = document.querySelectorAll<HTMLElement>(MODAL)
+  if (!active || active === document.body || active.closest(NON_PALETTE_FLOATING_LAYER)) {
+    const dialogs = document.querySelectorAll<HTMLElement>(MODAL_DIALOG)
     const dialog = dialogs[dialogs.length - 1]
     if (dialog) {
       if (trigger && dialog.contains(trigger)) return
@@ -79,7 +98,7 @@ export function keepFocusOrEnterDialog(event: Event, trigger?: Element | null) {
       }
     }
   }
-  keepFocusIfMoved(event)
+  keepFocusIfMoved(event, trigger)
 }
 
 /**

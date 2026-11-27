@@ -40,8 +40,14 @@ async function escapeThenOpenPalette(layer: HTMLElement) {
   return field
 }
 
+/** Closes the palette with Escape: focus goes back to a real element (the closed layer's trigger), never the body. */
+function closePalette(field: HTMLElement) {
+  fireEvent.keyDown(field, { key: 'Escape' })
+  expect(screen.queryByRole('textbox', { name: 'Search commands and tasks' })).toBeNull()
+}
+
 describe('a layer closing right before the palette opens (AD-5)', () => {
-  it('a Select gives its focus back late without taking it from the palette', async () => {
+  it('a Select gives its focus back late without taking it from the palette, and gets it when the palette closes', async () => {
     const user = userEvent.setup()
     render(
       <Harness>
@@ -55,12 +61,15 @@ describe('a layer closing right before the palette opens (AD-5)', () => {
         />
       </Harness>,
     )
-    await user.click(screen.getByLabelText('Sort by'))
+    const trigger = screen.getByLabelText('Sort by')
+    await user.click(trigger)
     const field = await escapeThenOpenPalette(await screen.findByRole('listbox'))
     expect(field).toHaveFocus()
+    closePalette(field)
+    expect(trigger).toHaveFocus()
   })
 
-  it('a menu gives its focus back late without taking it from the palette', async () => {
+  it('a menu gives its focus back late without taking it from the palette, and gets it when the palette closes', async () => {
     const user = userEvent.setup()
     render(
       <Harness>
@@ -71,12 +80,15 @@ describe('a layer closing right before the palette opens (AD-5)', () => {
         />
       </Harness>,
     )
-    await user.click(screen.getByRole('button', { name: 'Workspace switcher' }))
+    const trigger = screen.getByRole('button', { name: 'Workspace switcher' })
+    await user.click(trigger)
     const field = await escapeThenOpenPalette(await screen.findByRole('menu'))
     expect(field).toHaveFocus()
+    closePalette(field)
+    expect(trigger).toHaveFocus()
   })
 
-  it('a popover gives its focus back late without taking it from the palette', async () => {
+  it('a popover gives its focus back late without taking it from the palette, and gets it when the palette closes', async () => {
     const user = userEvent.setup()
     render(
       <Harness>
@@ -85,11 +97,14 @@ describe('a layer closing right before the palette opens (AD-5)', () => {
         </Popover>
       </Harness>,
     )
-    await user.click(screen.getByRole('button', { name: 'Filters' }))
+    const trigger = screen.getByRole('button', { name: 'Filters' })
+    await user.click(trigger)
     const field = await escapeThenOpenPalette(
       await screen.findByRole('dialog', { name: 'Filters' }),
     )
     expect(field).toHaveFocus()
+    closePalette(field)
+    expect(trigger).toHaveFocus()
   })
 
   it('without a palette, the closed Select still gives focus back to its trigger', async () => {

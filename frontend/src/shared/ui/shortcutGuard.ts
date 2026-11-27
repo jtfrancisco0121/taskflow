@@ -1,4 +1,4 @@
-import { hasOpenFloatingLayer } from './floating'
+import { MODAL_DIALOG, hasOpenFloatingLayer } from './floating'
 import { isTypingTarget } from './typing'
 
 type GuardOptions = {
@@ -25,9 +25,7 @@ export function isShortcutBlocked(
     | { target: EventTarget | null; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean },
   { allowInTextFields = false, singleKey = true, host = null }: GuardOptions = {},
 ): boolean {
-  const modals = document.querySelectorAll(
-    '[role="dialog"][aria-modal="true"]:not([data-tf-palette])',
-  )
+  const modals = document.querySelectorAll(`${MODAL_DIALOG}:not([data-tf-palette])`)
   if (Array.from(modals).some((dialog) => !host || !dialog.contains(host))) return true
   if (hasOpenFloatingLayer()) return true
   if (!allowInTextFields && isTypingTarget(event.target)) return true

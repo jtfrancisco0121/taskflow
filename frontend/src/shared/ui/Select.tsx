@@ -1,4 +1,5 @@
 import * as SelectPrimitive from '@radix-ui/react-select'
+import { useRef } from 'react'
 import { floatingClass, floatingProps, itemClass, keepFocusIfMoved } from './floating'
 
 export type SelectOption = { value: string; label: string; disabled?: boolean }
@@ -42,6 +43,7 @@ export function Select({
 }: SelectProps) {
   const all = [...options, ...groups.flatMap((g) => g.options)]
   const radixValue = all.some((o) => o.value === value) ? toRadix(value) : ''
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const renderItem = (o: SelectOption) => (
     <SelectPrimitive.Item
       key={o.value}
@@ -72,6 +74,7 @@ export function Select({
       name={aria.name}
     >
       <SelectPrimitive.Trigger
+        ref={triggerRef}
         id={aria.id}
         aria-label={aria['aria-label']}
         aria-labelledby={aria['aria-labelledby']}
@@ -98,7 +101,7 @@ export function Select({
           position="popper"
           sideOffset={4}
           {...floatingProps}
-          onCloseAutoFocus={keepFocusIfMoved}
+          onCloseAutoFocus={(event) => keepFocusIfMoved(event, triggerRef.current)}
           className={`${floatingClass} max-h-72 min-w-(--radix-select-trigger-width) overflow-hidden p-1`}
         >
           <SelectPrimitive.Viewport>
