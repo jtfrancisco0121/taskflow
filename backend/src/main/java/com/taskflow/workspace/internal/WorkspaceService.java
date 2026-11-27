@@ -169,8 +169,7 @@ class WorkspaceService {
 
   @Transactional
   MemberView changeRole(UUID workspaceId, UUID userId, Role newRole) {
-    Role caller = permissions.roleInWorkspace(workspaceId);
-    lockWorkspace(workspaceId);
+    Role caller = lockedCallerRole(workspaceId);
     Role current = memberRole(workspaceId, userId);
     if (caller != Role.OWNER && (current == Role.OWNER || newRole == Role.OWNER)) {
       throw TaskflowException.forbidden(
@@ -199,8 +198,7 @@ class WorkspaceService {
 
   @Transactional
   void remove(UUID workspaceId, UUID userId) {
-    Role caller = permissions.roleInWorkspace(workspaceId);
-    lockWorkspace(workspaceId);
+    Role caller = lockedCallerRole(workspaceId);
     Role current = memberRole(workspaceId, userId);
     if (caller != Role.OWNER && current == Role.OWNER) {
       throw TaskflowException.forbidden(
@@ -258,6 +256,16 @@ class WorkspaceService {
             .findFirst();
     return role.map(Role::valueOf)
         .orElseThrow(() -> TaskflowException.notFound("member.not_found", "Member not found"));
+  }
+
+  /**
+   * Locks the workspace, then reads the caller's role again: the role cached at the permission
+   * check can be stale once a concurrent request that held the lock changed it.
+   */
+  private Role lockedCallerRole(UUID workspaceId) {
+    lockWorkspace(workspaceId);
+    memberships.invalidate();
+    return permissions.roleInWorkspace(workspaceId);
   }
 
   private void lockWorkspace(UUID workspaceId) {
