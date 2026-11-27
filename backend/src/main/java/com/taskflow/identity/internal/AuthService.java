@@ -149,7 +149,11 @@ class AuthService {
     long graceMillis = properties.refreshReuseGrace().toMillis();
     Result result =
         tx.execute(status -> {
-          // FOR UPDATE: a concurrent refresh with the same token waits here, then sees it rotated.
+          if (!lockFamilyOf(hash)) {
+            return new Result(Outcome.INVALID, null);
+          }
+          // The family lock already orders every request on this family; FOR UPDATE stays as a
+          // second guard on the row itself.
           List<StoredRefresh> found =
               jdbc.query(
                   "SELECT id, user_id, family_id, expires_at, revoked_at IS NOT NULL AS revoked,"
@@ -229,12 +233,42 @@ class AuthService {
     if (rawToken == null || rawToken.isBlank()) {
       return;
     }
+    String hash = sha256(rawToken);
+    tx.executeWithoutResult(status -> {
+      Optional<UUID> family = familyOf(hash);
+      if (family.isPresent()) {
+        lockFamily(family.get());
+        revokeFamily(family.get());
+      }
+    });
+  }
+
+  /**
+   * Takes the family lock of the token with {@code hash}; false when no such token exists. Every
+   * refresh and sign-out takes this lock first, before any refresh_token row lock, so requests on
+   * one family run one after another: no lock-order deadlock between the token row and the
+   * family-wide statements, and a sign-out never misses a successor inserted by a concurrent
+   * rotation. family_id never changes, so reading it without a lock is safe.
+   */
+  private boolean lockFamilyOf(String hash) {
+    Optional<UUID> family = familyOf(hash);
+    family.ifPresent(this::lockFamily);
+    return family.isPresent();
+  }
+
+  private Optional<UUID> familyOf(String hash) {
+    return jdbc
+        .queryForList("SELECT family_id FROM refresh_token WHERE token_hash = ?", UUID.class, hash)
+        .stream()
+        .findFirst();
+  }
+
+  /** Transaction-scoped advisory lock per family, keyed like AutomationAuthorsImpl's lock. */
+  private void lockFamily(UUID familyId) {
     jdbc.query(
-        "SELECT family_id FROM refresh_token WHERE token_hash = ?",
-        rs -> {
-          revokeFamily(rs.getObject("family_id", UUID.class));
-        },
-        sha256(rawToken));
+        "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+        rs -> {},
+        "refresh_family:" + familyId);
   }
 
   private record UserRow(UserInfo info, String hash) {}
