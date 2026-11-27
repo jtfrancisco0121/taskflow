@@ -1,11 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { queryKeys } from '../../api/queryKeys'
-import {
-  firstLoadsOf,
-  invalidateAfterFirstLoads,
-  invalidateAfterLoadsOf,
-} from '../../api/refresh'
+import { firstLoadsOf, invalidateAfterFirstLoads, invalidateAfterLoadsOf } from '../../api/refresh'
 import {
   cachedVersion,
   invalidateSubtaskScans,
