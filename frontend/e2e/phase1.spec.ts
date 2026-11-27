@@ -78,7 +78,11 @@ test('statuses: a first own set remaps its List only, and a reset leaves the sib
   await expect(statusOf(page, 'Task in B')).toHaveText('to do')
 
   // reset List A to inherited: its task goes back to "to do", the sibling is still untouched
+  // Wait for List A to be on screen first: the page is keyed by Location, so a Statuses click that lands while
+  // List B is still showing opens List B's dialog and the route change then discards it.
   await page.getByRole('link', { name: 'List A' }).click()
+  await expect(page.getByRole('heading', { name: 'List A' })).toBeVisible()
+  await expect(statusOf(page, 'Task in A')).toHaveText('Backlog')
   await page.getByRole('button', { name: 'Statuses' }).click()
   await dialog.getByRole('button', { name: 'Reset to inherited' }).click()
   await pick(dialog.getByRole('combobox', { name: 'Move tasks from Backlog to' }), 'to do')
