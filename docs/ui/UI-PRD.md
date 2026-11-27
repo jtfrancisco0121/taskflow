@@ -87,8 +87,9 @@ Layouts below tablet width, Phase 4-5 features, any API or schema change without
 - Respects prefers-reduced-motion.
 - Before and after screenshots, light and dark side by side, and the bundle-size change, in the slice report
   (committed under `docs/ui/slices/`).
-- Bundle size: slice 1 is report-only and sets the baseline. From slice 2 on, a hard cap of +15% over that baseline
-  per slice fails CI; self-hosted fonts are measured separately.
+- Bundle size: slice 1 is report-only and sets the baseline. From slice 2 on, a hard cap fails CI: the explicit
+  `capKiB` in `frontend/bundle-budget.json` when set (550 KiB, approved by JT Francisco 2026-11-27; revisit at Phase 4
+  planning), otherwise +15% over that baseline; self-hosted fonts are measured separately.
 - Nothing stays on a native `<select>` unless the slice report names it.
 - One PR per slice, app working after each. gitleaks clean.
 

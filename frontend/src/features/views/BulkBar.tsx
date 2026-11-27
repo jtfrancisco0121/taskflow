@@ -57,6 +57,9 @@ export function BulkBar({
       )
     }
     clear()
+    // Each item's write already restarts the views still on their first load (also after a lost response or a
+    // 5xx), so this only re-reads loaded views (sort, filters). A cancel here would kill those restarts.
+    // eslint-disable-next-line no-restricted-syntax -- first-load safe: every item restarted its first loads
     void queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll(scope.workspaceId) })
   }
 

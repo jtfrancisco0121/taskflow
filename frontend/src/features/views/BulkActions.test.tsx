@@ -1,6 +1,8 @@
+import { QueryObserver } from '@tanstack/react-query'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { queryKeys } from '../../api/queryKeys'
 import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { runLimited } from './bulk'
@@ -87,6 +89,89 @@ describe('LIST-1 Bulk actions', () => {
     // per-task toasts are off during a fan-out: one summary only
     expect(useToastStore.getState().toasts).toHaveLength(1)
   }, 20_000)
+
+  it('LIST-1: the refresh after a fan-out restarts a view still on its first load', async () => {
+    // The write lands but its response is lost: the per-task path restores and skips its restart, so the
+    // fan-out's own refresh is what must catch a view whose first read came before the write.
+    let written = false
+    serve([task(1)], {
+      'PATCH /api/v1/tasks/:id': () => {
+        written = true
+        throw new TypeError('network')
+      },
+    })
+    const user = userEvent.setup()
+    const { queryClient } = renderWithProviders(
+      <ListRenderer scope={scope} config={{ v: 1, group: 'status' }} />,
+    )
+    await screen.findByRole('link', { name: 'Task 1' })
+    let reads = 0
+    let release: () => void = () => {}
+    const opened = new Promise<void>((resolve) => (release = resolve))
+    const probe = new QueryObserver(queryClient, {
+      queryKey: queryKeys.view('w1', 'other', 'h'),
+      queryFn: async () => {
+        reads += 1
+        const seen = written
+        if (reads === 1) await opened
+        return seen ? 'after' : 'before'
+      },
+    })
+    const stop = probe.subscribe(() => {})
+    await waitFor(() => expect(reads).toBe(1))
+    useViewStore.setState({ selected: ['t1'] })
+    await pick(user, await screen.findByLabelText('Set priority'), 'High')
+    await waitFor(() =>
+      expect(
+        useToastStore
+          .getState()
+          .toasts.map((t) => t.message)
+          .join(),
+      ).toContain('Priority: 0 of 1 updated'),
+    )
+    release()
+    await waitFor(() => expect(probe.getCurrentResult().data).toBe('after'))
+    expect(reads).toBe(2)
+    stop()
+  })
+
+  it('LIST-1: the refresh after a fan-out does not cancel the restart a saved item started', async () => {
+    let written = false
+    serve([task(1)], {
+      'PATCH /api/v1/tasks/:id': () => {
+        written = true
+        return json({ ...task(1, { version: 2 }), priority: 'HIGH' })
+      },
+    })
+    const user = userEvent.setup()
+    const { queryClient } = renderWithProviders(
+      <ListRenderer scope={scope} config={{ v: 1, group: 'status' }} />,
+    )
+    await screen.findByRole('link', { name: 'Task 1' })
+    let reads = 0
+    const probe = new QueryObserver(queryClient, {
+      queryKey: queryKeys.view('w1', 'other', 'h'),
+      queryFn: async () => {
+        reads += 1
+        const seen = written
+        await new Promise(() => {}) // the first read and the item's restart stay in flight
+        return seen
+      },
+    })
+    const stop = probe.subscribe(() => {})
+    await waitFor(() => expect(reads).toBe(1))
+    useViewStore.setState({ selected: ['t1'] })
+    await pick(user, await screen.findByLabelText('Set priority'), 'High')
+    await waitFor(() =>
+      expect(useToastStore.getState().toasts.map((t) => t.message)).toContain(
+        'Priority: 1 updated.',
+      ),
+    )
+    await waitFor(() => expect(reads).toBeGreaterThanOrEqual(2))
+    await new Promise((resolve) => setTimeout(resolve, 50)) // a late extra read must fail
+    expect(reads).toBe(2) // the stale first read plus the item's restart; the bulk refresh adds none
+    stop()
+  })
 
   it('LIST-1: Delete removes the selected tasks and Undo restores them with the new version', async () => {
     const stub = serve([task(1), task(2), task(3)], {

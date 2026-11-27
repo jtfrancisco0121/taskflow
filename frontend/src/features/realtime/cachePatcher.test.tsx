@@ -321,6 +321,26 @@ describe('RT-3 cache patcher', () => {
       ).toHaveLength(1)
     })
 
+    it('a steady stream of unseen-task events still rescans the List within maxWait (2 s)', async () => {
+      const { patcher, queryClient } = withScans()
+      const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+      const rescans = () =>
+        invalidate.mock.calls.filter(([f]) => JSON.stringify(f?.queryKey) === '["subtasks","l1"]')
+          .length
+      // An event every 300 ms for 3 s: each one would push a plain 500 ms debounce out again.
+      for (let i = 0; i < 10; i += 1) {
+        await patcher.handle('w1', unseen({ entityId: `n${i}` }))
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(300)
+        })
+        if (i === 6) expect(rescans()).toBe(1) // 2.1 s in: the 2 s cap fired once
+      }
+      expect(rescans()).toBe(1) // 3 s in: the next window (from 2.1 s) caps at 4.1 s
+      await vi.advanceTimersByTimeAsync(600)
+      expect(rescans()).toBe(2) // the stream stopped: the trailing rescan still runs
+      patcher.dispose()
+    })
+
     it('an event for another List invalidates that List only', async () => {
       const { patcher, stale } = withScans()
       await patcher.handle('w1', unseen({ listId: 'l2' }))

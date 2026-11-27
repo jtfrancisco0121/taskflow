@@ -8,7 +8,7 @@ import { useRef } from 'react'
 import { api } from '../../api/client'
 import { networkError, toApiError } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
-import { firstLoadsOf, inBackground, restartQueries } from '../../api/refresh'
+import { cancelThenInvalidate, firstLoadsOf, inBackground, restartQueries } from '../../api/refresh'
 import type { components } from '../../api/schema'
 import type { TaskView } from '../../api/types'
 import { taskFirstLoadFilters, writeTaskToCaches } from './taskCaches'
@@ -51,6 +51,9 @@ function firstLoadsAt(queryClient: QueryClient, task: TaskView) {
 export function useUpdateTask(taskId: string) {
   const queryClient = useQueryClient()
   const queue = useRef<Promise<unknown>>(Promise.resolve())
+  // An activity still on its first load read before this write: restart it, not just invalidate.
+  const refreshActivity = () =>
+    inBackground(cancelThenInvalidate(queryClient, { queryKey: queryKeys.activity(taskId) }))
 
   const send = async (patch: TaskPatch): Promise<UpdateResult> => {
     const cached = queryClient.getQueryData<TaskView>(queryKeys.task(taskId))
@@ -74,7 +77,7 @@ export function useUpdateTask(taskId: string) {
         writeTaskToCaches(queryClient, current)
         replaceInLists(queryClient, current)
         inBackground(restartQueries(queryClient, firstLoads))
-        void queryClient.invalidateQueries({ queryKey: queryKeys.activity(taskId) })
+        refreshActivity()
         return { kind: 'conflict', current, attempted: patch }
       }
     }
@@ -83,7 +86,7 @@ export function useUpdateTask(taskId: string) {
     writeTaskToCaches(queryClient, result.data)
     replaceInLists(queryClient, result.data)
     inBackground(restartQueries(queryClient, firstLoads))
-    void queryClient.invalidateQueries({ queryKey: queryKeys.activity(taskId) })
+    refreshActivity()
     return { kind: 'saved', task: result.data }
   }
 
