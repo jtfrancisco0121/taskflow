@@ -158,7 +158,6 @@ export function useRevokeApiKey(workspaceId: string, id: string) {
 
 /** Restores a trashed task with the version the trash event recorded (If-Match). */
 export function useRestoreTask(workspaceId: string) {
-  const refresh = useRefresh(workspaceId)
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (vars: { taskId: string; version: number }) =>
@@ -167,14 +166,14 @@ export function useRestoreTask(workspaceId: string) {
           params: { path: { id: vars.taskId }, header: { 'If-Match': `"${vars.version}"` } },
         }),
       ),
-    onSuccess: async () => {
-      await refresh()
-      await cancelThenInvalidate(
+    // One round: the account queries and the task lists and views refetch together.
+    onSuccess: () =>
+      cancelThenInvalidate(
         queryClient,
+        { queryKey: queryKeys.serviceAccountsAll(workspaceId) },
         { queryKey: queryKeys.tasksAll(workspaceId) },
         { queryKey: queryKeys.viewsAll(workspaceId) },
-      )
-    },
+      ),
   })
 }
 
