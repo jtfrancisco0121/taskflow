@@ -25,7 +25,11 @@ const ifMatch = (version: number | undefined) =>
  * A relationship change touches both tasks (versions bump on both ends), so after it the acting
  * task is replaced from the response and everything that may show either task is refreshed.
  */
-function refresh(queryClient: QueryClient, task: TaskView, otherId: string | undefined) {
+function refresh(
+  queryClient: QueryClient,
+  task: TaskView,
+  otherId: string | undefined,
+): Promise<void> {
   queryClient.setQueryData(queryKeys.task(task.id!), task)
   for (const id of [task.id!, otherId]) {
     if (!id) continue
@@ -36,12 +40,13 @@ function refresh(queryClient: QueryClient, task: TaskView, otherId: string | und
     void queryClient.invalidateQueries({ queryKey: queryKeys.task(otherId), exact: true })
   const ws = task.workspaceId
   if (ws) {
-    void cancelThenInvalidate(
+    return cancelThenInvalidate(
       queryClient,
       { queryKey: queryKeys.tasksAll(ws) },
       { queryKey: queryKeys.viewsAll(ws) },
     )
   }
+  return Promise.resolve()
 }
 
 /** Adds a relationship from `task`'s side (POST, If-Match, one idempotency key per submission). */
@@ -72,7 +77,7 @@ export function useAddDependency(task: TaskView) {
     },
     onSuccess: (added) => {
       keys.current.done()
-      if (added.task) refresh(queryClient, added.task, added.otherTaskId)
+      if (added.task) return refresh(queryClient, added.task, added.otherTaskId)
     },
   })
 }
@@ -130,7 +135,7 @@ export function useRemoveDependency(task: TaskView) {
       const fresh = await unwrap(
         api.GET('/api/v1/tasks/{id}', { params: { path: { id: task.id! } } }),
       )
-      refresh(queryClient, fresh, input.otherTaskId)
+      await refresh(queryClient, fresh, input.otherTaskId)
     },
   })
 }

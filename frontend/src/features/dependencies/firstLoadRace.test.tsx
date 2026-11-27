@@ -2,7 +2,7 @@ import { describe, it } from 'vitest'
 import { queryKeys } from '../../api/queryKeys'
 import type { TaskView } from '../../api/types'
 import { expectRestarted, put } from '../../test/firstLoadRace'
-import { useAddDependency } from './useDependencies'
+import { useAddDependency, useRemoveDependency } from './useDependencies'
 
 const w = 'w1'
 const viewKey = queryKeys.view(w, 'l1', 'h')
@@ -25,6 +25,18 @@ describe('dependencies: a first list load in flight when the write lands (cancel
       }),
       () => useAddDependency(taskView),
       (add) => add.mutateAsync({ otherTaskId: 't2', relation: 'BLOCKS' } as never),
+    )
+  })
+
+  it('useRemoveDependency (both tasks change version)', async () => {
+    await expectRestarted(
+      viewKey,
+      (wrote) => ({
+        'DELETE /api/v1/tasks/:id/dependencies/:dependencyId': put(wrote, {}),
+        'GET /api/v1/tasks/:id': { ...task(1) },
+      }),
+      () => useRemoveDependency(taskView),
+      (remove) => remove.mutateAsync({ dependencyId: 'd1', otherTaskId: 't2' }),
     )
   })
 })

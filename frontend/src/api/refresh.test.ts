@@ -13,6 +13,27 @@ describe('restartFirstLoads', () => {
     expect(queryClient.getQueryState(['ws', 'w1', 'view'])?.isInvalidated).toBe(false)
   })
 
+  it('does not cancel or restart the background refetch of a loaded query', async () => {
+    const queryClient = newQueryClient()
+    const key = ['ws', 'w1', 'view']
+    let reads = 0
+    let aborted = false
+    const queryFn = vi.fn(async ({ signal }: { signal: AbortSignal }) => {
+      reads += 1
+      signal.addEventListener('abort', () => (aborted = true))
+      if (reads > 1) await new Promise((resolve) => setTimeout(resolve, 20))
+      return 'x'
+    })
+    const stop = new QueryObserver(queryClient, { queryKey: key, queryFn }).subscribe(() => {})
+    await vi.waitFor(() => expect(queryClient.getQueryData(key)).toBe('x'))
+    const refetching = queryClient.refetchQueries({ queryKey: key }) // data present, fetch in flight
+    await restartFirstLoads(queryClient, { queryKey: key })
+    await refetching
+    expect(aborted).toBe(false)
+    expect(queryFn).toHaveBeenCalledTimes(2)
+    stop()
+  })
+
   it('ignores a query of another key still loading', async () => {
     const queryClient = newQueryClient()
     const queryFn = vi.fn(() => new Promise<string>(() => {}))

@@ -44,4 +44,24 @@ describe('tasks: a first list load in flight when the write lands (cancel before
       (update) => update.mutateAsync({ title: 'New' }),
     )
   })
+
+  it('useOptimisticTaskMutation (409 conflict path)', async () => {
+    await expectRestarted(
+      viewKey,
+      () => ({}),
+      () => useOptimisticTaskMutation(),
+      (run, wrote) =>
+        run({
+          task: { id: 't1', workspaceId: w, version: 1 },
+          optimistic: { priority: 'HIGH' },
+          send: async () => {
+            wrote()
+            return {
+              response: new Response(null, { status: 409 }),
+              error: { current: { ...taskView, version: 2 } },
+            }
+          },
+        }),
+    )
+  })
 })
