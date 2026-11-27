@@ -205,7 +205,9 @@ export function CalendarRenderer({
               <Skeleton className="h-4 w-1/4" />
             </div>
           )}
-          {query.isSuccess && shown === 0 && !paging && <EmptyState title="No tasks due in this range." />}
+          {query.isSuccess && shown === 0 && !paging && (
+            <EmptyState title="No tasks due in this range." />
+          )}
         </>
       )}
       {undated != null && undated > 0 && (
