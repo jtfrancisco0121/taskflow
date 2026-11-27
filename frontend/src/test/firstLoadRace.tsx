@@ -20,7 +20,12 @@ export async function expectRestarted<T>(
    * `holdRefetch`: the restart's refetch never answers. The write must still settle (the UI is not blocked on the
    * refetch), the restart must have started, and `check` sees the hook state while the refetch is pending.
    */
-  options: { holdRefetch?: boolean; check?: (state: { write: T }) => void } = {},
+  options: {
+    holdRefetch?: boolean
+    /** With `holdRefetch`: the exact number of reads of the probe (the stale first read plus one per restart). */
+    expectedReads?: number
+    check?: (state: { write: T }) => void
+  } = {},
 ) {
   let release: () => void = () => {}
   const opened = new Promise<void>((resolve) => (release = resolve))
@@ -61,7 +66,9 @@ export async function expectRestarted<T>(
   release()
   await act(() => firing)
   if (options.holdRefetch) {
-    await waitFor(() => expect(reads).toBeGreaterThanOrEqual(2)) // one restart per saved write
+    const expectedReads = options.expectedReads ?? 2
+    await waitFor(() => expect(reads).toBeGreaterThanOrEqual(expectedReads)) // one restart per saved write
+    expect(reads).toBe(expectedReads)
     expect(result.current.probe.data).toBeUndefined()
     options.check?.(result.current)
     return

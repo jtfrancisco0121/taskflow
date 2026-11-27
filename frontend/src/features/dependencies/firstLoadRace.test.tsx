@@ -62,6 +62,15 @@ describe('dependencies: a first list load in flight when the write lands (cancel
     )
   })
 
+  it('useAddDependency restarts the acting task detail on its first load (setQueryData on task(id))', async () => {
+    await expectRestarted(
+      queryKeys.task('t1'),
+      add,
+      () => useAddDependency(taskView),
+      (a) => a.mutateAsync({ otherTaskId: 't2', relation: 'BLOCKS' } as never),
+    )
+  })
+
   it('useAddDependency settles without waiting for the refetch of the lists', async () => {
     await expectRestarted(
       viewKey,

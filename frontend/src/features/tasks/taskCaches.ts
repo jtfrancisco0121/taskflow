@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { InfiniteData } from '@tanstack/react-query'
 import { queryKeys } from '../../api/queryKeys'
+import type { InvalidateQueryFilters } from '@tanstack/react-query'
 import type { TaskView, ViewItem, ViewQueryResponse } from '../../api/types'
 
 type ViewPages = InfiniteData<ViewQueryResponse>
@@ -86,4 +87,20 @@ export function cachedVersion(
     }
   }
   return undefined
+}
+
+/**
+ * What a task write can have missed while it was on its first load (see restartQueries): the task lists, the views,
+ * the task's own detail and the subtask scans. Snapshot with firstLoadsOf before the response is written to the caches.
+ */
+export function taskFirstLoadFilters(
+  workspaceId: string,
+  taskId: string,
+): InvalidateQueryFilters[] {
+  return [
+    { queryKey: queryKeys.tasksAll(workspaceId) },
+    { queryKey: queryKeys.viewsAll(workspaceId) },
+    { queryKey: queryKeys.task(taskId), exact: true },
+    { queryKey: queryKeys.subtaskScanAll() },
+  ]
 }

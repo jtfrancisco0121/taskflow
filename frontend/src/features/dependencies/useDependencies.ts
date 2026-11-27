@@ -10,7 +10,7 @@ import { api } from '../../api/client'
 import { ApiError, messageOf, networkError, toApiError, unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
 import { queryKeys } from '../../api/queryKeys'
-import { cancelThenInvalidate, inBackground } from '../../api/refresh'
+import { cancelThenInvalidate, firstLoadsOf, inBackground, restartQueries } from '../../api/refresh'
 import type { DependencyList, DependencyRelation, TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 
@@ -32,6 +32,11 @@ const ifMatch = (version: number | undefined) =>
  * task is replaced from the response and everything that may show either task is refreshed.
  */
 function refresh(queryClient: QueryClient, task: TaskView, otherId: string | undefined) {
+  // The acting task is written into its detail below; one still on its first load read before this write, so restart it.
+  const ownFirstLoad = firstLoadsOf(queryClient, {
+    queryKey: queryKeys.task(task.id!),
+    exact: true,
+  })
   queryClient.setQueryData(queryKeys.task(task.id!), task)
   const filters: InvalidateQueryFilters[] = []
   for (const id of [task.id!, otherId]) {
@@ -43,6 +48,7 @@ function refresh(queryClient: QueryClient, task: TaskView, otherId: string | und
   if (ws) filters.push({ queryKey: queryKeys.tasksAll(ws) }, { queryKey: queryKeys.viewsAll(ws) })
   // Started, not awaited: the mutation settles when the write has, not when every list has refetched.
   inBackground(cancelThenInvalidate(queryClient, ...filters))
+  inBackground(restartQueries(queryClient, ownFirstLoad))
 }
 
 /** Adds a relationship from `task`'s side (POST, If-Match, one idempotency key per submission). */

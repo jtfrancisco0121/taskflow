@@ -11,7 +11,7 @@ import { queryKeys } from '../../api/queryKeys'
 import { firstLoadsOf, inBackground, restartQueries } from '../../api/refresh'
 import type { components } from '../../api/schema'
 import type { TaskView } from '../../api/types'
-import { writeTaskToCaches } from './taskCaches'
+import { taskFirstLoadFilters, writeTaskToCaches } from './taskCaches'
 
 export type TaskPatch = components['schemas']['UpdateTaskRequest']
 
@@ -39,13 +39,7 @@ function replaceInLists(queryClient: QueryClient, task: TaskView) {
 /** Lists, the task and the subtask scans still on their first load may have read the server before this write. */
 function firstLoadsAt(queryClient: QueryClient, task: TaskView) {
   if (!task.workspaceId) return new Set<string>()
-  return firstLoadsOf(
-    queryClient,
-    { queryKey: queryKeys.tasksAll(task.workspaceId) },
-    { queryKey: queryKeys.viewsAll(task.workspaceId) },
-    { queryKey: queryKeys.task(task.id!), exact: true },
-    { queryKey: queryKeys.subtaskScanAll() },
-  )
+  return firstLoadsOf(queryClient, ...taskFirstLoadFilters(task.workspaceId, task.id!))
 }
 
 /**
