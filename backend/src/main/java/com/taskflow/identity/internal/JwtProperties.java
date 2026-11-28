@@ -2,20 +2,23 @@ package com.taskflow.identity.internal;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.boot.convert.DurationUnit;
 
 /**
  * Token settings (AD-5). The secret has no default outside the dev profile (AD-23). {@code
  * refreshReuseGrace} is how long the token just rotated may be replayed for the same successor
- * (decision 010); zero turns it off, and more than five minutes is refused at startup.
+ * (decision 010); zero turns it off, and more than five minutes is refused at startup. A bare
+ * number is seconds ({@code 30} is 30 s), so a unitless value can never shrink it to milliseconds.
  */
 @ConfigurationProperties("taskflow.jwt")
 record JwtProperties(
     String secret,
     @DefaultValue("PT15M") Duration accessTtl,
     @DefaultValue("P30D") Duration refreshTtl,
-    @DefaultValue("PT30S") Duration refreshReuseGrace) {
+    @DefaultValue("PT30S") @DurationUnit(ChronoUnit.SECONDS) Duration refreshReuseGrace) {
 
   /**
    * A replay window longer than this is no longer a lost response; it widens theft (decision 010).
