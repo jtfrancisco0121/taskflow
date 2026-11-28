@@ -30,8 +30,28 @@ import org.springframework.test.context.MergedContextConfiguration;
 @DisplayName("Integration test context budget")
 class ItContextBudgetTest {
 
-  /** 17 before ClickUp 14yq6g334t6. */
-  static final int BUDGET = 12;
+  /**
+   * 17 before ClickUp 14yq6g334t6; 13 since epic 14yq6g334tf (sign-out revocation added two).
+   *
+   * <p>Three shared contexts ({@link IntegrationTest}, {@link WorkersIntegrationTest}, the outbox
+   * relay one), plus one each for an IT that needs a setting no shared one can carry:
+   *
+   * <ul>
+   *   <li>AmqpOutboxOutageIT: AMQP outbox with a simulated broker outage.
+   *   <li>AmqpOutboxRelayIT: AMQP outbox relay on.
+   *   <li>ApiKeyRateLimitIT: a tiny default API-key rate-limit plan (5).
+   *   <li>AutomationDlqIT: workers plus AMQP with failing commands, to reach the DLQ.
+   *   <li>NotificationStompIT: workers, outbox and AMQP all on, end to end to STOMP.
+   *   <li>PresenceIT: short presence TTL and sweep.
+   *   <li>RefreshGraceDisabledIT: refresh-token reuse grace set to zero.
+   *   <li>SignInRateLimitBehindProxyIT: loopback as a trusted proxy.
+   *   <li>SignOutErrorDispatchIT: {@code @MockitoBean AuthService} to force sign-out errors.
+   *   <li>StompSecurityIT: short STOMP session sweep.
+   * </ul>
+   *
+   * Raising this is a deliberate choice: add the new IT and its reason to this list.
+   */
+  static final int BUDGET = 13;
 
   @Test
   void integrationTestsShareAtMostTheBudgetedNumberOfContexts() throws Exception {
