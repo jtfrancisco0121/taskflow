@@ -210,6 +210,15 @@ export default tseslint.config(
           selector: "TSAsExpression[typeAnnotation.typeName.name='HTMLSelectElement']",
           message: 'Use valueOf() or optionsOf() from src/test/ui.ts.',
         },
+        // 14yq6g333cc: typing whole words key by key spends the 5 s test budget, and under load it runs out.
+        ...[
+          "CallExpression[callee.property.name='type'][arguments.1.type='Literal'][arguments.1.value=/^[^{]{10,}$/]",
+          "CallExpression[callee.property.name='type'][arguments.1.type='TemplateLiteral'][arguments.1.quasis.length=1][arguments.1.quasis.0.value.raw=/^[^{]{10,}$/]",
+        ].map((selector) => ({
+          selector,
+          message:
+            'Typing 10+ characters key by key eats the test budget under load: use fill() from src/test/ui.ts, or user.type only for short input or special keys such as {Enter}.',
+        })),
       ],
     },
   },

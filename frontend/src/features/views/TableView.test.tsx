@@ -7,7 +7,7 @@ import { installFetch, json, problem, renderWithProviders } from '../../test/api
 import { baseRoutes, customFieldIds, fieldRoutes, scope, task } from './testSupport'
 import { clampWidth, dropColumn, moveColumn, toggleColumn, withWidth } from './tableColumns'
 import { TableRenderer } from './TableRenderer'
-import { expectValue, open, pick } from '../../test/ui'
+import { expectValue, open, pick, fill } from '../../test/ui'
 import { useViewStore } from './viewStore'
 
 describe('TABLE-1 column model', () => {
@@ -132,7 +132,7 @@ describe('TABLE-1 Table view', () => {
     await user.click(screen.getByRole('button', { name: 'Edit Tags of ACME-1' }))
     await user.type(screen.getByRole('textbox', { name: 'Tags of ACME-1' }), 'a, b{Enter}')
     await user.click(screen.getByLabelText('Due date of ACME-1'))
-    await user.type(await screen.findByLabelText('Due day of ACME-1'), '2026-12-24')
+    await fill(user, await screen.findByLabelText('Due day of ACME-1'), '2026-12-24')
     await user.click(screen.getByRole('button', { name: 'Edit Title of ACME-1' }))
     await user.type(screen.getByRole('textbox', { name: 'Title of ACME-1' }), 'nope{Escape}')
 
@@ -159,7 +159,7 @@ describe('TABLE-1 Table view', () => {
     }
     renderWithProviders(<TableRenderer scope={scope} config={withStart} update={vi.fn()} />)
     await user.click(await screen.findByLabelText('Start date of ACME-1'))
-    await user.type(await screen.findByLabelText('Start day of ACME-1'), '2026-12-01')
+    await fill(user, await screen.findByLabelText('Start day of ACME-1'), '2026-12-01')
     await waitFor(() =>
       expect(stub.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)).toEqual([
         { startDate: '2026-12-01T00:00:00Z' },

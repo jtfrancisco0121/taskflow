@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { getAccessToken } from '../../api/session'
 import { json, problem, renderWithProviders, installFetch } from '../../test/api'
 import { SignInPage } from './SignInPage'
+import { fill } from '../../test/ui'
 
 function renderPage(state?: object) {
   return renderWithProviders(
@@ -18,8 +19,8 @@ function renderPage(state?: object) {
 }
 
 async function submit(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText('Email'), 'maya@example.com')
-  await user.type(screen.getByLabelText('Password'), 'wrong-password')
+  await fill(user, screen.getByLabelText('Email'), 'maya@example.com')
+  await fill(user, screen.getByLabelText('Password'), 'wrong-password')
   await user.click(screen.getByRole('button', { name: 'Sign in' }))
 }
 
