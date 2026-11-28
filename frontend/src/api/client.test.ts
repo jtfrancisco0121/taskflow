@@ -197,5 +197,30 @@ describe('createApiClient', () => {
       expect(getAccessToken()).toBeNull()
       expect(hook).toHaveBeenCalled()
     })
+
+    it('14yq6g334r6: a 401 whose refresh stays busy (503) keeps the session', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout'] })
+      try {
+        setSession('stale', { id: 'u1' })
+        const hook = vi.fn()
+        onSessionEnd(hook)
+        const fetchStub = vi.fn(async (request: Request) =>
+          new URL(request.url).pathname === '/api/v1/auth/refresh'
+            ? new Response('{}', { status: 503, headers: { 'Retry-After': '1' } })
+            : new Response('{}', { status: 401 }),
+        )
+        const client = createApiClient({ baseUrl: 'http://localhost', fetch: fetchStub })
+
+        const pending = client.GET('/api/v1/workspaces')
+        await vi.advanceTimersByTimeAsync(5_000)
+        const { response } = await pending
+
+        expect(response.status).toBe(401)
+        expect(getAccessToken()).toBe('stale')
+        expect(hook).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 })

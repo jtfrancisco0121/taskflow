@@ -1,6 +1,6 @@
 import createClient from 'openapi-fetch'
 import { clientId } from './clientId'
-import { clearSession, getAccessToken, refreshSession } from './session'
+import { getAccessToken, refreshSession } from './session'
 import type { paths } from './schema'
 
 type Fetcher = (request: Request) => Promise<Response>
@@ -42,10 +42,9 @@ export function createApiClient(options: ApiClientOptions = {}) {
       const current = getAccessToken()
       // Another call already refreshed: retry with the current token, no second refresh.
       const token = current && current !== record.token ? current : await refresh()
-      if (!token) {
-        clearSession()
-        return undefined
-      }
+      // No token: refreshSession already cleared the session on a 401; a busy server (503) or a
+      // network failure keeps it (14yq6g334r6), and the caller gets this 401.
+      if (!token) return undefined
       const retry = new Request(record.clone)
       retry.headers.set('Authorization', `Bearer ${token}`)
       return send(retry)

@@ -38,6 +38,102 @@ describe('session', () => {
     expect(getAccessToken()).toBeNull()
   })
 
+  describe('14yq6g334r6: a busy server (503) never signs the user out', () => {
+    const base = 'http://localhost'
+    const busy = (retryAfter?: string) =>
+      new Response('{}', {
+        status: 503,
+        headers: retryAfter === undefined ? {} : { 'Retry-After': retryAfter },
+      })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('retries once after Retry-After and keeps the session when the retry succeeds', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout'] })
+      setSession('old', { id: 'u1' })
+      const fetchStub = vi
+        .fn<(request: Request) => Promise<Response>>()
+        .mockResolvedValueOnce(busy('1'))
+        .mockResolvedValueOnce(authResponse('t2'))
+
+      const pending = refreshSession({ fetch: fetchStub, baseUrl: base })
+      await vi.advanceTimersByTimeAsync(999)
+      expect(fetchStub).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+
+      expect(await pending).toBe('t2')
+      expect(fetchStub).toHaveBeenCalledTimes(2)
+      expect(getAccessToken()).toBe('t2')
+    })
+
+    it('keeps the session when the one retry is busy too, and does not retry again', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout'] })
+      setSession('old', { id: 'u1' })
+      const fetchStub = vi.fn(async () => busy('1'))
+
+      const pending = refreshSession({ fetch: fetchStub, baseUrl: base })
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      expect(await pending).toBeNull()
+      expect(fetchStub).toHaveBeenCalledTimes(2)
+      expect(getAccessToken()).toBe('old')
+    })
+
+    it('caps a long Retry-After at 5 s', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout'] })
+      setSession('old', { id: 'u1' })
+      const fetchStub = vi
+        .fn<(request: Request) => Promise<Response>>()
+        .mockResolvedValueOnce(busy('3600'))
+        .mockResolvedValueOnce(authResponse('t2'))
+
+      const pending = refreshSession({ fetch: fetchStub, baseUrl: base })
+      await vi.advanceTimersByTimeAsync(4_999)
+      expect(fetchStub).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+
+      expect(await pending).toBe('t2')
+    })
+
+    it('waits 1 s when Retry-After is missing', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout'] })
+      const fetchStub = vi
+        .fn<(request: Request) => Promise<Response>>()
+        .mockResolvedValueOnce(busy())
+        .mockResolvedValueOnce(authResponse('t2'))
+
+      const pending = refreshSession({ fetch: fetchStub, baseUrl: base })
+      await vi.advanceTimersByTimeAsync(999)
+      expect(fetchStub).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+
+      expect(await pending).toBe('t2')
+    })
+
+    it('only a 401 clears the session: a 500 or a network error keeps it', async () => {
+      setSession('old', { id: 'u1' })
+      expect(
+        await refreshSession({
+          fetch: async () => new Response('{}', { status: 500 }),
+          baseUrl: base,
+        }),
+      ).toBeNull()
+      expect(getAccessToken()).toBe('old')
+
+      expect(
+        await refreshSession({
+          fetch: async () => {
+            throw new TypeError('network down')
+          },
+          baseUrl: base,
+        }),
+      ).toBeNull()
+      expect(getAccessToken()).toBe('old')
+    })
+  })
+
   it('NFR-2: the token is never written to localStorage, sessionStorage or a cookie', async () => {
     await refreshSession({
       fetch: async () => authResponse('secret-token'),

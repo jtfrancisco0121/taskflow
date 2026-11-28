@@ -65,19 +65,40 @@ export function clearSession() {
 
 type RefreshOptions = { fetch?: Fetcher; baseUrl?: string }
 
+/** Longest wait honoured from a 503's Retry-After, and the wait when it is missing or unreadable. */
+export const MAX_REFRESH_RETRY_WAIT_MS = 5_000
+const DEFAULT_REFRESH_RETRY_WAIT_MS = 1_000
+
+function retryWaitMs(response: Response): number {
+  const header = response.headers.get('Retry-After')
+  const seconds = header === null || header.trim() === '' ? NaN : Number(header)
+  if (!Number.isFinite(seconds) || seconds < 0) return DEFAULT_REFRESH_RETRY_WAIT_MS
+  return Math.min(seconds * 1_000, MAX_REFRESH_RETRY_WAIT_MS)
+}
+
+/**
+ * 14yq6g334r6: only a 401 (the refresh token is invalid, revoked or expired) ends the session. A 503
+ * (the server is busy, e.g. the session family's lock) is retried once after Retry-After (capped);
+ * that and any other failure (a 500, the network) keeps the session and returns null.
+ */
 async function doRefresh(fetcher: Fetcher, baseUrl: string): Promise<string | null> {
   // A client without the auth middleware: no circular import and no 401 loop.
   const plain = createClient<paths>({ baseUrl, fetch: fetcher })
   try {
-    const { data, response } = await plain.POST('/api/v1/auth/refresh')
-    if (!response.ok || !data?.accessToken) {
+    let result = await plain.POST('/api/v1/auth/refresh')
+    if (result.response.status === 503) {
+      await new Promise((resolve) => setTimeout(resolve, retryWaitMs(result.response)))
+      result = await plain.POST('/api/v1/auth/refresh')
+    }
+    const { data, response } = result
+    if (response.status === 401) {
       clearSession()
       return null
     }
+    if (!response.ok || !data?.accessToken) return null
     setSession(data.accessToken, data.user ?? null)
     return data.accessToken
   } catch {
-    clearSession()
     return null
   }
 }
