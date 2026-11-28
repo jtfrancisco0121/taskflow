@@ -229,6 +229,7 @@ class McpDependenciesIT extends DependencyTestBase {
       assertThat(busy.isError()).isTrue();
       assertThat(busy.body().get("code").asText()).isEqualTo("request.busy");
       assertThat(busy.body().get("status").asInt()).isEqualTo(503);
+      assertThat(busy.body().get("retryAfterSeconds").asInt()).isEqualTo(1);
       holder.rollback();
     }
     assertThat(count("task_dependency", f.ws().id())).isZero();

@@ -12,6 +12,7 @@ import com.taskflow.shared.AgentToolError;
 import com.taskflow.shared.CurrentActor;
 import com.taskflow.shared.Hashing;
 import com.taskflow.shared.IdempotentCalls;
+import com.taskflow.shared.LockContention;
 import com.taskflow.shared.ProblemResponseWriter;
 import com.taskflow.shared.TaskflowException;
 import io.modelcontextprotocol.json.McpJsonDefaults;
@@ -116,7 +117,11 @@ class McpServerConfig {
         .build();
   }
 
-  /** A failure the REST endpoint would answer with problem+json is a tool error with its code. */
+  /**
+   * A failure the REST endpoint would answer with problem+json is a tool error with its code. Lock
+   * contention raised anywhere in the call, outside a tool's own handling too, is the shared busy
+   * answer with its retry hint, like the REST handler, never 500 internal (ClickUp 14yq6g33592).
+   */
   static McpSchema.CallToolResult call(
       AgentTool tool,
       McpSchema.CallToolRequest request,
@@ -134,6 +139,10 @@ class McpServerConfig {
     } catch (TaskflowException e) {
       return result(mapper, AgentToolError.of(e), true);
     } catch (RuntimeException e) {
+      if (LockContention.isContention(e)) {
+        log.warn("tool {} hit lock contention: {}", tool.name(), e.toString());
+        return result(mapper, AgentToolError.of(LockContention.busy()), true);
+      }
       log.error("tool {} failed", tool.name(), e);
       return result(
           mapper,
