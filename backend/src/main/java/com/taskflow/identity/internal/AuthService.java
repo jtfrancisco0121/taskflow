@@ -257,9 +257,10 @@ class AuthService {
    * without the family lock but bounded by the lock timeout (decision 010; a row held by a revoking
    * transaction ends the family anyway), then makes one locked revoke attempt. If that attempt
    * fails (lock contention or any other error), the pending row stands and the next refresh of any
-   * token in the family revokes it, so sign-out still answers normally. Only when neither the row
-   * nor the revoke lands can the family stay live: that is logged at ERROR with the family id and
-   * answers 503.
+   * token in the family revokes it, so sign-out still answers normally. If another transaction held
+   * the row and the locked attempt fails too, it answers normally only when a plain read shows the
+   * family is sure to end (ClickUp 14yq6g3353g). Otherwise the family can stay live: that is logged
+   * at ERROR with the family id and answers 503.
    *
    * <p>Every log line names the family (or, before it is known, a prefix of the token hash), never
    * the raw token, and carries no stack: the exception is replaced by a handled 503, so the
@@ -287,6 +288,7 @@ class AuthService {
     }
     UUID family = found.get();
     RuntimeException pendingFailure = null;
+    RuntimeException pendingContention = null;
     try {
       // Its own short transaction, so the lock timeout bounds it: the insert waits on a
       // transaction that holds this family's row (a revocation deleting it), never forever.
@@ -298,14 +300,10 @@ class AuthService {
       });
     } catch (RuntimeException e) {
       if (LockContention.isContention(e)) {
-        // Another transaction holds this family's row: a revocation deleting it (its commit
-        // revokes the family, its rollback puts the row back) or a sign-out writing it. The
-        // family ends either way, so this is not a failure to record the revocation.
-        log.warn(
-            "Sign-out found the pending revocation of family {} held by another transaction ({});"
-                + " that transaction ends the family",
-            family,
-            describe(e));
+        // Another transaction holds this family's row: usually a revocation deleting it (its
+        // commit revokes the family, its rollback puts the row back), but an uncommitted insert
+        // that rolls back leaves nothing. Checked below if the locked attempt fails too.
+        pendingContention = e;
       } else {
         pendingFailure = e;
       }
@@ -317,6 +315,9 @@ class AuthService {
         revokeFamily(family);
       });
     } catch (RuntimeException e) {
+      if (pendingFailure == null && pendingContention != null && !familySureToEnd(family)) {
+        pendingFailure = pendingContention;
+      }
       if (pendingFailure == null) {
         log.warn(
             "Sign-out could not revoke family {} now ({}); its pending revocation ends it on the"
@@ -341,6 +342,28 @@ class AuthService {
           "Sign-out revoked family {} but could not record its pending revocation ({})",
           family,
           describe(pendingFailure));
+    }
+  }
+
+  /**
+   * Whether the family ends without this request: it has no live token, or its pending row is
+   * committed (a revocation still holding it either commits, ending the family, or rolls back,
+   * leaving the row). A plain read takes no lock, so it never waits; if it fails, the answer is no
+   * (ClickUp 14yq6g3353g, PR #36 /code-review).
+   */
+  private boolean familySureToEnd(UUID family) {
+    try {
+      return Boolean.TRUE.equals(
+          jdbc.queryForObject(
+              "SELECT EXISTS (SELECT 1 FROM refresh_pending_revocation WHERE family_id = ?) OR NOT"
+                  + " EXISTS (SELECT 1 FROM refresh_token WHERE family_id = ? AND revoked_at IS"
+                  + " NULL)",
+              Boolean.class,
+              family,
+              family));
+    } catch (RuntimeException e) {
+      log.debug("Sign-out could not check family {}", family, e);
+      return false;
     }
   }
 

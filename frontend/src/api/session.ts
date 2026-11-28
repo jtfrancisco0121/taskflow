@@ -18,6 +18,11 @@ let inflight: Promise<string | null> | null = null
 let sessionEndHook: (() => void) | null = null
 /** Refreshes in a row that ended on a transient failure; any token, sign-in or clear resets it. */
 let transientFailures = 0
+/**
+ * Bumped by every clearSession(). A refresh remembers it when it starts and drops its result if it
+ * changed, so a refresh still running when the user signs out cannot sign them back in (14yq6g3353g).
+ */
+let sessionEpoch = 0
 const listeners = new Set<() => void>()
 
 function notify() {
@@ -64,6 +69,7 @@ export function clearSession() {
   accessToken = null
   user = null
   transientFailures = 0
+  sessionEpoch += 1
   if (had) sessionEndHook?.()
   notify()
 }
@@ -120,12 +126,16 @@ async function attempt(plain: ReturnType<typeof createClient<paths>>): Promise<A
 async function doRefresh(fetcher: Fetcher, baseUrl: string): Promise<string | null> {
   // A client without the auth middleware: no circular import and no 401 loop.
   const plain = createClient<paths>({ baseUrl, fetch: fetcher })
+  const epoch = sessionEpoch
   let result = await attempt(plain)
   if (result.kind === 'transient') {
     const { waitMs } = result
     await new Promise((resolve) => setTimeout(resolve, waitMs))
+    if (epoch !== sessionEpoch) return null
     result = await attempt(plain)
   }
+  // The session was cleared (signed out) while this refresh ran: whatever it got, it is not ours.
+  if (epoch !== sessionEpoch) return null
   if (result.kind === 'ok') {
     setSession(result.token, result.user)
     return result.token
