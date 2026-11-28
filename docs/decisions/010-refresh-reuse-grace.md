@@ -9,7 +9,9 @@ user is signed out. Seen 1 in 120 e2e runs at workers=4 (theme-screens System te
 `artifacts/e2e-failures/auth-refresh-race-20261127-235117` the aborted refresh starts at 15:49:02.477Z and is
 cancelled after 599 ms; the next boot refresh starts at 15:49:04.168Z, 1.7 s later, and gets 401.
 
-## How it works today
+## How it worked before this decision
+
+Line references in this section are at main@5ebc520, before the change; the code has moved since.
 
 - Rotation: a refresh selects the token row, marks it `rotated_at = now()` only if it is neither rotated nor
   revoked, and inserts a new random token in the same family, all in one transaction
@@ -28,8 +30,8 @@ cancelled after 599 ms; the next boot refresh starts at 15:49:04.168Z, 1.7 s lat
 - Concurrency: two requests with the same token cannot both win; the loser sees `rotated == 0` and revokes the
   family (`AuthService.java:149-159`), which is the multi-tab form of the same bug when the lock is absent.
 
-The tests `RefreshReloadRaceIT` (red today: 401 where 200 is expected, and `[200, 401]` for two concurrent
-refreshes) describe the wanted behaviour. `RefreshReuseGuardIT` (green today) pins what must not change: a
+The tests `RefreshReloadRaceIT` (red before the change: 401 where 200 is expected, and `[200, 401]` for two concurrent
+refreshes) describe the wanted behaviour. `RefreshReuseGuardIT` (green before the change) pins what must not change: a
 token whose successor was used, a token rotated long ago, a signed-out family and an expired token all still
 fail and revoke.
 
@@ -54,12 +56,13 @@ server recomputes it from the A it is shown and finds the row by `sha256(B)` on 
   real client also holds. The two then diverge on their next refresh and the second presenter of B, outside
   the window, revokes the family, so detection is delayed, not lost. The database still holds only hashes; the
   derivation key adds nothing an attacker with the JWT signing key couldn't already do (mint access tokens).
-- Complexity: small, inside `AuthService.refresh`: lock A's row (`FOR UPDATE`), derive B on rotation instead of
-  random bytes; on a rotated A, return B if A is not revoked or expired, was rotated less than N ago, and the
+- Complexity: small, inside `AuthService.refresh`: take the family lock (see Consequences), lock A's row
+  (`FOR UPDATE`), derive B on rotation instead of random bytes; on a rotated A, return B if A is not revoked or expired, was rotated less than N ago, and the
   family's only live token is B (unrevoked, unexpired, never rotated; hashes compared with
   `MessageDigest.isEqual`); otherwise revoke as today. No migration.
-- Multi-tab: two concurrent refreshes with A both get the same B (the loser's `UPDATE` waits for the winner's
-  commit, then finds B), so the cookie jar is right whichever response lands last. Passes both race tests.
+- Multi-tab: two concurrent refreshes with A both get the same B (the loser waits on the family lock until the
+  winner commits, then finds B), so the cookie jar is right whichever response lands last. Passes both race
+  tests.
 
 **(c) Client only.** Keep the refresh alive across a reload (`fetch` `keepalive`, `sendBeacon`, a
 BroadcastChannel hand-off, or a longer-held Web Lock).
@@ -102,12 +105,15 @@ Okta's refresh-token rotation grace period and Auth0's reuse interval follow the
   find B as the family's live token: it revokes the family and the user is logged out, as without this
   decision. Rotate the secret when a few sign-outs are acceptable.
 - `refresh-reuse-grace` above `PT5M` is refused at startup (`JwtProperties`): a longer window is no longer a
-  lost response, it only widens what a thief gets.
+  lost response, it only widens what a thief gets. A bare number is seconds (`TASKFLOW_REFRESH_REUSE_GRACE=30`
+  is 30 s, not 30 ms); explicit units such as `PT30S` or `500ms` bind as written.
 - Every refresh and sign-out takes a transaction-scoped advisory lock on the token's family
   (`pg_advisory_xact_lock(hashtextextended('refresh_family:' || family_id, 0))`) before any token row lock,
   so requests on one family run one after another. Without it, the token row lock and the family-wide
   statements (the live-successor check, the family revocation) could deadlock, and a sign-out racing a
-  rotation could miss the new successor (`RefreshFamilyLockIT`).
+  rotation could miss the new successor (`RefreshFamilyLockIT`). A token that can never be honoured again
+  (revoked, or expired and never rotated) is refused before the lock, and the wait for the lock is bounded
+  (see Hardening).
 - A grace replay should be logged (family id, no token), so a pattern of replays is visible.
 
 ## Accepted risks
@@ -115,12 +121,51 @@ Okta's refresh-token rotation grace period and Auth0's reuse interval follow the
 Decided by JT Francisco, 2026-11-28, on review of PR #33. Both are accepted as stated, not fixed.
 
 1. **Successors are derivable.** Each successor is the HMAC of the token before it, with a key from the HKDF of the
-   JWT secret (`AuthService.java:179`, `successors.of(rawToken)`). Whoever holds the JWT secret and one token of a
+   JWT secret (`AuthService.java:179` at main@4d2e610, `successors.of(rawToken)`). Whoever holds the JWT secret and one token of a
    family can compute every later token in that chain offline. Accepted because a holder of the JWT secret can
    already sign access tokens for any user, so this adds no capability. Mitigation: treat the JWT secret as the root
    credential and rotate it on suspicion (which signs users out, see Consequences).
 2. **Unlimited replays in the grace window.** Inside the grace window a spent token can be replayed any number of
-   times (`AuthService.java:189`). Each replay returns the same successor and a new access token, nothing is
+   times (`AuthService.java:189` at main@4d2e610). Each replay returns the same successor and a new access token, nothing is
    revoked, and the only trace is one INFO log line per replay (family id). Accepted because a holder of A inside
    the window could equally have taken B, so replays add no capability; this is the trade-off option (b) makes. A
    louder signal (WARN or a metric) and the related hardening are tracked in ClickUp 14yq6g334r6.
+
+## Hardening (ClickUp 14yq6g334r6, slice 1)
+
+Follow-ups from the PR #33 reviews, after the decision was implemented. All in `AuthService`, `AuthController`,
+`JwtProperties` and `ProblemDetailsHandler`.
+
+- **Dead tokens skip the family lock.** A revoked token, or an expired one that was never rotated, gets 401
+  without taking the family lock, so flooding `POST /auth/refresh` with one cannot queue requests on the
+  family while each holds a pool connection. Both states are final and a token read as live is read again
+  under the lock. An expired token that was rotated still takes the lock and revokes its family as reuse; after
+  the first such request the family is revoked, so the rest are refused before the lock
+  (`RefreshLockContentionIT` for the dead states, `RefreshReuseGuardIT` for the expired, rotated token). One
+  gap, up to about the 2 s lock wait wide (`now()` is the transaction's start, taken before the lock wait): a
+  rotation that starts before the token expires and commits after leaves a rotated, expired token that a replay
+  presents after expiry; if the replay reads the row before that commit, it sees an expired, unrotated token and
+  gets 401 without revoking the family. That loses a reuse signal; it does
+  not let the replay through.
+- **Bounded lock wait.** Refresh and sign-out run `SET LOCAL lock_timeout = '2s'`. On refresh, a wait past it
+  (55P03), a deadlock (40P01) or a serialization failure (40001) answers 503 with `Retry-After: 1` and code
+  `request.busy` instead of a 500 (sign-out retries first, see below) (`ProblemDetailsIT`, `RefreshLockContentionIT`).
+- **Sign-out always clears the cookie**, also when revoking the family fails (`AuthControllerSignOutTest`).
+- **Sign-out retries the revoke on the server**, because the browser has no cookie left to retry with. A dead
+  token (revoked, or expired and never rotated) has nothing live in its family and returns 204 without the
+  family lock. Otherwise the locked revoke runs up to 3 times, each a fresh transaction with its own 2 s
+  `lock_timeout` (about 6 s in all), retrying on any lock contention (55P03, 40P01, 40001: one predicate,
+  `LockContention`, shared with the 503 mapping). If every attempt meets contention, the answer is 503
+  `request.busy` without `Retry-After` (nothing the client can retry). Any other failure (a database error, a
+  pool timeout) is not retried and ends in a 500. Either way the cookie is still cleared and an ERROR log names
+  the family id (never the token) (`RefreshLockContentionIT`, `AuthServiceSignOutTest`, `LockContentionTest`).
+  Remaining gap: after any sign-out failure the family stays live server-side until its tokens expire (up to
+  30 days), so a copy of the token taken before sign-out keeps working; the ERROR line is the only trace.
+  Before this branch sign-out waited for the lock without a limit and always revoked. Accepted by JT Francisco,
+  2026-11-28, until slice 2 of ClickUp 14yq6g334r6, which closes it with a pending-revocation row written by
+  sign-out without the family lock and checked by refresh under it.
+- **The user is checked before rotation**, so a refused token is never left rotated with no successor
+  (`RefreshReuseGuardIT`).
+- **Expiry on the database clock.** `expires_at` is set from the database's `now()` and judged against it, the
+  same clock as the grace window, so a JVM/database clock skew cannot split the two decisions
+  (`RefreshReuseGuardIT`).

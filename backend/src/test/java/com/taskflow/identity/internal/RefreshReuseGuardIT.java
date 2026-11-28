@@ -3,9 +3,11 @@ package com.taskflow.identity.internal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.taskflow.IntegrationTest;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * Refresh-token reuse detection that any fix for the reload race (ClickUp 14yq6g334jy) must keep: a
@@ -16,6 +18,8 @@ import org.junit.jupiter.api.Test;
 class RefreshReuseGuardIT extends IntegrationTest {
 
   private static final String REFRESH = "/api/v1/auth/refresh";
+
+  @Autowired private JwtProperties properties;
 
   private Resp signup() {
     return post(
@@ -104,8 +108,16 @@ class RefreshReuseGuardIT extends IntegrationTest {
         hashOf(a));
 
     assertThat(refresh(a).status()).isEqualTo(401);
+    // Presenting a spent token is reuse even after expiry: the family, B included, is revoked.
+    assertThat(liveTokens(up)).isZero();
   }
 
+  /*
+   * The two cases below pin the 30 s grace from both sides. The database clock only moves forward
+   * between the test's UPDATE and the refresh, so a slow run can only push a token further out of
+   * the window: 31 s cannot flip, while the inside case needs headroom. It is 25 s, so it flips
+   * only if the refresh starts more than 5 s after the UPDATE (ClickUp 14yq6g334r6 item 4).
+   */
   @Test
   void anOldTokenReplayed31SecondsAfterItsRotationRevokesTheFamily() {
     Resp up = signup();
@@ -123,14 +135,14 @@ class RefreshReuseGuardIT extends IntegrationTest {
   }
 
   @Test
-  void anOldTokenReplayed29SecondsAfterItsRotationGetsTheSameSuccessor() {
+  void anOldTokenReplayed25SecondsAfterItsRotationGetsTheSameSuccessor() {
     Resp up = signup();
     String a = AuthIT.refreshCookie(up);
     Resp toB = refresh(a);
     assertThat(toB.status()).isEqualTo(200);
     String b = AuthIT.refreshCookie(toB);
     jdbc.update(
-        "UPDATE refresh_token SET rotated_at = now() - interval '29 seconds' WHERE token_hash = ?",
+        "UPDATE refresh_token SET rotated_at = now() - interval '25 seconds' WHERE token_hash = ?",
         hashOf(a));
 
     Resp replay = refresh(a);
@@ -139,6 +151,49 @@ class RefreshReuseGuardIT extends IntegrationTest {
     assertThat(AuthIT.refreshCookie(replay)).isEqualTo(b);
     // A (rotated) and B: nothing revoked and no extra token issued.
     assertThat(liveTokens(up)).isEqualTo(2);
+  }
+
+  /**
+   * ClickUp 14yq6g334r6 item 6: a token whose user is no longer a human is refused without being
+   * marked rotated, so it never becomes a rotated token with no successor.
+   */
+  @Test
+  void aTokenOfAUserWhoIsNoLongerHumanIsRefusedWithoutBeingRotated() {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    jdbc.update(
+        "UPDATE app_user SET kind = 'SERVICE_ACCOUNT' WHERE email = ?", up.text("/user/email"));
+
+    assertThat(refresh(a).status()).isEqualTo(401);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT rotated_at IS NULL FROM refresh_token WHERE token_hash = ?",
+                Boolean.class,
+                hashOf(a)))
+        .isTrue();
+    assertThat(liveTokens(up)).isEqualTo(1);
+  }
+
+  /**
+   * ClickUp 14yq6g334r6 item 7: expiry is set and judged on the database clock, the same clock that
+   * judges the grace window, so a JVM/database clock skew cannot split the two decisions.
+   * created_at defaults to the transaction's now(), so a database-clock expiry is exactly the TTL
+   * after it.
+   */
+  @Test
+  void refreshTokenExpiryIsSetFromTheDatabaseClock() {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    assertThat(refresh(a).status()).isEqualTo(200);
+
+    List<Double> lifetimes =
+        jdbc.queryForList(
+            "SELECT extract(epoch FROM r.expires_at - r.created_at)::float8 FROM refresh_token r"
+                + " JOIN app_user u ON u.id = r.user_id WHERE u.email = ?",
+            Double.class,
+            up.text("/user/email"));
+
+    assertThat(lifetimes).hasSize(2).containsOnly((double) properties.refreshTtl().toSeconds());
   }
 
   @Test

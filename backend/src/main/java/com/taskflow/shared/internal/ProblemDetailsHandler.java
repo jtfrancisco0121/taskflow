@@ -1,17 +1,21 @@
 package com.taskflow.shared.internal;
 
+import com.taskflow.shared.LockContention;
 import com.taskflow.shared.TaskflowException;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -46,6 +50,22 @@ class ProblemDetailsHandler extends ResponseEntityExceptionHandler {
     log.warn("integrity violation: {}", e.getMostSpecificCause().getMessage());
     return domain(
         TaskflowException.conflict("request.conflict", "The request conflicts with current data"));
+  }
+
+  /**
+   * Lock contention ({@link LockContention}) is 503 with Retry-After rather than 500 (ClickUp
+   * 14yq6g334r6); any other uncategorized error is rethrown unchanged.
+   */
+  @ExceptionHandler({PessimisticLockingFailureException.class, UncategorizedSQLException.class})
+  ResponseEntity<ProblemDetail> contention(DataAccessException e) {
+    if (!LockContention.isContention(e)) {
+      throw e;
+    }
+    log.warn("lock contention: {}", e.getMostSpecificCause().getMessage());
+    return domain(
+        new TaskflowException(
+                HttpStatus.SERVICE_UNAVAILABLE, "request.busy", "The server is busy; retry shortly")
+            .header(HttpHeaders.RETRY_AFTER, "1"));
   }
 
   @ExceptionHandler(ConstraintViolationException.class)
