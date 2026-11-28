@@ -7,26 +7,48 @@ import { queryKeys } from '../../api/queryKeys'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { runLimited } from './bulk'
 import { BoardRenderer } from './BoardRenderer'
-import { baseRoutes, expectColumnCountsMatchCards, scope, task } from './testSupport'
+import {
+  baseRoutes,
+  customFieldIds,
+  expectColumnCountsMatchCards,
+  fieldRoutes,
+  scope,
+  task,
+} from './testSupport'
 import { useTaskActions } from './useTaskActions'
 
 // 14yq6g334tg: a status change elsewhere (the List's status pick) while the Board is open or opening. The Board's
 // counts and cards must agree, and the task must end in the column of its new status.
 
-type Row = ReturnType<typeof task>
+type Row = ReturnType<typeof task> & { customFields?: Record<string, unknown> }
 const STATUS_KEY: Record<string, string> = { 'st-todo': 'to do', 'st-doing': 'in progress' }
 
+type ServerOptions = {
+  /** The group a row is listed under (the Board's grouping); status by default. */
+  groupOf?: (row: Row) => string
+  /** The group keys in column order, with the server's label. */
+  keys?: Array<{ key: string; label: string }>
+  /** Ids whose save is refused with a 403 once the promise resolves. */
+  refuse?: Record<string, Promise<void>>
+}
+
 /** A tiny server: tasks by id, grouped by status; `hold` lets a test pick when a response leaves. */
-function server(rows: Row[]) {
+function server(rows: Row[], options: ServerOptions = {}) {
+  const groupOf = options.groupOf ?? ((r: Row) => STATUS_KEY[r.statusId])
+  const keys = options.keys ?? [
+    { key: 'to do', label: 'to do' },
+    { key: 'in progress', label: 'in progress' },
+  ]
   const db = new Map(rows.map((r) => [r.id, { ...r }]))
-  const column = (key: string) => [...db.values()].filter((r) => STATUS_KEY[r.statusId] === key)
+  const column = (key: string) => [...db.values()].filter((r) => groupOf(r) === key)
   const groups = () =>
-    ['to do', 'in progress']
-      .map((key) => ({ key, label: key, count: column(key).length }))
+    keys
+      .map(({ key, label }) => ({ key, label, count: column(key).length }))
       .filter((g) => g.count > 0)
   const gates: Record<string, Promise<void> | undefined> = {}
   const stub = installFetch({
     ...baseRoutes,
+    ...fieldRoutes,
     'POST /api/v1/views/query': async (_r: Request, body: unknown) => {
       const { groupValue } = body as { groupValue?: string }
       // A column reads its rows when the request arrives (before a later commit), like the trace.
@@ -41,8 +63,15 @@ function server(rows: Row[]) {
     'PATCH /api/v1/tasks/:id': async (r: Request, body: unknown) => {
       await gates.patch
       const id = new URL(r.url).pathname.split('/').pop()!
+      const refused = options.refuse?.[id]
+      if (refused) {
+        await refused
+        return problem(403, 'access.denied', 'Not allowed')
+      }
       const row = db.get(id)!
-      Object.assign(row, body as object, { version: row.version + 1 })
+      const { customFields, ...rest } = body as { customFields?: Record<string, unknown> }
+      Object.assign(row, rest, { version: row.version + 1 })
+      if (customFields) row.customFields = { ...(row.customFields ?? {}), ...customFields }
       return json({ ...row })
     },
   } as never)
@@ -271,8 +300,9 @@ describe('14yq6g334tg Board counts and cards after a status change', () => {
     await waitFor(() => expect(cardsIn('To do')).toHaveLength(5))
     await settle(150)
     const before = viewReads(stub)
-    // N + 1 view queries per read of the Board: the lead and one per column (to do, in progress after the moves).
-    const perRead = 3
+    // N + 1 view queries per read of the Board: the lead and one per column the Board shows.
+    const perRead = within(screen.getByLabelText('Board')).getAllByRole('region').length + 1
+    expect(perRead).toBe(4)
 
     await userEvent.click(screen.getByRole('button', { name: 'Bulk in progress' }))
     await waitFor(() => expect(stub.count('PATCH', /\/tasks\//)).toBe(5))
@@ -355,5 +385,130 @@ describe('14yq6g334tg Board counts and cards after a status change', () => {
 
     await waitFor(() => expect(cardsIn('To do').some((c) => c.includes('Page two'))).toBe(true))
     expect(cardsIn('To do')).toHaveLength(3)
+  })
+  /** A save through the same write path, with the outcome recorded. */
+  function Pick({
+    label,
+    run,
+  }: {
+    label: string
+    run: (actions: ReturnType<typeof useTaskActions>) => unknown
+  }) {
+    const actions = useTaskActions()
+    return <button onClick={() => void run(actions)}>{label}</button>
+  }
+
+  it('AC10 (r2 M1): a due date change on a Board grouped by due date moves the card, counts match', async () => {
+    const soon = task(1, { title: 'Alpha', dueDate: '2026-11-28T17:00:00Z' })
+    const due = task(2, { title: 'Beta', dueDate: '2026-11-28T18:00:00Z' })
+    server([soon, due], {
+      groupOf: (r) => (!r.dueDate ? 'none' : String(r.dueDate) < '2026-12-01' ? 'today' : 'later'),
+      keys: [
+        { key: 'today', label: 'today' },
+        { key: 'later', label: 'later' },
+        { key: 'none', label: 'none' },
+      ],
+    })
+    renderWithProviders(
+      <>
+        <Pick
+          label="Due later"
+          run={(a) => a.patch(due as unknown as TaskView, { dueDate: '2026-12-20T17:00:00Z' })}
+        />
+        <BoardRenderer scope={scope} config={{ ...config, group: 'dueDate' }} />
+      </>,
+    )
+    await waitFor(() => expect(cardsIn('Today')).toHaveLength(2))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Due later' }))
+
+    await waitFor(() => {
+      expect(cardsIn('Later').some((c) => c.includes('Beta'))).toBe(true)
+      expect(cardsIn('Today').some((c) => c.includes('Beta'))).toBe(false)
+      expectColumnCountsMatchCards()
+    })
+  })
+
+  it('AC11 (r2 M1): a custom field change on a Board grouped by that field moves the card, counts match', async () => {
+    const tier = customFieldIds.tier
+    const alphaFree = task(1, { title: 'Alpha', customFields: { [tier]: 'o-free' } })
+    const betaFree = task(2, { title: 'Beta', customFields: { [tier]: 'o-free' } })
+    server([alphaFree, betaFree], {
+      groupOf: (r) => String(r.customFields?.[tier] ?? 'none'),
+      keys: [
+        { key: 'o-free', label: 'Free' },
+        { key: 'o-ent', label: 'Enterprise' },
+      ],
+    })
+    renderWithProviders(
+      <>
+        <Pick
+          label="Make Enterprise"
+          run={(a) => a.setCustomField(betaFree as unknown as TaskView, tier, 'o-ent')}
+        />
+        <BoardRenderer scope={scope} config={{ ...config, group: `cf:${tier}` }} />
+      </>,
+    )
+    await waitFor(() => expect(cardsIn('Free')).toHaveLength(2))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Make Enterprise' }))
+
+    await waitFor(() => {
+      expect(cardsIn('Enterprise').some((c) => c.includes('Beta'))).toBe(true)
+      expect(cardsIn('Free').some((c) => c.includes('Beta'))).toBe(false)
+      expectColumnCountsMatchCards()
+    })
+  })
+
+  it('AC12 (r2 M2): in a Bulk change, a refused save does not put back the moved card of a saved one', async () => {
+    const refuseBeta = deferred()
+    server([alpha, beta], { refuse: { t2: refuseBeta.promise } })
+    const outcomes: string[] = []
+    renderWithProviders(
+      <>
+        <Pick
+          label="Bulk in progress"
+          run={(a) =>
+            runLimited(
+              [alpha, beta],
+              async (r) => {
+                const outcome = await a.patch(
+                  r as unknown as TaskView,
+                  { statusId: 'st-doing' },
+                  true,
+                )
+                outcomes.push(`${r.id}:${outcome}`)
+                return outcome
+              },
+              6,
+            )
+          }
+        />
+        <BoardRenderer scope={scope} config={config} />
+      </>,
+    )
+    await waitFor(() => expect(cardsIn('To do')).toHaveLength(2))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Bulk in progress' }))
+    // A saves and its refresh lands: Alpha is in "In progress", Beta (still waiting) in "To do".
+    await waitFor(() => expect(outcomes).toContain('t1:saved'))
+    await waitFor(() => {
+      expect(cardsIn('In progress').some((c) => c.includes('Alpha'))).toBe(true)
+      expect(cardsIn('To do').some((c) => c.includes('Alpha'))).toBe(false)
+    })
+    // Then B is refused (403).
+    refuseBeta.open()
+    await waitFor(() => expect(outcomes).toContain('t2:failed'))
+
+    // At once and after any refresh, Alpha stays in its new column and Beta is back in "To do".
+    expect(cardsIn('In progress').some((c) => c.includes('Alpha'))).toBe(true)
+    expect(cardsIn('To do').some((c) => c.includes('Alpha'))).toBe(false)
+    await settle()
+    await waitFor(() => {
+      expect(cardsIn('In progress').some((c) => c.includes('Alpha'))).toBe(true)
+      expect(cardsIn('To do').some((c) => c.includes('Alpha'))).toBe(false)
+      expect(cardsIn('To do').some((c) => c.includes('Beta'))).toBe(true)
+      expectColumnCountsMatchCards()
+    })
   })
 })

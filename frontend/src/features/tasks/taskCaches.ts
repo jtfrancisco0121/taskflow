@@ -122,10 +122,35 @@ export function cachedTask(
 const sameSet = (a: string[] = [], b: string[] = []) =>
   a.length === b.length && [...a].sort().join('\u0000') === [...b].sort().join('\u0000')
 
+/** Deep equality of JSON values; object key order does not matter, array order does. */
+function sameJson(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  const ka = Object.keys(a)
+  const kb = Object.keys(b)
+  if (ka.length !== kb.length) return false
+  return ka.every(
+    (k) =>
+      Object.hasOwn(b, k) &&
+      sameJson((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]),
+  )
+}
+
+/** Custom field values without the empty ones: a cleared field (absent or null) is the same "No value" group. */
+const setFields = (fields: TaskView['customFields']) =>
+  Object.fromEntries(Object.entries(fields ?? {}).filter(([, v]) => v !== null && v !== undefined))
+
 /**
- * 14yq6g334tg: whether a write moved the task to another group of a view (a Board column, a grouped List section):
- * its status, priority, assignees or List changed. writeTaskToCaches only updates a task where it is listed, so a
- * changed group needs the views read again. An unknown `before` counts as changed.
+ * 14yq6g334tg: whether a write moved the task to another group of a view (a Board column, a grouped List section).
+ * writeTaskToCaches only updates a task where it is listed, so a changed group needs the views read again. An
+ * unknown `before` counts as changed.
+ *
+ * The fields are the view groupings the server accepts (ViewConfigValidator.GROUPS plus `cf:<field id>`): status and
+ * status group (statusId), priority, assignee, list, dueDate and any custom field (compared deeply: a value can be an
+ * array or an object). Listed on purpose rather than "anything but the title": every save bumps version and
+ * updatedAt, and tags, dates or the description group nothing, so a wider rule would read every view after every
+ * save and undo the gathered refresh of a Bulk change.
  */
 export function regroups(before: TaskView | undefined, after: TaskView): boolean {
   if (!before) return true
@@ -133,7 +158,9 @@ export function regroups(before: TaskView | undefined, after: TaskView): boolean
     before.statusId !== after.statusId ||
     before.priority !== after.priority ||
     before.listId !== after.listId ||
-    !sameSet(before.assigneeIds, after.assigneeIds)
+    (before.dueDate ?? null) !== (after.dueDate ?? null) ||
+    !sameSet(before.assigneeIds, after.assigneeIds) ||
+    !sameJson(setFields(before.customFields), setFields(after.customFields))
   )
 }
 

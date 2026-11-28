@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { queryKeys } from '../../api/queryKeys'
 import type { TaskView, ViewQueryResponse } from '../../api/types'
 import { installFetch, json, newQueryClient, problem } from '../../test/api'
+import { VIEW_REFRESH_MS } from './taskCaches'
 import { useUpdateTask } from './useUpdateTask'
 
 // 14yq6g334tg: the task panel's write path (useUpdateTask) follows the same rule as the optimistic one: a saved or
@@ -63,7 +64,8 @@ describe('useUpdateTask and view groups (14yq6g334tg)', () => {
       json({ ...base, ...(body as object), version: 2 }),
     )
     await act(() => result.current.mutateAsync({ title: 'Renamed' }))
-    await act(() => new Promise((resolve) => setTimeout(resolve, 20)))
+    // Past the gathered refresh (VIEW_REFRESH_MS), so a scheduled read would have run.
+    await act(() => new Promise((resolve) => setTimeout(resolve, VIEW_REFRESH_MS + 50)))
     expect(invalidated()).toBe(false)
   })
 })
