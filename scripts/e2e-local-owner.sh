@@ -237,12 +237,17 @@ owner_self_test() {
   rm -rf "$fake_root"
   # E2E_API_URL must name its port: the script starts the backend on it.
   local url want got
+  # Empty expected port = refused: the exit code must say so, not just the output (review on PR #44).
+  local rc want_rc
   for url in "http://localhost:8081=8081" "http://localhost:8081/=8081" "http://[::1]:8082=8082" \
-    "http://localhost=" "http://localhost/api=" "localhost:8083=8083"; do
+    "http://localhost=" "http://localhost/api=" "http://[::1]=" "http://[::1]/api=" "localhost:8083=8083"; do
     want="${url##*=}"
-    got="$(api_port_of "${url%=*}" 2>/dev/null)" || got=""
-    if [ "$got" != "$want" ]; then
-      echo "e2e-local self-test: port of ${url%=*}: expected '${want}', got '${got}'" >&2
+    want_rc=0
+    [ -n "$want" ] || want_rc=1
+    rc=0
+    got="$(api_port_of "${url%=*}" 2>/dev/null)" || rc=$?
+    if [ "$rc" != "$want_rc" ] || [ "$got" != "$want" ]; then
+      echo "e2e-local self-test: port of ${url%=*}: expected '${want}' exit ${want_rc}, got '${got}' exit ${rc}" >&2
       failures=$((failures + 1))
     fi
   done

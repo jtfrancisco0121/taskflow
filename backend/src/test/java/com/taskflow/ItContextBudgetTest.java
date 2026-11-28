@@ -70,7 +70,19 @@ class ItContextBudgetTest {
         .containsExactly("MisnamedContextTest");
   }
 
-  /** Fixtures for the check above; nested, so neither surefire nor failsafe runs them. */
+  @Test
+  void theScanFindsASpringBootTestNamedLikeAUnitTest() throws Exception {
+    // The real scan skips nested classes; with them allowed, it must find the fixture named *Test,
+    // so a
+    // scan narrowed back to *IT names (the pre-fix pattern) fails here (review on PR #44).
+    java.util.List<Class<?>> fixtures = new java.util.ArrayList<>();
+    for (Class<?> type : scan(false)) {
+      if (type.getEnclosingClass() == ItContextBudgetTest.class) fixtures.add(type);
+    }
+    assertThat(misnamed(fixtures)).containsExactly("MisnamedContextTest");
+  }
+
+  /** Fixtures for the checks above; nested, so neither surefire nor failsafe runs them. */
   @SpringBootTest
   static class MisnamedContextTest {}
 
@@ -104,6 +116,12 @@ class ItContextBudgetTest {
   }
 
   private static Iterable<Class<?>> integrationTests() throws ClassNotFoundException {
+    return scan(true);
+  }
+
+  /** Test classes named like surefire's or failsafe's includes, with @SpringBootTest. */
+  private static java.util.Collection<Class<?>> scan(boolean topLevelOnly)
+      throws ClassNotFoundException {
     ClassPathScanningCandidateComponentProvider scanner =
         new ClassPathScanningCandidateComponentProvider(false) {
           @Override
@@ -111,7 +129,7 @@ class ItContextBudgetTest {
               org.springframework.beans.factory.annotation.AnnotatedBeanDefinition definition) {
             return definition.getMetadata().isConcrete()
                 && definition.getMetadata().isIndependent()
-                && !definition.getMetadata().hasEnclosingClass();
+                && (!topLevelOnly || !definition.getMetadata().hasEnclosingClass());
           }
         };
     scanner.addIncludeFilter(
