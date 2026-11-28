@@ -25,7 +25,7 @@ import org.springframework.dao.DeadlockLoserDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
-@DisplayName("DEP-1 a lock wait or deadlock is 409 dependency.busy, never 500")
+@DisplayName("DEP-1 a lock wait or deadlock is 503 request.busy with Retry-After, never 409 or 500")
 class DependencyBusyIT extends DependencyTestBase {
 
   @Autowired DataSource dataSource;
@@ -36,7 +36,7 @@ class DependencyBusyIT extends DependencyTestBase {
   }
 
   @Test
-  void aHeldRowLockAnswers409BusyStoresNothingAndTheSameKeySucceedsAfterRelease() throws Exception {
+  void aHeldRowLockAnswers503BusyStoresNothingAndTheSameKeySucceedsAfterRelease() throws Exception {
     Fix f = fixture();
     TestUser m = f.ws().member();
     UUID a = task(m, f.list(), "A");
@@ -61,8 +61,9 @@ class DependencyBusyIT extends DependencyTestBase {
               "\"" + va + "\"",
               "Idempotency-Key",
               key);
-      assertThat(busy.status()).as(busy.raw()).isEqualTo(409);
-      assertThat(busy.at("/code").asText()).isEqualTo("dependency.busy");
+      assertThat(busy.status()).as(busy.raw()).isEqualTo(503);
+      assertThat(busy.at("/code").asText()).isEqualTo("request.busy");
+      assertThat(busy.headers().getFirst("Retry-After")).isEqualTo("1");
       assertThat(count("task_dependency", f.ws().id())).isZero();
       assertThat(outbox(f.ws().id())).isEqualTo(outbox);
       assertThat(records(key)).isZero();
@@ -95,12 +96,39 @@ class DependencyBusyIT extends DependencyTestBase {
               m.token(),
               "If-Match",
               "\"" + vb + "\"");
-      assertThat(busy.status()).isEqualTo(409);
-      assertThat(busy.at("/code").asText()).isEqualTo("dependency.busy");
+      assertThat(busy.status()).as(busy.raw()).isEqualTo(503);
+      assertThat(busy.at("/code").asText()).isEqualTo("request.busy");
+      assertThat(busy.headers().getFirst("Retry-After")).isEqualTo("1");
       holder.rollback();
     }
     assertThat(count("task_dependency", f.ws().id())).isEqualTo(1);
     assertThat(unrelate(m, a, dep).status()).isEqualTo(204);
+  }
+
+  /** Negative: a real conflict is not contention and keeps its 409 (no Retry-After). */
+  @Test
+  void aStaleVersionAndAnExistingRelationStay409() {
+    Fix f = fixture();
+    TestUser m = f.ws().member();
+    UUID a = task(m, f.list(), "A");
+    UUID b = task(m, f.list(), "B");
+    assertThat(relate(m, a, "WAITING_ON", b).status()).isEqualTo(201);
+
+    Resp exists = relate(m, a, "WAITING_ON", b);
+    assertThat(exists.status()).as(exists.raw()).isEqualTo(409);
+    assertThat(exists.at("/code").asText()).isEqualTo("dependency.exists");
+    assertThat(exists.headers().getFirst("Retry-After")).isNull();
+
+    Resp stale =
+        post(
+            "/api/v1/tasks/" + a + "/dependencies",
+            m.token(),
+            Map.of("otherTaskId", b, "relation", "LINKED"),
+            "If-Match",
+            "\"" + (version(m, a) - 1) + "\"");
+    assertThat(stale.status()).as(stale.raw()).isEqualTo(409);
+    assertThat(stale.at("/code").asText()).isEqualTo("task.version_conflict");
+    assertThat(stale.headers().getFirst("Retry-After")).isNull();
   }
 
   @Test
@@ -148,8 +176,9 @@ class DependencyBusyIT extends DependencyTestBase {
         .isInstanceOfSatisfying(
             TaskflowException.class,
             e -> {
-              assertThat(e.code()).isEqualTo("dependency.busy");
-              assertThat(e.status().value()).isEqualTo(409);
+              assertThat(e.code()).isEqualTo("request.busy");
+              assertThat(e.status().value()).isEqualTo(503);
+              assertThat(e.headers()).containsEntry("Retry-After", "1");
             });
   }
 }

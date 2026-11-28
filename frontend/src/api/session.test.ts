@@ -278,6 +278,63 @@ describe('session', () => {
     })
   })
 
+  describe('14yq6g3353g: a refresh that settles after sign-out does not sign the user back in', () => {
+    const base = 'http://localhost'
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('a refresh waiting to retry when the user signs out stays signed out', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout'] })
+      setSession('old', { id: 'u1' })
+      const fetchStub = vi
+        .fn<(request: Request) => Promise<Response>>()
+        .mockResolvedValueOnce(new Response('{}', { status: 503, headers: { 'Retry-After': '1' } }))
+        .mockResolvedValueOnce(authResponse('t2'))
+
+      const pending = refreshSession({ fetch: fetchStub, baseUrl: base })
+      await vi.advanceTimersByTimeAsync(10)
+      clearSession() // useSignOut
+      await vi.advanceTimersByTimeAsync(2_000)
+
+      expect(await pending).toBeNull()
+      expect(fetchStub).toHaveBeenCalledTimes(1) // no retry after sign-out
+      expect(getAccessToken()).toBeNull()
+      expect(getSessionUser()).toBeNull()
+    })
+
+    it('a refresh whose answer arrives after the user signed out stays signed out', async () => {
+      setSession('old', { id: 'u1' })
+      let answer: (response: Response) => void = () => {}
+      const fetchStub = vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            answer = resolve
+          }),
+      )
+
+      const pending = refreshSession({ fetch: fetchStub, baseUrl: base })
+      await vi.waitFor(() => expect(fetchStub).toHaveBeenCalledTimes(1))
+      clearSession() // useSignOut
+      answer(authResponse('t2'))
+
+      expect(await pending).toBeNull()
+      expect(getAccessToken()).toBeNull()
+      expect(getSessionUser()).toBeNull()
+    })
+
+    it('a refresh that starts after sign-out still signs in', async () => {
+      setSession('old', { id: 'u1' })
+      clearSession()
+
+      expect(await refreshSession({ fetch: async () => authResponse('t3'), baseUrl: base })).toBe(
+        't3',
+      )
+      expect(getAccessToken()).toBe('t3')
+    })
+  })
+
   it('NFR-2: the token is never written to localStorage, sessionStorage or a cookie', async () => {
     await refreshSession({
       fetch: async () => authResponse('secret-token'),

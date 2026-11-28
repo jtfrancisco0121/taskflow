@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { getAccessToken } from '../../api/session'
 import { json, problem, renderWithProviders, installFetch } from '../../test/api'
 import { SignUpPage } from './SignUpPage'
+import { fill } from '../../test/ui'
 
 function renderPage() {
   return renderWithProviders(
@@ -16,10 +17,10 @@ function renderPage() {
   )
 }
 
-async function fill(user: ReturnType<typeof userEvent.setup>, email = 'maya@example.com') {
+async function fillForm(user: ReturnType<typeof userEvent.setup>, email = 'maya@example.com') {
   await user.type(screen.getByLabelText('Display name'), 'Maya')
   await user.type(screen.getByLabelText('Email'), email)
-  await user.type(screen.getByLabelText('Password'), 'correct-horse-battery')
+  await fill(user, screen.getByLabelText('Password'), 'correct-horse-battery')
 }
 
 describe('SignUpPage', () => {
@@ -33,7 +34,7 @@ describe('SignUpPage', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await fill(user)
+    await fillForm(user)
     await user.click(screen.getByRole('button', { name: 'Create account' }))
 
     expect(await screen.findByRole('heading', { name: 'Create your Workspace' })).toBeVisible()
@@ -52,7 +53,7 @@ describe('SignUpPage', () => {
     const user = userEvent.setup()
     renderPage()
 
-    await fill(user)
+    await fillForm(user)
     await user.click(screen.getByRole('button', { name: 'Create account' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('That email is already in use.')
@@ -67,7 +68,7 @@ describe('SignUpPage', () => {
     renderPage()
 
     await user.type(screen.getByLabelText('Display name'), 'Maya')
-    await user.type(screen.getByLabelText('Email'), 'not-an-email')
+    await fill(user, screen.getByLabelText('Email'), 'not-an-email')
     await user.type(screen.getByLabelText('Password'), 'short')
     await user.click(screen.getByRole('button', { name: 'Create account' }))
 

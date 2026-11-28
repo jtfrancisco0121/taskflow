@@ -127,3 +127,14 @@ export async function findTaskDetail(name: string | RegExp): Promise<HTMLElement
   })
   return found as unknown as HTMLElement
 }
+
+/**
+ * Puts text that is only data into a field in one input event: focus, then paste (14yq6g333cc). user.type sends a
+ * keydown/input/keyup chain and a React render per character, so typing whole words spent most of a test's 5 s budget
+ * and timed out on a loaded machine. Keep user.type for short input, special keys ({Enter}, {Escape}) and tests about
+ * keystrokes; the lint rule in eslint.config.js points long typed strings here.
+ */
+export async function fill(user: UserEvent, field: HTMLElement, text: string) {
+  await user.click(field)
+  await user.paste(text)
+}

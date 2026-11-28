@@ -6,6 +6,7 @@ import { installFetch, json, problem, renderWithProviders } from '../../test/api
 import { ServiceAccountDetailPage } from './ServiceAccountDetailPage'
 import { ServiceAccountsLink } from './ServiceAccountsLink'
 import { ServiceAccountsPage } from './ServiceAccountsPage'
+import { fill } from '../../test/ui'
 
 const WS = 'w1'
 const LIST = `/w/${WS}/settings/service-accounts`
@@ -83,7 +84,7 @@ describe('ServiceAccountsPage', () => {
     renderPage()
     await user.click(await screen.findByRole('button', { name: 'Create service account' }))
     const dialog = screen.getByRole('dialog', { name: 'Create service account' })
-    await user.type(within(dialog).getByLabelText('Name'), 'triage-agent')
+    await fill(user, within(dialog).getByLabelText('Name'), 'triage-agent')
     await user.click(within(dialog).getByRole('button', { name: 'Create service account' }))
     expect(
       await within(dialog).findByText('A service account with this name already exists'),
@@ -102,7 +103,7 @@ describe('ServiceAccountsPage', () => {
     renderPage()
     await user.click(await screen.findByRole('button', { name: 'Create service account' }))
     const dialog = screen.getByRole('dialog')
-    await user.type(within(dialog).getByLabelText('Name'), 'triage-agent')
+    await fill(user, within(dialog).getByLabelText('Name'), 'triage-agent')
     await user.click(within(dialog).getByRole('button', { name: 'Create service account' }))
     expect(await screen.findByRole('heading', { name: 'triage-agent' })).toBeVisible()
     expect(await screen.findByText('No keys. Create one to connect an agent.')).toBeVisible()

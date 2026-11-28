@@ -227,7 +227,8 @@ class McpDependenciesIT extends DependencyTestBase {
       }
       ToolResult busy = call(key, "add_dependency", args);
       assertThat(busy.isError()).isTrue();
-      assertThat(busy.body().get("code").asText()).isEqualTo("dependency.busy");
+      assertThat(busy.body().get("code").asText()).isEqualTo("request.busy");
+      assertThat(busy.body().get("status").asInt()).isEqualTo(503);
       holder.rollback();
     }
     assertThat(count("task_dependency", f.ws().id())).isZero();

@@ -197,7 +197,7 @@ Follow-ups from the PR #33 reviews, after the decision was implemented. All in `
   a margin) can be added if those rows ever matter. `family_id` is not a foreign key (there is no family
   table), and no code path deletes users or tokens today.
 - **Failures and logging.** Only one case leaves a family live: neither the row nor the locked revoke could be
-  written (the database is down). That, and a failure of the family lookup itself, logs one ERROR line naming
+  written (the database is down), or, since 14yq6g3353g, could not be confirmed (see below). That, and a failure of the family lookup itself, logs one ERROR line naming
   the family id, or a 12-character prefix of the token hash when the family is not known yet, plus the
   exception class, and answers 503 `request.busy` without `Retry-After`. The line never carries the raw token
   and no stack: the 503 is a handled error, so the container does not log the exception a second time (stacks
@@ -216,8 +216,34 @@ Follow-ups from the PR #33 reviews, after the decision was implemented. All in `
   one keeps it, at most until the third failed refresh in a row)
   (`frontend/src/api/session.ts`, `session.test.ts`, `client.ts`).
 - **Lock contention classification.** `DependencyService` uses the shared `LockContention` (40P01, 40001,
-  55P03). It still answers 409 `dependency.busy` where the global mapping answers 503 `request.busy`; which
-  status the API should use is open, for JT Francisco.
+  55P03) and, since ClickUp 14yq6g334u1 (JT Francisco 2026-11-28, "Unify on 503 later"), its shared answer
+  `LockContention.busy()`: 503 `request.busy` with `Retry-After: 1`, the same as the global mapping.
+
+## Hardening (ClickUp 14yq6g3353g): sign-out from an idle tab
+
+- **Sign-out needs only the refresh cookie.** The browser sends its access token with every call, also with
+  sign-out. After 15 minutes idle that token is expired, and Spring's bearer filter refused it with 401 before
+  authorization ran, `permitAll` or not: sign-out never ran, the family stayed live and the cookie stayed, so a
+  reload signed the user back in. The bearer resolver now reads no token on the four token-less auth routes
+  (`POST` sign-up, sign-in, refresh, sign-out); one matcher serves both the `permitAll` rule and the resolver
+  (`SecurityConfig`). Every other route still refuses an expired or invalid token (`SignOutIdleTabIT`,
+  `frontend/e2e/sign-out-idle.spec.ts`).
+- **204 only when the family is sure to end.** When the pending row was held by another transaction and the
+  locked attempt failed too, sign-out used to answer 204 on the assumption that the holder ends the family.
+  That holds for a revocation (commit revokes, rollback restores the committed row), not for an uncommitted
+  insert that rolls back. Sign-out now reads, without a lock, whether the family has no live token or its row
+  is committed; if not, or if the read fails, it logs the ERROR and answers 503 as above. A holder that is an
+  insert still committing after both 2 s waits gets a 503 the family did not need: the answer errs to "not
+  ended" (`SignOutIdleTabIT`, `AuthServiceSignOutTest`).
+- **A refresh that settles after sign-out is dropped.** `clearSession()` bumps an epoch; a refresh that started
+  before it skips its retry and discards its result, so it cannot put the session back in that tab
+  (`session.test.ts`). The server side already ends its successor (the locked revoke or the pending row).
+- **Checked, not changed: expired-token sign-out and the pool.** An expired, never-rotated token takes the
+  pending row and the locked revoke (review r2), so it can wait up to 2 x 2 s, but only while another
+  transaction holds both its row and its lock. No request path holds the lock longer than its own short
+  transaction, and once the family is revoked every later sign-out returns before any lock. 16 concurrent
+  sign-outs with one expired token all answer 204 within 1.5 s and revoke the family
+  (`SignOutIdleTabIT.aBurstOfSignOutsWithAnExpiredTokenDoesNotWaitOnLocks`).
 
 ## Upgrade note: `TASKFLOW_REFRESH_REUSE_GRACE` units
 

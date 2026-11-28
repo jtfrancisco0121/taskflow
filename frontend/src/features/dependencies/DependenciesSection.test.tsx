@@ -153,6 +153,49 @@ describe('FR-9 Dependencies section', () => {
     expect(await screen.findByRole('link', { name: /ACME-3/ })).toBeVisible()
   })
 
+  // ClickUp 14yq6g334u1: lock contention is 503 request.busy; one retry after Retry-After.
+  const busy = () =>
+    new Response(
+      JSON.stringify({
+        status: 503,
+        code: 'request.busy',
+        title: 'x',
+        detail: 'The server is busy',
+      }),
+      { status: 503, headers: { 'Content-Type': 'application/problem+json', 'Retry-After': '0' } },
+    )
+
+  it('retries a busy removal once and keeps it removed without a toast', async () => {
+    let n = 0
+    const stub = serve({ ...none, waitingOn: [item('b3', 3)] }, {
+      'DELETE /api/v1/tasks/:id/dependencies/:depId': () =>
+        ++n === 1 ? busy() : new Response(null, { status: 204 }),
+      'GET /api/v1/tasks/:id': () => json({ ...task, version: 5 }),
+    } as never)
+    const user = userEvent.setup()
+    render()
+    await user.click(await screen.findByRole('button', { name: 'Remove relationship with ACME-3' }))
+    await waitFor(() => expect(stub.count('DELETE', /dependencies\/d3$/)).toBe(2))
+    await waitFor(() => expect(stub.count('GET', /^\/api\/v1\/tasks\/t1$/)).toBe(1))
+    expect(useToastStore.getState().toasts).toEqual([])
+  })
+
+  it('puts a row back with the busy message when the retry is busy too', async () => {
+    const stub = serve({ ...none, waitingOn: [item('b3', 3)] }, {
+      'DELETE /api/v1/tasks/:id/dependencies/:depId': busy,
+    } as never)
+    const user = userEvent.setup()
+    render()
+    await user.click(await screen.findByRole('button', { name: 'Remove relationship with ACME-3' }))
+    await waitFor(() =>
+      expect(useToastStore.getState().toasts.map((t) => t.message)).toEqual([
+        'These tasks are being changed right now. Try again.',
+      ]),
+    )
+    expect(stub.count('DELETE', /dependencies\/d3$/)).toBe(2)
+    expect(await screen.findByRole('link', { name: /ACME-3/ })).toBeVisible()
+  })
+
   it('keeps a removal that succeeded when re-reading the task fails afterwards', async () => {
     let deleted = false
     const stub = serve({ ...none, waitingOn: [item('b3', 3)] }, {

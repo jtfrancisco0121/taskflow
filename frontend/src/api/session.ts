@@ -1,5 +1,6 @@
 import createClient from 'openapi-fetch'
 import type { components, paths } from './schema'
+import { DEFAULT_RETRY_WAIT_MS, MAX_RETRY_WAIT_MS, retryWaitMs } from './retryAfter'
 
 /**
  * AD-2: the access token lives only in this module's memory. It is never written to localStorage,
@@ -17,6 +18,11 @@ let inflight: Promise<string | null> | null = null
 let sessionEndHook: (() => void) | null = null
 /** Refreshes in a row that ended on a transient failure; any token, sign-in or clear resets it. */
 let transientFailures = 0
+/**
+ * Bumped by every clearSession(). A refresh remembers it when it starts and drops its result if it
+ * changed, so a refresh still running when the user signs out cannot sign them back in (14yq6g3353g).
+ */
+let sessionEpoch = 0
 const listeners = new Set<() => void>()
 
 function notify() {
@@ -63,6 +69,7 @@ export function clearSession() {
   accessToken = null
   user = null
   transientFailures = 0
+  sessionEpoch += 1
   if (had) sessionEndHook?.()
   notify()
 }
@@ -70,15 +77,8 @@ export function clearSession() {
 type RefreshOptions = { fetch?: Fetcher; baseUrl?: string }
 
 /** Longest wait honoured from a 503's Retry-After, and the wait when it is missing or unreadable. */
-export const MAX_REFRESH_RETRY_WAIT_MS = 5_000
-const DEFAULT_REFRESH_RETRY_WAIT_MS = 1_000
-
-function retryWaitMs(response: Response): number {
-  const header = response.headers.get('Retry-After')
-  const seconds = header === null || header.trim() === '' ? NaN : Number(header)
-  if (!Number.isFinite(seconds) || seconds < 0) return DEFAULT_REFRESH_RETRY_WAIT_MS
-  return Math.min(seconds * 1_000, MAX_REFRESH_RETRY_WAIT_MS)
-}
+export const MAX_REFRESH_RETRY_WAIT_MS = MAX_RETRY_WAIT_MS
+const DEFAULT_REFRESH_RETRY_WAIT_MS = DEFAULT_RETRY_WAIT_MS
 
 /**
  * Refreshes in a row that may end on a transient failure before the session is cleared. Below it, a
@@ -126,12 +126,16 @@ async function attempt(plain: ReturnType<typeof createClient<paths>>): Promise<A
 async function doRefresh(fetcher: Fetcher, baseUrl: string): Promise<string | null> {
   // A client without the auth middleware: no circular import and no 401 loop.
   const plain = createClient<paths>({ baseUrl, fetch: fetcher })
+  const epoch = sessionEpoch
   let result = await attempt(plain)
   if (result.kind === 'transient') {
     const { waitMs } = result
     await new Promise((resolve) => setTimeout(resolve, waitMs))
+    if (epoch !== sessionEpoch) return null
     result = await attempt(plain)
   }
+  // The session was cleared (signed out) while this refresh ran: whatever it got, it is not ours.
+  if (epoch !== sessionEpoch) return null
   if (result.kind === 'ok') {
     setSession(result.token, result.user)
     return result.token

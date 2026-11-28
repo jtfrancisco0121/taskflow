@@ -103,7 +103,7 @@ abstract class StompTestSupport extends IntegrationTest {
       headers.add("Authorization", "Bearer " + token);
     }
     client.connectAsync(
-        "ws://localhost:" + serverPort + "/ws",
+        "ws://" + HOST + ":" + serverPort + "/ws",
         new WebSocketHttpHeaders(),
         headers,
         new StompSessionHandlerAdapter() {

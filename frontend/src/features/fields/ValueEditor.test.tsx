@@ -5,7 +5,7 @@ import type { FieldView } from '../../api/types'
 import { formatValue, safeHref } from './format'
 import { ValueCell } from './ValueCell'
 import { ValueEditor } from './ValueEditor'
-import { pick } from '../../test/ui'
+import { pick, fill } from '../../test/ui'
 
 const field = (type: FieldView['type'], extra: Partial<FieldView> = {}): FieldView => ({
   id: 'f1',
@@ -177,7 +177,7 @@ describe('value editors (AD-12)', () => {
     const { rerender } = render(
       <ValueEditor field={field('DATE')} value={undefined} label="Due" onCommit={onCommit} />,
     )
-    await user.type(screen.getByLabelText('Due'), '2026-12-31')
+    await fill(user, screen.getByLabelText('Due'), '2026-12-31')
     expect(onCommit).toHaveBeenLastCalledWith('2026-12-31T00:00:00Z')
 
     rerender(

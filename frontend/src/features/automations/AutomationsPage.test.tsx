@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { AutomationsPage } from './AutomationsPage'
-import { expectValue, findOption, optionsOf, pick } from '../../test/ui'
+import { expectValue, findOption, optionsOf, pick, fill } from '../../test/ui'
 
 const baseRoutes = {
   'GET /api/v1/workspaces/:id/members': {
@@ -100,7 +100,7 @@ describe('CAP-8 Automations page', () => {
     renderPage()
     await user.click(await screen.findByRole('button', { name: 'New rule' }))
     const dialog = await screen.findByRole('dialog')
-    await user.type(within(dialog).getByLabelText('Rule name'), 'Done notes')
+    await fill(user, within(dialog).getByLabelText('Rule name'), 'Done notes')
     const from = within(dialog).getByLabelText('From status (optional)')
     const to = within(dialog).getByLabelText('To status (optional)')
     await findOption(user, from, 'Done')
@@ -127,7 +127,7 @@ describe('CAP-8 Automations page', () => {
     renderPage()
     await user.click(await screen.findByRole('button', { name: 'New rule' }))
     const dialog = await screen.findByRole('dialog')
-    await user.type(within(dialog).getByLabelText('Rule name'), 'Any status')
+    await fill(user, within(dialog).getByLabelText('Rule name'), 'Any status')
     const from = within(dialog).getByLabelText('From status (optional)')
     const to = within(dialog).getByLabelText('To status (optional)')
     await pick(user, from, 'Done')

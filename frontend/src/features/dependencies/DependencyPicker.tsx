@@ -4,7 +4,7 @@ import { api } from '../../api/client'
 import { ApiError, messageOf, unwrap } from '../../api/errors'
 import type { DependencyRelation, SearchHit, TaskView } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
-import { useAddDependency } from './useDependencies'
+import { BUSY_MESSAGE, useAddDependency } from './useDependencies'
 import { RELATIONS, RELATION_LABEL } from './relations'
 import { hasData, loadFailed } from '../../api/queryState'
 
@@ -43,8 +43,8 @@ async function refusal(error: unknown): Promise<string> {
       return 'A task can have at most 100 relationships.'
     case 'dependency.self':
       return "A task can't be related to itself."
-    case 'dependency.busy':
-      return 'These tasks are being changed right now. Try again.'
+    case 'request.busy':
+      return BUSY_MESSAGE
     case 'task.version_conflict':
       return 'This task changed. Try again.'
     case 'task.not_found':
