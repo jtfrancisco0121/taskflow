@@ -138,7 +138,8 @@ export default tseslint.config(
         {
           // ClickUp 14yq6g334rp: right after a view switch, "Columns" can hit the old view's picker, and the
           // new view then mounts a closed one. openColumns() waits for the view and checks the picker is open.
-          selector: "Literal[value='Columns'], Literal[regex.pattern=/^\\^?Columns\\$?$/]",
+          selector:
+            'Literal[value=/^\\s*columns\\s*$/i], Literal[regex.pattern=/columns/i], TemplateElement[value.raw=/^\\s*columns\\s*$/i]',
           message:
             'Use openColumns() from e2e/helpers.ts: it waits for the view and checks the picker opened.',
         },
