@@ -21,14 +21,39 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
  * Base for Testcontainers integration tests: real HTTP against the application. Every IT extends it
  * and they share one Spring context (ClickUp 14yq6g334t6, counted by ItContextBudgetTest): the
  * {@link TaskReader} spy (real calls, reset after each test) serves the tests that hold a view
- * query mid-read, so they need no context of their own; get it with {@code @Autowired}.
+ * query mid-read, so they need no context of their own; get it with {@code @Autowired}. The server
+ * listens on 127.0.0.1 only and every client calls that address (ClickUp 14yq6g334e2, guarded by
+ * LoopbackServerGuardTest).
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = "server.address=" + IntegrationTest.HOST)
 @Import(TestcontainersConfiguration.class)
 @MockitoSpyBean(types = TaskReader.class)
 public abstract class IntegrationTest {
 
+  /** The only address the test server listens on and the clients call (ClickUp 14yq6g334e2). */
+  public static final String HOST = "127.0.0.1";
+
   @Autowired protected TestRestTemplate rest;
+
+  @org.springframework.boot.test.web.server.LocalServerPort private int serverPort;
+
+  /**
+   * TestRestTemplate calls "localhost" by default; the server listens on {@link #HOST} only, so the
+   * client calls that address too and never reaches another process on the same port.
+   */
+  @org.junit.jupiter.api.BeforeEach
+  void callTheTestServerOnLoopback() {
+    rest.setUriTemplateHandler(
+        new org.springframework.web.util.DefaultUriBuilderFactory(baseUrl("http")));
+  }
+
+  /** The test server's base URL, for example {@code baseUrl("ws")} for STOMP. */
+  protected String baseUrl(String scheme) {
+    return scheme + "://" + HOST + ":" + serverPort;
+  }
+
   @Autowired protected ObjectMapper mapper;
   @Autowired protected JdbcTemplate jdbc;
 

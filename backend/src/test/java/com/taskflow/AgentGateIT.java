@@ -28,7 +28,7 @@ class AgentGateIT extends ServiceAccountTestBase {
 
   private McpSyncClient client(String key) {
     HttpClientStreamableHttpTransport transport =
-        HttpClientStreamableHttpTransport.builder("http://localhost:" + port)
+        HttpClientStreamableHttpTransport.builder("http://" + HOST + ":" + port)
             .endpoint("/api/v1/mcp")
             .customizeRequest(request -> request.header("Authorization", "Bearer " + key))
             .build();
