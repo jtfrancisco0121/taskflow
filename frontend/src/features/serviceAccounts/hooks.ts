@@ -143,15 +143,19 @@ export function useCreateApiKey(workspaceId: string, id: string) {
   })
 }
 
+/** Revokes one key (the same DELETE the Revoke button sends); usable outside a component. */
+export function revokeApiKey(workspaceId: string, id: string, keyId: string) {
+  return unwrap(
+    api.DELETE('/api/v1/workspaces/{workspaceId}/service-accounts/{id}/api-keys/{keyId}', {
+      params: { path: { workspaceId, id, keyId } },
+    }),
+  )
+}
+
 export function useRevokeApiKey(workspaceId: string, id: string) {
   const refresh = useRefresh(workspaceId)
   return useMutation({
-    mutationFn: (keyId: string) =>
-      unwrap(
-        api.DELETE('/api/v1/workspaces/{workspaceId}/service-accounts/{id}/api-keys/{keyId}', {
-          params: { path: { workspaceId, id, keyId } },
-        }),
-      ),
+    mutationFn: (keyId: string) => revokeApiKey(workspaceId, id, keyId),
     onSuccess: refresh,
   })
 }

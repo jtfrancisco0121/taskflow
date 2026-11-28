@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { AuditTab } from './AuditTab'
 import { KeysTab } from './KeysTab'
@@ -253,6 +254,77 @@ describe('slice 9c agent access', () => {
       eager: true,
     }) as Record<string, string>
     expect(Object.values(shots)[0]).toMatch(/mask: \[page\.locator\('[^']*\[data-secret\]/)
+  })
+
+  it('9c-6b: while the key is being created, Cancel and Escape cannot close the dialog', async () => {
+    let answer: (r: Response) => void = () => {}
+    installFetch({
+      [`GET ${ONE}/api-keys`]: () => json([]),
+      [`POST ${ONE}/api-keys`]: () => new Promise<Response>((resolve) => (answer = resolve)),
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<KeysTab workspaceId={WS} accountId="sa1" />)
+    await screen.findByRole('heading', { name: 'No keys yet' })
+    await user.click(screen.getByRole('button', { name: 'Create key' }))
+    const create = screen.getByRole('dialog', { name: 'Create key' })
+    await user.type(within(create).getByLabelText('Name'), 'CI-1')
+    await user.click(within(create).getByRole('button', { name: 'Create key' }))
+    expect(await within(create).findByRole('button', { name: 'Creating…' })).toBeDisabled()
+    expect(within(create).getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog', { name: 'Create key' })).toBeVisible()
+    answer(json({ key: key(), secret: SECRET }, 201))
+    const shown = await screen.findByRole('dialog', { name: 'Key CI-1 created' })
+    expect(within(shown).getByLabelText('API key')).toHaveTextContent(SECRET)
+  })
+
+  it('9c-6c: a key whose dialog unmounts mid-request is revoked and the user is told, without the secret', async () => {
+    useToastStore.setState({ toasts: [] })
+    let answer: (r: Response) => void = () => {}
+    const stub = installFetch({
+      [`GET ${ONE}/api-keys`]: () => json([]),
+      [`POST ${ONE}/api-keys`]: () => new Promise<Response>((resolve) => (answer = resolve)),
+      [`DELETE ${ONE}/api-keys/:id`]: () => new Response(null, { status: 204 }),
+    })
+    const user = userEvent.setup()
+    const { unmount } = renderWithProviders(<KeysTab workspaceId={WS} accountId="sa1" />)
+    await screen.findByRole('heading', { name: 'No keys yet' })
+    await user.click(screen.getByRole('button', { name: 'Create key' }))
+    const create = screen.getByRole('dialog', { name: 'Create key' })
+    await user.type(within(create).getByLabelText('Name'), 'CI-1')
+    await user.click(within(create).getByRole('button', { name: 'Create key' }))
+    await within(create).findByRole('button', { name: 'Creating…' })
+    unmount()
+    answer(json({ key: key(), secret: SECRET }, 201))
+    await waitFor(() => expect(stub.count('DELETE', /api-keys\/k1$/)).toBe(1))
+    await waitFor(() =>
+      expect(useToastStore.getState().toasts.map((t) => t.message)).toContain(
+        'Key CI-1 was created while its window was closing, so it was revoked. Create a new key.',
+      ),
+    )
+    expect(JSON.stringify(useToastStore.getState().toasts)).not.toContain(SECRET)
+  })
+
+  it('9c-6d: a create that fails after the dialog unmounts revokes nothing', async () => {
+    useToastStore.setState({ toasts: [] })
+    let answer: (r: Response) => void = () => {}
+    const stub = installFetch({
+      [`GET ${ONE}/api-keys`]: () => json([]),
+      [`POST ${ONE}/api-keys`]: () => new Promise<Response>((resolve) => (answer = resolve)),
+    })
+    const user = userEvent.setup()
+    const { unmount } = renderWithProviders(<KeysTab workspaceId={WS} accountId="sa1" />)
+    await screen.findByRole('heading', { name: 'No keys yet' })
+    await user.click(screen.getByRole('button', { name: 'Create key' }))
+    const create = screen.getByRole('dialog', { name: 'Create key' })
+    await user.type(within(create).getByLabelText('Name'), 'CI-1')
+    await user.click(within(create).getByRole('button', { name: 'Create key' }))
+    await within(create).findByRole('button', { name: 'Creating…' })
+    unmount()
+    answer(problem(500, 'internal', 'Nope'))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(stub.count('DELETE', /api-keys/)).toBe(0)
+    expect(useToastStore.getState().toasts).toEqual([])
   })
 
   it('9c-7: a member who opens an account URL sees the 403 copy, no keys and no Create key', async () => {
