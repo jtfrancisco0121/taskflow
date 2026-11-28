@@ -144,7 +144,9 @@ class AuthServiceSignOutTest {
 
       auth.signOut(RAW);
 
-      assertThat(jdbc.steps).as(state).containsExactly(Step.LOOKUP, Step.PENDING, Step.LOCK);
+      assertThat(jdbc.steps)
+          .as(state)
+          .containsExactly(Step.LOOKUP, Step.PENDING, Step.LOCK, Step.CONFIRM);
       assertThat(at(Level.ERROR)).as(state).isEmpty();
       assertThat(at(Level.WARN))
           .as(state)
@@ -221,12 +223,62 @@ class AuthServiceSignOutTest {
     assertNoTokenLogged();
   }
 
+  /**
+   * ClickUp 14yq6g3353g: the transaction holding the row may be an insert that rolls back. With the
+   * locked attempt busy too, sign-out answers normally only if the family is sure to end.
+   */
+  @Test
+  void contentionOnBothWhenTheFamilyIsNotSureToEndLogsOneErrorAndAnswersBusy() {
+    jdbc.failures.put(Step.PENDING, sqlState("55P03"));
+    jdbc.failures.put(Step.LOCK, sqlState("55P03"));
+    jdbc.familySureToEnd = false;
+
+    Throwable thrown = org.assertj.core.api.Assertions.catchThrowable(() -> auth.signOut(RAW));
+
+    assertBusy(thrown);
+    assertThat(jdbc.steps).containsExactly(Step.LOOKUP, Step.PENDING, Step.LOCK, Step.CONFIRM);
+    assertThat(logs.list)
+        .singleElement()
+        .satisfies(e -> {
+          assertThat(e.getLevel()).isEqualTo(Level.ERROR);
+          assertThat(e.getFormattedMessage()).contains(family.toString());
+          assertThat(e.getThrowableProxy()).isNull();
+        });
+    assertNoTokenLogged();
+  }
+
+  @Test
+  void contentionOnBothWhenTheCheckFailsAnswersBusy() {
+    jdbc.failures.put(Step.PENDING, sqlState("55P03"));
+    jdbc.failures.put(Step.LOCK, sqlState("55P03"));
+    jdbc.failures.put(Step.CONFIRM, new DataAccessResourceFailureException("connection lost"));
+
+    Throwable thrown = org.assertj.core.api.Assertions.catchThrowable(() -> auth.signOut(RAW));
+
+    assertBusy(thrown);
+    assertThat(at(Level.ERROR)).singleElement();
+    assertNoTokenLogged();
+  }
+
+  @Test
+  void contentionOnTheRowOnlyNeedsNoCheckWhenTheLockedRevokeLands() {
+    jdbc.failures.put(Step.PENDING, sqlState("55P03"));
+    jdbc.familySureToEnd = false;
+
+    auth.signOut(RAW);
+
+    assertThat(jdbc.steps)
+        .containsExactly(Step.LOOKUP, Step.PENDING, Step.LOCK, Step.REVOKE, Step.CLEAR_PENDING);
+    assertThat(logs.list).isEmpty();
+  }
+
   enum Step {
     LOOKUP,
     PENDING,
     LOCK,
     REVOKE,
-    CLEAR_PENDING
+    CLEAR_PENDING,
+    CONFIRM
   }
 
   /** The token's family is live; each step records itself and throws its queued failure. */
@@ -236,6 +288,7 @@ class AuthServiceSignOutTest {
     boolean inTransaction;
     boolean lockTimeoutSet;
     Boolean pendingBounded;
+    boolean familySureToEnd = true;
 
     private void step(Step step) {
       steps.add(step);
@@ -249,6 +302,12 @@ class AuthServiceSignOutTest {
     public <T> List<T> queryForList(String sql, Class<T> type, Object... args) {
       step(Step.LOOKUP);
       return List.of(type.cast(family));
+    }
+
+    @Override
+    public <T> T queryForObject(String sql, Class<T> type, Object... args) {
+      step(Step.CONFIRM);
+      return type.cast(familySureToEnd);
     }
 
     @Override
