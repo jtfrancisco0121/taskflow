@@ -100,6 +100,33 @@ export function cachedVersion(
   return undefined
 }
 
+/**
+ * PR #45 review 1: the newest version any cached copy of the task holds (task cache, view pages, subtask scans), for a
+ * write's If-Match. Versions only grow, so the highest is the freshest: a task detail no screen shows is not refetched
+ * by a refresh and can be older than the views that were.
+ */
+export function freshestVersion(
+  queryClient: QueryClient,
+  workspaceId: string,
+  taskId: string,
+): number | undefined {
+  const versions: number[] = []
+  const own = queryClient.getQueryData<TaskView>(queryKeys.task(taskId))
+  if (own?.version != null) versions.push(own.version)
+  for (const [, data] of queryClient.getQueriesData<ViewPages>({
+    queryKey: queryKeys.viewsAll(workspaceId),
+  }))
+    for (const page of data?.pages ?? [])
+      for (const item of page.items ?? [])
+        if (item.task?.id === taskId && item.task.version != null) versions.push(item.task.version)
+  for (const [, scan] of queryClient.getQueriesData<SubtaskScan>({
+    queryKey: queryKeys.subtaskScanAll(),
+  }))
+    for (const t of scan?.tasks ?? [])
+      if (t.id === taskId && t.version != null) versions.push(t.version)
+  return versions.length > 0 ? Math.max(...versions) : undefined
+}
+
 /** The cached copy of a task (task cache first, then any view page), or undefined when none is cached. */
 export function cachedTask(
   queryClient: QueryClient,

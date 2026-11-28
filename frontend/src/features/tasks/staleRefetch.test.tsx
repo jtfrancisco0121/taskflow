@@ -1,4 +1,5 @@
 import {
+  InfiniteQueryObserver,
   QueryClientProvider,
   QueryObserver,
   type InfiniteData,
@@ -12,7 +13,7 @@ import { queryKeys } from '../../api/queryKeys'
 import type { TaskView, ViewConfig, ViewQueryResponse } from '../../api/types'
 import { installFetch, json, newQueryClient } from '../../test/api'
 import { useToastStore } from '../../shared/toast-store'
-import { flushViewRefreshNow, regroups } from './taskCaches'
+import { flushViewRefreshNow, regroups, writeTaskToCaches } from './taskCaches'
 import { useOptimisticTaskMutation } from './useOptimisticTaskMutation'
 import { useUpdateTask } from './useUpdateTask'
 
@@ -415,5 +416,123 @@ describe('14yq6g334bn PR #35 review items 3 and 4', () => {
     // Negative: a real value is still a group change.
     expect(regroups(before, task({ customFields: { f1: 'o-a' } }))).toBe(true)
     expect(regroups(before, task({ customFields: { f1: ['o-a'] } }))).toBe(true)
+  })
+})
+
+describe('PR #45 review round 2', () => {
+  beforeEach(() => useToastStore.setState({ toasts: [] }))
+
+  it('R2-1: after a lost response, a queued write sends the newest version although the cached detail is not shown', async () => {
+    const queryClient = newQueryClient()
+    const view = watch(queryClient, viewKey, pages(task()))
+    // The task detail is cached (a panel was open earlier) but nothing observes it: a refresh does not refetch it.
+    queryClient.setQueryData(queryKeys.task('t1'), task())
+    const { result } = renderHook(() => useOptimisticTaskMutation(), {
+      wrapper: wrapperFor(queryClient),
+    })
+    const versions: Array<number | undefined> = []
+    const first = result.current({
+      task: task(),
+      optimistic: { priority: 'URGENT' },
+      silent: true,
+      send: async () => {
+        throw new TypeError('network') // landed as v4, answer lost
+      },
+    })
+    const second = result.current({
+      task: task(),
+      optimistic: { title: 'Next' },
+      silent: true,
+      send: async (version) => {
+        versions.push(version)
+        return {
+          response: new Response(null, { status: 200 }),
+          data: task({ priority: 'URGENT', title: 'Next', version: 5 }),
+        }
+      },
+    })
+    await waitFor(() => expect(view.calls.length).toBeGreaterThan(0))
+    act(() => view.answer(view.calls.length - 1, pages(task({ priority: 'URGENT', version: 4 }))))
+    expect(await act(() => first)).toBe('failed')
+    expect(await act(() => second)).toBe('saved')
+    expect(versions).toEqual([4])
+    view.stop()
+  })
+
+  it('R2-2: a refused save with a Load more in flight reads the view again after it lands', async () => {
+    const queryClient = newQueryClient()
+    const reads = heldReads<ViewQueryResponse>()
+    const observer = new InfiniteQueryObserver(queryClient, {
+      queryKey: viewKey,
+      queryFn: reads.queryFn as never,
+      initialPageParam: undefined as string | undefined,
+      getNextPageParam: (last: ViewQueryResponse) => last.nextCursor ?? undefined,
+      staleTime: Infinity,
+      retry: false,
+    })
+    const stop = observer.subscribe(() => {})
+    await waitFor(() => expect(reads.calls).toHaveLength(1))
+    act(() => reads.answer(0, { items: [{ group: 'a', task: task() }], nextCursor: 'c2' }))
+    await waitFor(() => expect(shownIn(queryClient)?.title).toBe('One'))
+    const { result } = renderHook(() => useOptimisticTaskMutation(), {
+      wrapper: wrapperFor(queryClient),
+    })
+    let answer!: () => void
+    const gate = new Promise<void>((resolve) => (answer = resolve))
+    const saving = result.current({
+      task: task(),
+      optimistic: { title: 'Mine' },
+      silent: true,
+      send: async () => {
+        await gate
+        return {
+          response: new Response(null, { status: 403 }),
+          error: { code: 'access.denied' },
+        }
+      },
+    })
+    await waitFor(() => expect(shownIn(queryClient)?.title).toBe('Mine'))
+    // Load more starts after the optimistic change: it rebuilds from pages holding "Mine".
+    void observer.fetchNextPage()
+    await waitFor(() => expect(reads.calls).toHaveLength(2))
+    answer()
+    expect(await act(() => saving)).toBe('failed')
+    expect(shownIn(queryClient)?.title).toBe('One')
+    act(() => reads.answer(1, { items: [{ group: 'a', task: task({ id: 't9' }) }] }))
+    // Read again after it lands (both pages), answered with the server's truth.
+    await waitFor(() => expect(reads.calls).toHaveLength(3))
+    act(() => reads.answer(2, { items: [{ group: 'a', task: task() }], nextCursor: 'c2' }))
+    await waitFor(() => expect(reads.calls).toHaveLength(4))
+    act(() => reads.answer(3, { items: [{ group: 'a', task: task({ id: 't9' }) }] }))
+    await waitFor(() => expect(queryClient.getQueryState(viewKey)?.fetchStatus).toBe('idle'))
+    expect(shownIn(queryClient)?.title).toBe('One')
+    stop()
+  })
+
+  it('R2-m1: undoing a lost write keeps a newer copy another save wrote meanwhile', async () => {
+    const queryClient = newQueryClient()
+    const b = task({ id: 'tB', title: 'B' })
+    queryClient.setQueryData(viewKey, pages(b))
+    const { result } = renderHook(() => useOptimisticTaskMutation(), {
+      wrapper: wrapperFor(queryClient),
+    })
+    const run = result.current({
+      task: b,
+      optimistic: { priority: 'URGENT' },
+      silent: true,
+      send: async () => {
+        // A task panel save of B answers first and is written everywhere.
+        writeTaskToCaches(
+          queryClient,
+          task({ id: 'tB', title: 'Panel', priority: 'URGENT', version: 5 }),
+        )
+        throw new TypeError('network')
+      },
+    })
+    expect(await act(() => run)).toBe('failed')
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)))
+    const shown = shownIn(queryClient)
+    expect(shown?.version).toBe(5)
+    expect(shown?.title).toBe('Panel')
   })
 })

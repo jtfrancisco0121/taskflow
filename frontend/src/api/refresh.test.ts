@@ -1,7 +1,12 @@
-import { QueryObserver } from '@tanstack/react-query'
+import { InfiniteQueryObserver, QueryObserver } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
 import { newQueryClient } from '../test/api'
-import { cancelThenInvalidate, restartFirstLoads, setDataRestartingFetches } from './refresh'
+import {
+  cancelThenInvalidate,
+  restartFirstLoads,
+  restartQueries,
+  setDataRestartingFetches,
+} from './refresh'
 
 describe('restartFirstLoads', () => {
   it('leaves a loaded query alone (no extra request)', async () => {
@@ -116,6 +121,47 @@ describe('setDataRestartingFetches (14yq6g334bn)', () => {
     await new Promise((resolve) => setTimeout(resolve, 10))
     expect(queryFn).not.toHaveBeenCalled()
     expect(queryClient.getQueryData(key)).toBe('saved')
+    stop()
+  })
+})
+
+describe('restartQueries and a Load more (PR #45 review 3)', () => {
+  it('does not cancel a Load more in flight: its page is kept and the query is read again after it lands', async () => {
+    const queryClient = newQueryClient()
+    const key = ['ws', 'w1', 'view', 'l1']
+    const calls: Array<{ cursor?: string; aborted: boolean; resolve: (v: unknown) => void }> = []
+    const observer = new InfiniteQueryObserver(queryClient, {
+      queryKey: key,
+      queryFn: ({ pageParam, signal }: { pageParam: string | undefined; signal: AbortSignal }) =>
+        new Promise((resolve) => {
+          const call = { cursor: pageParam, aborted: false, resolve }
+          signal.addEventListener('abort', () => (call.aborted = true))
+          calls.push(call)
+        }),
+      initialPageParam: undefined as string | undefined,
+      getNextPageParam: (last: { next?: string }) => last.next,
+      staleTime: Infinity,
+      retry: false,
+    } as never)
+    const stop = observer.subscribe(() => {})
+    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    calls[0].resolve({ rows: ['a'], next: 'c2' })
+    await vi.waitFor(() => expect(queryClient.getQueryState(key)?.status).toBe('success'))
+    void observer.fetchNextPage()
+    await vi.waitFor(() => expect(calls).toHaveLength(2))
+    const hash = queryClient.getQueryCache().find({ queryKey: key })!.queryHash
+    void restartQueries(queryClient, new Set([hash]))
+    expect(calls[1].aborted).toBe(false)
+    calls[1].resolve({ rows: ['b'] })
+    // Read again after it lands: page 1 then page 2.
+    await vi.waitFor(() => expect(calls).toHaveLength(3))
+    expect(calls[2].cursor).toBeUndefined()
+    calls[2].resolve({ rows: ['a'], next: 'c2' })
+    await vi.waitFor(() => expect(calls).toHaveLength(4))
+    calls[3].resolve({ rows: ['b'] })
+    await vi.waitFor(() => expect(queryClient.getQueryState(key)?.fetchStatus).toBe('idle'))
+    const data = queryClient.getQueryData<{ pages: unknown[] }>(key)
+    expect(data?.pages).toHaveLength(2)
     stop()
   })
 })

@@ -19,7 +19,7 @@ import type { TaskView, ViewQueryResponse } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 import {
   cachedTask,
-  cachedVersion,
+  freshestVersion,
   patchTaskInCaches,
   refreshAfterTaskWrite,
   regroups,
@@ -115,18 +115,28 @@ export function useOptimisticTaskMutation() {
 
 type Pages = InfiniteData<ViewQueryResponse>
 
-/** Puts the task's copy from `snapshot` back into a view's current pages; the view's other changes stay. */
+/**
+ * Puts the task's copy from `snapshot` back into a view's current pages; the view's other changes stay. Only when the
+ * copy there is still the one this write patched (same version as in `applied`): a newer copy came from another save
+ * (a task panel edit) or the server and is kept (PR #45 review r1 m1).
+ */
 function putTaskBack(
   queryClient: QueryClient,
   queryKey: QueryKey,
   snapshot: unknown,
   taskId: string,
+  applied: unknown,
 ) {
-  let before: TaskView | undefined
-  for (const page of (snapshot as Pages | undefined)?.pages ?? [])
-    before ??= page.items?.find((item) => item.task?.id === taskId)?.task
-  if (!before) return
-  const copy = before
+  const find = (data: unknown) => {
+    for (const page of (data as Pages | undefined)?.pages ?? []) {
+      const hit = page.items?.find((item) => item.task?.id === taskId)?.task
+      if (hit) return hit
+    }
+    return undefined
+  }
+  const copy = find(snapshot)
+  if (!copy) return
+  const patchedVersion = find(applied)?.version
   queryClient.setQueryData<Pages>(queryKey, (data) =>
     data?.pages
       ? {
@@ -134,7 +144,9 @@ function putTaskBack(
           pages: data.pages.map((page) => ({
             ...page,
             items: page.items?.map((item) =>
-              item.task?.id === taskId ? { ...item, task: copy } : item,
+              item.task?.id === taskId && item.task.version === patchedVersion
+                ? { ...item, task: copy }
+                : item,
             ),
           })),
         }
@@ -202,7 +214,7 @@ async function execute(
       else {
         changed.add(query.queryHash)
         // A plain field patch is undone in place: the task's own copy goes back, the rest of the view stays.
-        if (!job.apply) putTaskBack(queryClient, query.queryKey, data, id)
+        if (!job.apply) putTaskBack(queryClient, query.queryKey, data, id, applied.get(query))
       }
     }
     const now = taskQuery()
@@ -213,6 +225,14 @@ async function execute(
   /** A refusal (4xx) wrote nothing: undo, then read again the views that changed and the reads cancelled at start. */
   const refuse = () => {
     const changed = undo()
+    // PR #45 review 2: a Load more in flight rebuilds its pages from the cache it started with, which may hold this
+    // write's change: it is read again once it lands (restartQueries never cancels a Load more).
+    const loadingMore = new Set(
+      views.flatMap(({ query }) =>
+        cache.get(query.queryHash) === query && isLoadingMore(query) ? [query.queryHash] : [],
+      ),
+    )
+    inBackground(restartQueries(queryClient, loadingMore))
     const reread = new Set(
       [...startViews, ...changed].filter(
         (hash) => cache.get(hash)?.state.fetchStatus !== 'fetching',
@@ -250,7 +270,7 @@ async function execute(
   try {
     let result: SendResult
     try {
-      result = await job.send(cachedVersion(queryClient, workspaceId, id) ?? job.task.version)
+      result = await job.send(freshestVersion(queryClient, workspaceId, id) ?? job.task.version)
     } catch {
       show(messageOf(networkError()), 'error')
       watchUntil(refreshThenUndo())
