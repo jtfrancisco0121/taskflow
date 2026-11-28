@@ -44,7 +44,7 @@ describe('KeysTab', () => {
       },
     })
     const { queryClient } = renderWithProviders(<KeysTab workspaceId="w1" accountId="sa1" />)
-    expect(await screen.findByText('No keys. Create one to connect an agent.')).toBeVisible()
+    expect(await screen.findByRole('heading', { name: 'No keys yet' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Create key' }))
     const create = screen.getByRole('dialog', { name: 'Create key' })
     await user.type(within(create).getByLabelText('Name'), 'CI-1')

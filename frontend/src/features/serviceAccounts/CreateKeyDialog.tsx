@@ -69,7 +69,7 @@ export function CreateKeyDialog({ workspaceId, accountId, onClose, onCreated }: 
             options={EXPIRY}
           />
           {pastExpiry && (
-            <p role="alert" className="text-sm text-red-700">
+            <p role="alert" className="text-sm text-danger">
               {messageOf(create.error)}
             </p>
           )}
