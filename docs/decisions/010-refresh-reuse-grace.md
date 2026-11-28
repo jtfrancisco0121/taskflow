@@ -206,9 +206,12 @@ Follow-ups from the PR #33 reviews, after the decision was implemented. All in `
   nothing.
 - **Expiry boundary.** A token whose `expires_at` equals `now()` is expired everywhere: when presented, in the
   dead-token check before the lock, and in the grace check's "the successor is live" (`RefreshExpiryBoundaryIT`).
-- **The client keeps the session on a busy server.** A refresh answered 503 is retried once after
-  `Retry-After` (at most 5 s, 1 s if missing); only a 401 ends the session in the browser
-  (`frontend/src/api/session.ts`, `client.ts`).
+- **The client keeps the session through a transient failure, never through a dead one** (PR #36 review).
+  A refresh answered 5xx, 408, 429 or not at all (the network) is retried once after `Retry-After` (at most
+  5 s, 1 s if missing); the session is kept until 3 refreshes in a row end that way, then cleared. A
+  definitive answer (401, any other 4xx, a 2xx without an access token) clears the session at once and the
+  app goes to sign-in, so the browser never keeps an access token the server rejected
+  (`frontend/src/api/session.ts`, `session.test.ts`, `client.ts`).
 - **Lock contention classification.** `DependencyService` uses the shared `LockContention` (40P01, 40001,
   55P03). It still answers 409 `dependency.busy` where the global mapping answers 503 `request.busy`; which
   status the API should use is open, for JT Francisco.
