@@ -103,6 +103,32 @@ describe('a failed background refresh keeps the view (14yq6g334fe)', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it('a refresh of the views that fails with 404 shows only the error, not the stale view', async () => {
+    const state = { fail: false }
+    serve(state, {
+      'GET /api/v1/locations/:id/views': () =>
+        state.fail
+          ? problem(404, 'location.not_found', 'Gone')
+          : json({
+              items: [{ defaultKind: 'LIST', name: 'List', type: 'LIST', config: { v: 1 } }],
+            }),
+      'POST /api/v1/views/query': rows,
+    })
+    const { queryClient } = renderWithProviders(
+      <Routes>
+        <Route path="/w/:workspaceId/l/:locationId" element={<LocationViewRoute />} />
+      </Routes>,
+      { route: '/w/w1/l/l1' },
+    )
+    expect(await screen.findByRole('link', { name: 'Task 1' })).toBeVisible()
+
+    state.fail = true
+    await act(() => queryClient.refetchQueries({ queryKey: ['ws', 'w1', 'viewList'] }))
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Task 1' })).toBeNull())
+    expect(screen.getByRole('alert')).toBeVisible()
+    expect(notice()).toBeNull()
+  })
+
   it('a failed first load still shows the error state with Retry, and no refresh notice', async () => {
     serve({ fail: true })
     renderWithProviders(<ListRenderer scope={scope} config={{ v: 1 }} />, { route: '/w/w1/l/l1' })

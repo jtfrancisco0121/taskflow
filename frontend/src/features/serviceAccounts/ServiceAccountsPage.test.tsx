@@ -215,6 +215,23 @@ describe('ServiceAccountsLink', () => {
       expect(screen.getByRole('tablist', { name: 'Service account' })).toBeVisible()
     })
 
+    it('a refresh that fails with 404 shows only the error, with no stale accounts', async () => {
+      const state = { fail: false }
+      installFetch({
+        [`GET ${BASE}`]: () =>
+          state.fail ? problem(404, 'workspace.not_found', 'No') : json({ items: [account()] }),
+      })
+      const { queryClient } = renderPage()
+      await screen.findByRole('table', { name: 'Service accounts' })
+
+      state.fail = true
+      await act(() => queryClient.refetchQueries())
+      expect(await screen.findByRole('alert')).toBeVisible()
+      expect(screen.queryByRole('table', { name: 'Service accounts' })).toBeNull()
+      expect(screen.queryByRole('link', { name: 'triage-agent' })).toBeNull()
+      expect(screen.queryByRole('status', { name: 'Couldn’t refresh' })).toBeNull()
+    })
+
     it('a failed first load still shows the error with Retry, and no refresh notice', async () => {
       installFetch({ [`GET ${BASE}`]: problem(500, 'internal.error', 'The request failed') })
       renderPage()

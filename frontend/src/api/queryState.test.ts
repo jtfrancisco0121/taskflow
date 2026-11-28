@@ -42,6 +42,8 @@ describe('query load states', () => {
       expect(loadFailed(failedWith(status))).toBe(true)
       expect(refreshFailed(failedWith(status))).toBe(false)
     }
+    for (const status of [401, 403, 404]) expect(hasData(failedWith(status))).toBe(false)
+    expect(hasData(failedWith(500))).toBe(true)
     expect(loadFailed(failedWith(500))).toBe(false)
     expect(refreshFailed(failedWith(500))).toBe(true)
   })

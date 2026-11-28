@@ -5,7 +5,7 @@
  * rule in eslint.config.js keeps it that way):
  * - `loadFailed`: the error screen: the first load failed, or a read failed with 401/403/404 (gone, no access, session).
  * - `refreshFailed`: any other refresh failure: the data stays on screen, with a RefreshNotice (stale data plus Retry).
- * - `hasData`: render the data, whether or not the last refresh failed.
+ * - `hasData`: render the data, whether or not the last refresh failed (false after a 401/403/404).
  */
 import { ApiError } from './errors'
 
@@ -30,9 +30,12 @@ export function refreshFailed(query: QueryLike): boolean {
   return query.status === 'error' && query.data !== undefined && !terminal(query.error)
 }
 
-/** The query holds data to render (a `null` result counts), whether or not the last refresh failed. */
+/**
+ * The query holds data to render (a `null` result counts), also after a failed refresh, but not after a 401, 403 or
+ * 404: that data is gone or no longer visible, and the screen shows only its error (loadFailed).
+ */
 export function hasData<T extends QueryLike>(
   query: T,
 ): query is T & { data: Exclude<T['data'], undefined> } {
-  return query.data !== undefined
+  return query.data !== undefined && !(query.status === 'error' && terminal(query.error))
 }
