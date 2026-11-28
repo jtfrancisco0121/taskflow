@@ -4,14 +4,18 @@ import com.taskflow.shared.TaskflowException;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -24,6 +28,9 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 class ProblemDetailsHandler extends ResponseEntityExceptionHandler {
 
   private static final Logger log = LoggerFactory.getLogger(ProblemDetailsHandler.class);
+
+  /** Deadlock, serialization failure and lock timeout: the same request can succeed on retry. */
+  private static final Set<String> CONTENTION_STATES = Set.of("40P01", "40001", "55P03");
 
   @ExceptionHandler(TaskflowException.class)
   ResponseEntity<ProblemDetail> domain(TaskflowException e) {
@@ -46,6 +53,32 @@ class ProblemDetailsHandler extends ResponseEntityExceptionHandler {
     log.warn("integrity violation: {}", e.getMostSpecificCause().getMessage());
     return domain(
         TaskflowException.conflict("request.conflict", "The request conflicts with current data"));
+  }
+
+  /**
+   * Lock contention is 503 with Retry-After rather than 500 (ClickUp 14yq6g334r6). Spring maps
+   * 40P01 and 40001 to {@link PessimisticLockingFailureException} but leaves a lock timeout (55P03)
+   * uncategorized, so its SQLSTATE is read; any other uncategorized error is rethrown unchanged.
+   */
+  @ExceptionHandler({PessimisticLockingFailureException.class, UncategorizedSQLException.class})
+  ResponseEntity<ProblemDetail> contention(DataAccessException e) {
+    if (!(e instanceof PessimisticLockingFailureException) && !hasContentionState(e)) {
+      throw e;
+    }
+    log.warn("lock contention: {}", e.getMostSpecificCause().getMessage());
+    return domain(
+        new TaskflowException(
+                HttpStatus.SERVICE_UNAVAILABLE, "request.busy", "The server is busy; retry shortly")
+            .header(HttpHeaders.RETRY_AFTER, "1"));
+  }
+
+  private static boolean hasContentionState(Throwable e) {
+    for (Throwable t = e; t != null; t = t.getCause()) {
+      if (t instanceof java.sql.SQLException sql && CONTENTION_STATES.contains(sql.getSQLState())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   @ExceptionHandler(ConstraintViolationException.class)
