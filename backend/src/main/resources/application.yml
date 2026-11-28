@@ -86,6 +86,9 @@ taskflow:
   jwt:
     # No default outside the dev profile: startup fails when it is empty or shorter than 32 bytes.
     secret: ${TASKFLOW_JWT_SECRET:}
+    # The refresh token just rotated may be replayed this long, while its successor is unused, and
+    # gets the same successor back (a reload that lost the response). PT0S turns it off (decision 010).
+    refresh-reuse-grace: ${TASKFLOW_REFRESH_REUSE_GRACE:PT30S}
 
 springdoc:
   writer-with-order-by-keys: true

@@ -55,7 +55,7 @@ class TokenIT extends IntegrationTest {
   }
 
   @Test
-  void refreshRotatesThePairAndReusingTheOldTokenRevokesTheFamily() {
+  void refreshRotatesThePairAndReusingTheOldTokenAfterItsSuccessorWasUsedRevokesTheFamily() {
     Resp up = signup(AuthIT.email());
     String first = AuthIT.refreshCookie(up);
 
@@ -66,11 +66,23 @@ class TokenIT extends IntegrationTest {
     assertThat(rotated.text("/accessToken")).isNotBlank();
     assertThat(get("/api/v1/me", rotated.text("/accessToken")).status()).isEqualTo(200);
 
+    // Decision 010 (docs/decisions/010-refresh-reuse-grace.md): the token just rotated, replayed
+    // within taskflow.jwt.refresh-reuse-grace while its successor is unused, gets the same
+    // successor back instead of revoking the family (a reload that lost the response).
+    Resp replay = post("/api/v1/auth/refresh", null, null, "Cookie", first);
+    assertThat(replay.status()).isEqualTo(200);
+    assertThat(AuthIT.refreshCookie(replay)).isEqualTo(second);
+
+    Resp next = post("/api/v1/auth/refresh", null, null, "Cookie", second);
+    assertThat(next.status()).isEqualTo(200);
+    String third = AuthIT.refreshCookie(next);
+
+    // Once the successor has been used, the old token is reuse: the whole family is revoked.
     Resp reuse = post("/api/v1/auth/refresh", null, null, "Cookie", first);
     assertThat(reuse.status()).isEqualTo(401);
     assertThat(reuse.text("/code")).isEqualTo("auth.invalid_refresh");
 
-    Resp afterRevoke = post("/api/v1/auth/refresh", null, null, "Cookie", second);
+    Resp afterRevoke = post("/api/v1/auth/refresh", null, null, "Cookie", third);
     assertThat(afterRevoke.status()).isEqualTo(401);
     assertThat(
             jdbc.queryForObject(

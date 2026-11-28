@@ -1,0 +1,167 @@
+package com.taskflow.identity.internal;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.taskflow.IntegrationTest;
+import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+/**
+ * Refresh-token reuse detection that any fix for the reload race (ClickUp 14yq6g334jy) must keep: a
+ * previous refresh token is honoured, if at all, only while it is the immediate predecessor, its
+ * successor has never been used, it was rotated moments ago, and its family is still live.
+ */
+@DisplayName("AUTH-2 refresh reuse detection guards")
+class RefreshReuseGuardIT extends IntegrationTest {
+
+  private static final String REFRESH = "/api/v1/auth/refresh";
+
+  private Resp signup() {
+    return post(
+        "/api/v1/auth/signup",
+        null,
+        Map.of("email", AuthIT.email(), "password", AuthIT.PASSWORD, "displayName", "Guard"));
+  }
+
+  private Resp refresh(String cookie) {
+    return post(REFRESH, null, null, "Cookie", cookie);
+  }
+
+  private static String hashOf(String cookie) {
+    return AuthService.sha256(cookie.substring("refresh_token=".length()));
+  }
+
+  private int liveTokens(Resp up) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM refresh_token r JOIN app_user u ON u.id = r.user_id WHERE u.email = ?"
+            + " AND r.revoked_at IS NULL",
+        Integer.class,
+        up.text("/user/email"));
+  }
+
+  @Test
+  void anOldTokenPresentedAfterItsSuccessorWasUsedRevokesTheFamily() {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    Resp toB = refresh(a);
+    assertThat(toB.status()).isEqualTo(200);
+    String b = AuthIT.refreshCookie(toB);
+    Resp toC = refresh(b);
+    assertThat(toC.status()).isEqualTo(200);
+    String c = AuthIT.refreshCookie(toC);
+
+    Resp reuse = refresh(a);
+
+    assertThat(reuse.status()).isEqualTo(401);
+    assertThat(reuse.text("/code")).isEqualTo("auth.invalid_refresh");
+    assertThat(refresh(c).status()).isEqualTo(401);
+    assertThat(liveTokens(up)).isZero();
+  }
+
+  @Test
+  void anOldTokenPresentedLongAfterItsRotationRevokesTheFamilyEvenIfTheSuccessorIsUnused() {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    Resp toB = refresh(a);
+    assertThat(toB.status()).isEqualTo(200);
+    String b = AuthIT.refreshCookie(toB);
+    // Ten minutes is past any grace window under discussion (seconds), yet inside the 15-minute
+    // access-token lifetime, so the successor can plausibly still be unused.
+    jdbc.update(
+        "UPDATE refresh_token SET rotated_at = now() - interval '10 minutes' WHERE token_hash = ?",
+        hashOf(a));
+
+    Resp reuse = refresh(a);
+
+    assertThat(reuse.status()).isEqualTo(401);
+    assertThat(refresh(b).status()).isEqualTo(401);
+    assertThat(liveTokens(up)).isZero();
+  }
+
+  @Test
+  void aSignedOutFamilyIsNotRevivedByItsPreviousToken() {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    Resp toB = refresh(a);
+    assertThat(toB.status()).isEqualTo(200);
+    String b = AuthIT.refreshCookie(toB);
+    assertThat(post("/api/v1/auth/signout", null, null, "Cookie", b).status()).isEqualTo(204);
+
+    assertThat(refresh(a).status()).isEqualTo(401);
+    assertThat(refresh(b).status()).isEqualTo(401);
+    assertThat(liveTokens(up)).isZero();
+  }
+
+  @Test
+  void anExpiredPreviousTokenIsNotHonouredEvenRightAfterItsRotation() {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    Resp toB = refresh(a);
+    assertThat(toB.status()).isEqualTo(200);
+    jdbc.update(
+        "UPDATE refresh_token SET expires_at = now() - interval '1 second' WHERE token_hash = ?",
+        hashOf(a));
+
+    assertThat(refresh(a).status()).isEqualTo(401);
+  }
+
+  @Test
+  void anOldTokenReplayed31SecondsAfterItsRotationRevokesTheFamily() {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    Resp toB = refresh(a);
+    assertThat(toB.status()).isEqualTo(200);
+    String b = AuthIT.refreshCookie(toB);
+    jdbc.update(
+        "UPDATE refresh_token SET rotated_at = now() - interval '31 seconds' WHERE token_hash = ?",
+        hashOf(a));
+
+    assertThat(refresh(a).status()).isEqualTo(401);
+    assertThat(refresh(b).status()).isEqualTo(401);
+    assertThat(liveTokens(up)).isZero();
+  }
+
+  @Test
+  void anOldTokenReplayed29SecondsAfterItsRotationGetsTheSameSuccessor() {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    Resp toB = refresh(a);
+    assertThat(toB.status()).isEqualTo(200);
+    String b = AuthIT.refreshCookie(toB);
+    jdbc.update(
+        "UPDATE refresh_token SET rotated_at = now() - interval '29 seconds' WHERE token_hash = ?",
+        hashOf(a));
+
+    Resp replay = refresh(a);
+
+    assertThat(replay.status()).isEqualTo(200);
+    assertThat(AuthIT.refreshCookie(replay)).isEqualTo(b);
+    // A (rotated) and B: nothing revoked and no extra token issued.
+    assertThat(liveTokens(up)).isEqualTo(2);
+  }
+
+  @Test
+  void noRawRefreshTokenIsStored() {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    Resp toB = refresh(a);
+    String b = AuthIT.refreshCookie(toB);
+    refresh(a);
+
+    for (String cookie : java.util.List.of(a, b)) {
+      String raw = cookie.substring("refresh_token=".length());
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT count(*) FROM refresh_token WHERE token_hash = ? OR token_hash = ?",
+                  Integer.class,
+                  raw,
+                  hashOf(cookie)))
+          .isEqualTo(1);
+      assertThat(
+              jdbc.queryForObject(
+                  "SELECT count(*) FROM refresh_token WHERE token_hash = ?", Integer.class, raw))
+          .isZero();
+    }
+  }
+}
