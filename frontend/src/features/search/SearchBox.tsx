@@ -3,7 +3,8 @@ import { messageOf } from '../../api/errors'
 import type { SearchHit } from '../../api/types'
 import { isTypingTarget } from '../../shared/ui/typing'
 import { useOpenTaskHit, useTaskSearch } from './useTaskSearch'
-import { hasData, loadFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
 
 /** The server marks matches with <mark>; everything else is plain text, never HTML. */
 export function Snippet({ text }: { text: string }) {
@@ -99,6 +100,14 @@ export function SearchBox({ workspaceId }: { workspaceId: string }) {
             <p role="alert" className="p-2 text-sm text-danger">
               {messageOf(query.error)}
             </p>
+          )}
+          {refreshFailed(query) && (
+            <div className="p-2" onMouseDown={(e) => e.preventDefault()}>
+              <RefreshNotice
+                message={messageOf(query.error)}
+                onRetry={() => void query.refetch()}
+              />
+            </div>
           )}
           {hasData(query) && hits.length === 0 && (
             <p className="p-2 text-sm text-muted">No tasks match “{q}”.</p>

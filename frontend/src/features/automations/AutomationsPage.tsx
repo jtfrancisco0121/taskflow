@@ -16,7 +16,7 @@ import { RuleBuilder } from './RuleBuilder'
 import { RuleCard } from './RuleCard'
 import { RunsSheet } from './RunsSheet'
 import { useAutomations, useDeleteAutomation, useToggleAutomation } from './useAutomations'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
 
 /** `/w/:ws/l/:loc/automations`: the rules of a Location, own and inherited (CAP-8). */
@@ -66,9 +66,10 @@ export function AutomationsPage() {
     )
   }
 
-  const canEdit = list.data?.canEdit ?? false
-  const rules = list.data?.rules ?? []
-  const atLimit = rules.filter((r) => !r.inherited).length >= (list.data?.limit ?? 50)
+  const loaded = shownData(list)
+  const canEdit = loaded?.canEdit ?? false
+  const rules = loaded?.rules ?? []
+  const atLimit = rules.filter((r) => !r.inherited).length >= (loaded?.limit ?? 50)
 
   function onToggle(rule: RuleView, enabled: boolean) {
     toggle.mutate(
@@ -81,9 +82,9 @@ export function AutomationsPage() {
     <section aria-label="Automations">
       <PageHeader title="Automations">
         <div className="flex items-center gap-3">
-          <span className="text-sm text-muted">{location.data?.name}</span>
+          <span className="text-sm text-muted">{shownData(location)?.name}</span>
           <Link to={`/w/${workspaceId}/l/${locationId}`} className="text-sm text-accent underline">
-            Back to {location.data?.name ?? 'the location'}
+            Back to {shownData(location)?.name ?? 'the location'}
           </Link>
           {canEdit && (
             <Button
@@ -104,7 +105,7 @@ export function AutomationsPage() {
       )}
       {atLimit && canEdit && (
         <p className="mb-2 text-sm text-fg">
-          This location has reached its limit of {list.data?.limit} rules. Delete one to add more.
+          This location has reached its limit of {loaded?.limit} rules. Delete one to add more.
         </p>
       )}
       {list.isPending && (

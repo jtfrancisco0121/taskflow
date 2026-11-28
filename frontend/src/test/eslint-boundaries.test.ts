@@ -174,3 +174,102 @@ describe('query load state goes through src/api/queryState.ts (14yq6g334fe)', ()
     ).toEqual([])
   })
 })
+
+// 14yq6g334bn part 2: the remaining ways around the load-state guard. status compared to 'success' or switched on, and
+// isRefetchError/isLoadingError, read the same flags; isFetchNextPageError (a later page failed) stays legal.
+describe('the load-state guard has no side doors (14yq6g334bn)', () => {
+  const restricted = async (code: string, filePath = 'src/features/tasks/Thing.tsx') =>
+    (await ruleIds(code, filePath)).filter((id) => id === 'no-restricted-syntax')
+
+  it('rejects status compared to "success", either side, member or destructured', async () => {
+    expect(
+      await restricted(
+        "export function A(q: any) {\n  const { status } = q\n  return q.status !== 'success' || 'success' === status\n}\n",
+      ),
+    ).toHaveLength(2)
+  })
+
+  it('rejects a switch on status', async () => {
+    expect(
+      await restricted(
+        "export function A(q: any) {\n  switch (q.status) {\n    case 'error':\n      return 1\n  }\n  const { status } = q\n  switch (status) {\n    default:\n      return 2\n  }\n}\n",
+      ),
+    ).toHaveLength(2)
+  })
+
+  it('rejects isRefetchError and isLoadingError, member or destructured, in .tsx and .ts', async () => {
+    expect(
+      await restricted(
+        'export function A(q: any) {\n  const { isLoadingError } = q\n  return q.isRefetchError || isLoadingError\n}\n',
+      ),
+    ).toHaveLength(2)
+    expect(
+      await restricted('export const a = (q: any) => q.isRefetchError', 'src/features/x/useX.ts'),
+    ).toHaveLength(1)
+  })
+
+  it('accepts isFetchNextPageError, status compared to "pending", and the flags in tests', async () => {
+    expect(
+      await restricted(
+        "export const a = (q: any) => [q.isFetchNextPageError, q.status === 'pending']\n",
+      ),
+    ).toEqual([])
+    expect(
+      await restricted(
+        "export const a = (q: any) => q.isRefetchError || q.status !== 'success'",
+        'src/features/tasks/Thing.test.tsx',
+      ),
+    ).toEqual([])
+  })
+})
+
+// 14yq6g334bn part 2: a sub-list that maps query.data itself keeps showing stale items under the error after a
+// 401/403/404 refresh. A query the file reads load state of (loadFailed, refreshFailed, hasData) has its data read
+// through shownData, or inside a hasData/refreshFailed guard.
+describe('a query with load state is not rendered from raw data (14yq6g334bn)', () => {
+  const RULE = 'taskflow/no-raw-query-data'
+  const raw = async (code: string, filePath = 'src/features/tasks/Thing.tsx') =>
+    (await ruleIds(code, filePath)).filter((id) => id === RULE)
+  const head =
+    "import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'\n"
+
+  it('rejects q.data when the file reads q load state, in .tsx and .ts', async () => {
+    const code = `${head}export function A(q: any) {\n  const items = q.data ?? []\n  return [loadFailed(q), items]\n}\n`
+    expect(await raw(code)).toHaveLength(1)
+    expect(await raw(code, 'src/features/tasks/useThing.ts')).toHaveLength(1)
+  })
+
+  it('rejects a read on the wrong side of a guard and a guard on another query', async () => {
+    expect(
+      await raw(
+        `${head}export const a = (q: any, r: any) => [hasData(q) ? null : q.data, hasData(r) && q.data, !hasData(q) && q.data, loadFailed(q)]\n`,
+      ),
+    ).toHaveLength(3)
+  })
+
+  it('accepts shownData, reads inside a hasData or refreshFailed guard, and an early return', async () => {
+    const code = `${head}export function A(q: any, m: any) {
+  const a = shownData(q) ?? []
+  const b = hasData(q) && q.data.x
+  const c = hasData(q) ? q.data.y : null
+  const d = loadFailed(q) || (refreshFailed(q) && q.data.z)
+  if (hasData(q) && a.length > 0) {
+    void q.data.w
+  }
+  if (!hasData(q)) return [a, b, c, d, m.data]
+  return q.data.v
+}
+`
+    expect(await raw(code)).toEqual([])
+  })
+
+  it('accepts .data of an object whose load state the file does not read, and raw reads in tests', async () => {
+    expect(await raw('export const a = (m: any) => m.data\n')).toEqual([])
+    expect(
+      await raw(
+        `${head}export const a = (q: any) => [loadFailed(q), q.data]\n`,
+        'src/features/tasks/Thing.test.tsx',
+      ),
+    ).toEqual([])
+  })
+})

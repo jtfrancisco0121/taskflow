@@ -13,7 +13,7 @@ import { type MenuAction } from './menuItems'
 import { TreeItemMenu } from './TreeItemMenu'
 import { useCreateLocation, useUpdateLocation } from './useLocationMutations'
 import { useTreeChildren, type TreeNode } from './useTreeChildren'
-import { loadFailed, refreshFailed } from '../../api/queryState'
+import { loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 type TreeItemProps = {
   workspaceId: string
@@ -236,7 +236,7 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
             </li>
           )}
           {expanded &&
-            children.data?.map((child) => (
+            shownData(children)?.map((child) => (
               <TreeItem
                 key={child.id}
                 workspaceId={workspaceId}

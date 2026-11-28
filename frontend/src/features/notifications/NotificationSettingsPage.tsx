@@ -10,7 +10,7 @@ import { Skeleton } from '../../shared/ui/Skeleton'
 import { Switch } from '../../shared/ui/Switch'
 import { useSavePreference, type Pref } from './useNotifications'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 const LABEL: Record<string, string> = {
   ASSIGNED: 'Assigned to me',
@@ -37,7 +37,7 @@ export function NotificationSettingsPage() {
   })
   const save = useSavePreference(workspaceId)
 
-  const kinds = prefs.data?.kinds ?? []
+  const kinds = shownData(prefs)?.kinds ?? []
   return (
     <section aria-label="Notification settings" className="max-w-2xl">
       <PageHeader title="Notification settings">

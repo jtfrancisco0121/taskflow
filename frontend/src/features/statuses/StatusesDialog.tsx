@@ -13,7 +13,7 @@ import { ResetPanel } from './ResetPanel'
 import { StatusEditor } from './StatusEditor'
 import { useLocationStatuses } from './useLocationStatuses'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 export type StatusesLocation = {
   id: string
@@ -50,9 +50,9 @@ export function StatusesDialog({
 }: StatusesDialogProps) {
   const [mode, setMode] = useState<'view' | 'edit' | 'reset'>('view')
   const set = useLocationStatuses(workspaceId, location.id)
-  const inheritedFrom = set.data?.inheritedFrom ?? null
+  const inheritedFrom = shownData(set)?.inheritedFrom ?? null
   const sourceName = useSourceName(inheritedFrom)
-  const statuses = set.data?.statuses ?? []
+  const statuses = shownData(set)?.statuses ?? []
   const inheriting = inheritedFrom !== null
   const canReset = location.type !== 'SPACE' && !inheriting && !!location.parentId
 

@@ -10,7 +10,7 @@ import { Skeleton } from '../../shared/ui/Skeleton'
 import { notificationText } from './notificationText'
 import { useInbox, useMarkAllRead, useSetRead } from './useNotifications'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 /** `/w/:ws/inbox`: Unread and All tabs, cursor paging, mark read or unread (CAP-11). */
 export function InboxPage() {
@@ -19,7 +19,7 @@ export function InboxPage() {
   const inbox = useInbox(workspaceId, tab === 'unread', 30)
   const setRead = useSetRead(workspaceId)
   const markAll = useMarkAllRead(workspaceId)
-  const items = inbox.data?.pages.flatMap((p) => p.items ?? []) ?? []
+  const items = shownData(inbox)?.pages.flatMap((p) => p.items ?? []) ?? []
 
   return (
     <section aria-label="Inbox">

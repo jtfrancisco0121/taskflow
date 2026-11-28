@@ -10,7 +10,7 @@ import {
   type ChecklistItem,
 } from './useChecklists'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 const inputClass =
   'min-w-0 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm text-fg hover:border-line-strong focus-visible:border-line-strong focus-visible:outline-2 focus-visible:outline-focus-ring'
@@ -190,7 +190,7 @@ export function ChecklistsSection({
   const names = new Map(members.map((m) => [m.userId!, m.displayName ?? m.email ?? '']))
   const [fresh, setFresh] = useState<string | null>(null)
   const [refusal, setRefusal] = useState<string | null>(null)
-  const lists = query.data ?? []
+  const lists = shownData(query) ?? []
 
   return (
     <section aria-label="Checklists" className="flex flex-col gap-2">

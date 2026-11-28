@@ -20,7 +20,7 @@ import { ViewTabs } from './ViewTabs'
 import { useViewStore } from './viewStore'
 import { ChipBar } from './ChipBar'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 const TYPE_NAME = { SPACE: 'Space', FOLDER: 'Folder', LIST: 'List' } as const
 const EMPTY_BASE = { v: 1 }
@@ -38,7 +38,7 @@ export function ViewPage({
   const location = useLocationInfo(scope.locationId)
   const views = useViews(scope)
   const key = viewId ?? DEFAULT_LIST_ID
-  const current = views.data?.find((v) => viewKey(v) === key)
+  const current = shownData(views)?.find((v) => viewKey(v) === key)
   const statusesButton = useRef<HTMLButtonElement>(null)
   const [statusesOpen, setStatusesOpen] = useState(false)
 
@@ -52,20 +52,21 @@ export function ViewPage({
       </div>
     )
   }
-  const type = location.data?.type
-  const heading = scope.locationId ? (location.data?.name ?? '') : 'Workspace'
+  const place = shownData(location)
+  const type = place?.type
+  const heading = scope.locationId ? (place?.name ?? '') : 'Workspace'
 
   return (
     <section aria-label="View">
       <header className="mb-3 flex items-center gap-2">
         <h1 className="font-display text-2xl font-semibold text-fg">{heading}</h1>
-        {location.data?.isPrivate && (
+        {place?.isPrivate && (
           <span role="img" aria-label="Private" title="Private">
             🔒
           </span>
         )}
         {type && <span className="text-[13px] text-muted">{TYPE_NAME[type]}</span>}
-        {location.data && type && scope.locationId && (
+        {place && type && scope.locationId && (
           <Link
             to={automationsPath(scope.workspaceId, scope.locationId)}
             className="ml-auto rounded-md border border-line-strong bg-surface px-3 py-1.5 text-[13px] font-medium text-fg hover:bg-surface-2"
@@ -73,7 +74,7 @@ export function ViewPage({
             Automations
           </Link>
         )}
-        {location.data && type && (
+        {place && type && (
           <Button ref={statusesButton} onClick={() => setStatusesOpen(true)}>
             Statuses
           </Button>
@@ -98,14 +99,14 @@ export function ViewPage({
           }
         />
       )}
-      {statusesOpen && location.data && type && scope.locationId && (
+      {statusesOpen && place && type && scope.locationId && (
         <StatusesDialog
           workspaceId={scope.workspaceId}
           location={{
             id: scope.locationId,
-            name: location.data.name ?? '',
+            name: place.name ?? '',
             type,
-            parentId: location.data.parentId,
+            parentId: place.parentId,
           }}
           onClose={() => setStatusesOpen(false)}
           restoreFocus={() => statusesButton.current}

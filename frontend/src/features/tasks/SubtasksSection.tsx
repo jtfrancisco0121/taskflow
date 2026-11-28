@@ -7,7 +7,7 @@ import { useCreateTask } from './useCreateTask'
 import { useSubtasks } from './useSubtasks'
 import { useTask } from './useTask'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 const finished = (group: string | undefined) => group === 'DONE' || group === 'CLOSED'
 
@@ -43,7 +43,7 @@ export function SubtasksSection({ task, statuses }: { task: TaskView; statuses: 
   const [title, setTitle] = useState('')
   const [refusal, setRefusal] = useState<string | null>(null)
   const busy = useRef(false)
-  const items = [...(subtasks.data?.items ?? [])].sort((a, b) => {
+  const items = [...(shownData(subtasks)?.items ?? [])].sort((a, b) => {
     const group = (t: TaskView) => statuses.find((s) => s.id === t.statusId)?.group
     return Number(finished(group(a))) - Number(finished(group(b)))
   })
@@ -102,7 +102,7 @@ export function SubtasksSection({ task, statuses }: { task: TaskView; statuses: 
           </li>
         ))}
       </ul>
-      {subtasks.data?.capped && (
+      {shownData(subtasks)?.capped && (
         <p className="text-xs text-muted">
           Showing subtasks among the first 2,000 tasks of this List.
         </p>

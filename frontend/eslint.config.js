@@ -3,6 +3,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
+import noRawQueryData from './eslint-rules/no-raw-query-data.js'
 
 // AD-11: a feature is imported only through its index.ts, and shared/api never import features.
 const features = [
@@ -79,25 +80,33 @@ const firstLoadGuard = [
 // loadFailed (first load failed, the error screen), refreshFailed (keep the data, show RefreshNotice) and hasData. A
 // mutation's failure is read from its error. Merged into the .tsx and .ts blocks below, like the first-load guard.
 const loadStateMessage =
-  'isError/isSuccess/status "error" are also set when a background refresh fails with data still held: use loadFailed, refreshFailed or hasData from src/api/queryState.ts (a mutation: read its error).'
+  'isError/isSuccess/isRefetchError/isLoadingError/status "error" or "success" are also set when a background refresh fails with data still held: use loadFailed, refreshFailed or hasData from src/api/queryState.ts (a mutation: read its error).'
+// 14yq6g334bn: isRefetchError/isLoadingError and status compared to 'success' or switched on read the same flags.
+// isFetchNextPageError (a later page failed, the loaded pages are fine) stays legal.
+const loadStateFlags = 'isError|isSuccess|isRefetchError|isLoadingError'
 const loadStateGuard = [
   {
-    selector: 'MemberExpression[property.name=/^(isError|isSuccess)$/]',
+    selector: `MemberExpression[property.name=/^(${loadStateFlags})$/]`,
     message: loadStateMessage,
   },
   {
-    selector: 'ObjectPattern > Property[key.name=/^(isError|isSuccess)$/]',
+    selector: `ObjectPattern > Property[key.name=/^(${loadStateFlags})$/]`,
+    message: loadStateMessage,
+  },
+  {
+    selector:
+      "SwitchStatement > :matches(MemberExpression[property.name='status'], Identifier[name='status']).discriminant",
     message: loadStateMessage,
   },
   // q.status or a destructured status, compared to 'error' on either side.
   {
     selector:
-      "BinaryExpression[operator=/^[!=]==?$/][right.value='error'] > :matches(MemberExpression[property.name='status'], Identifier[name='status']).left",
+      "BinaryExpression[operator=/^[!=]==?$/][right.value=/^(error|success)$/] > :matches(MemberExpression[property.name='status'], Identifier[name='status']).left",
     message: loadStateMessage,
   },
   {
     selector:
-      "BinaryExpression[operator=/^[!=]==?$/][left.value='error'] > :matches(MemberExpression[property.name='status'], Identifier[name='status']).right",
+      "BinaryExpression[operator=/^[!=]==?$/][left.value=/^(error|success)$/] > :matches(MemberExpression[property.name='status'], Identifier[name='status']).right",
     message: loadStateMessage,
   },
 ]
@@ -114,6 +123,7 @@ export default tseslint.config(
     plugins: {
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
+      taskflow: { rules: { 'no-raw-query-data': noRawQueryData } },
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
@@ -212,6 +222,7 @@ export default tseslint.config(
         ...firstLoadGuard,
         ...loadStateGuard,
       ],
+      'taskflow/no-raw-query-data': 'error',
     },
   },
   {
@@ -219,7 +230,10 @@ export default tseslint.config(
     // the helpers; tests and src/test drive the cache directly.
     files: ['src/**/*.ts'],
     ignores: ['src/test/**', 'src/**/*.test.ts', 'src/api/refresh.ts', 'src/api/queryState.ts'],
-    rules: { 'no-restricted-syntax': ['error', ...firstLoadGuard, ...loadStateGuard] },
+    rules: {
+      'no-restricted-syntax': ['error', ...firstLoadGuard, ...loadStateGuard],
+      'taskflow/no-raw-query-data': 'error',
+    },
   },
   {
     // Slice 1: component tests pick, read and list select-like controls only through src/test/ui.ts.

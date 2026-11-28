@@ -5,7 +5,7 @@ import { ValueEditor, useLocationFields } from '../fields'
 import { FieldShell, type Hint } from './FieldShell'
 import type { TaskPatch } from './useUpdateTask'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 type Save = (field: string, label: string, patch: TaskPatch) => Promise<boolean>
 
@@ -18,7 +18,7 @@ type Props = {
 /** The task's effective custom fields, each with where it comes from and an editor (CAP-4, CAP-7). */
 export function CustomFieldsGroup({ task, hints, save }: Props) {
   const fields = useLocationFields(task.listId)
-  const shown = (fields.data?.fields ?? []).filter((f) => !f.hidden)
+  const shown = (shownData(fields)?.fields ?? []).filter((f) => !f.hidden)
   const values = (task.customFields ?? {}) as Record<string, unknown>
   // The value shown while its save is in flight; when the save ends it is dropped, so a refusal rolls back.
   const [pending, setPending] = useState<Record<string, { value: unknown }>>({})

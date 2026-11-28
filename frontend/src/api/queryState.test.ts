@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { ApiError } from './errors'
-import { hasData, loadFailed, refreshFailed } from './queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from './queryState'
 
 // ClickUp 14yq6g334fe: a failed background refresh keeps the last data on screen; only a failed first load blanks it.
 describe('query load states', () => {
@@ -46,5 +46,22 @@ describe('query load states', () => {
     expect(hasData(failedWith(500))).toBe(true)
     expect(loadFailed(failedWith(500))).toBe(false)
     expect(refreshFailed(failedWith(500))).toBe(true)
+  })
+
+  // 14yq6g334bn part 2: a sub-list reads its items through shownData, so a 401/403/404 refresh leaves no stale rows
+  // under the error, while a 500 keeps them under the RefreshNotice.
+  it('shownData is the data only while hasData holds', () => {
+    const failedWith = (status: number) => ({
+      status: 'error' as const,
+      data: { id: 't1' },
+      error: new ApiError({ status }),
+    })
+    expect(shownData(loaded)).toEqual({ id: 't1' })
+    expect(shownData(refreshError)).toEqual({ id: 't1' })
+    expect(shownData(failedWith(500))).toEqual({ id: 't1' })
+    expect(shownData({ status: 'success', data: null })).toBeNull()
+    for (const status of [401, 403, 404]) expect(shownData(failedWith(status))).toBeUndefined()
+    expect(shownData(firstLoadError)).toBeUndefined()
+    expect(shownData(loading)).toBeUndefined()
   })
 })

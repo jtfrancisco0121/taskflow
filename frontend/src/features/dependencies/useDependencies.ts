@@ -5,7 +5,7 @@ import {
   type InvalidateQueryFilters,
   type QueryClient,
 } from '@tanstack/react-query'
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { api } from '../../api/client'
 import { ApiError, messageOf, networkError, toApiError, unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
@@ -65,22 +65,39 @@ function writeCurrent(queryClient: QueryClient, id: string, current: TaskView) {
   setDataRestartingFirstLoad(queryClient, queryKeys.task(id), current)
 }
 
+/**
+ * The signal of the mounted component: aborted on unmount, so a busy retry still waiting out its Retry-After is called
+ * off (ClickUp 14yq6g334bn). A fresh controller per mount, since StrictMode unmounts and mounts again.
+ */
+function useUnmountSignal(): () => AbortSignal {
+  const controller = useRef(new AbortController())
+  useEffect(() => {
+    const mounted = new AbortController()
+    controller.current = mounted
+    return () => mounted.abort()
+  }, [])
+  return () => controller.current.signal
+}
+
 /** Adds a relationship from `task`'s side (POST, If-Match, one idempotency key per submission). */
 export function useAddDependency(task: TaskView) {
   const queryClient = useQueryClient()
   const keys = useRef(new IdempotencyKeys())
+  const unmounted = useUnmountSignal()
   return useMutation({
     mutationFn: async (input: { otherTaskId: string; relation: DependencyRelation }) => {
       const cached = queryClient.getQueryData<TaskView>(queryKeys.task(task.id!)) ?? task
       let result
       try {
         // A busy answer is not stored under the key, so the retry sends the same key.
-        result = await onceMoreIfBusy(() =>
-          api.POST('/api/v1/tasks/{id}/dependencies', {
-            params: { path: { id: task.id! }, header: ifMatch(cached.version) },
-            body: input,
-            headers: { 'Idempotency-Key': keys.current.keyFor(input) },
-          }),
+        result = await onceMoreIfBusy(
+          () =>
+            api.POST('/api/v1/tasks/{id}/dependencies', {
+              params: { path: { id: task.id! }, header: ifMatch(cached.version) },
+              body: input,
+              headers: { 'Idempotency-Key': keys.current.keyFor(input) },
+            }),
+          unmounted(),
         )
       } catch {
         throw networkError()
@@ -104,18 +121,21 @@ export function useAddDependency(task: TaskView) {
 /** Removes a relationship at once (optimistic) and puts it back with a toast when it fails. */
 export function useRemoveDependency(task: TaskView) {
   const queryClient = useQueryClient()
+  const unmounted = useUnmountSignal()
   return useMutation({
     mutationFn: async (input: { dependencyId: string; otherTaskId: string }) => {
       const cached = queryClient.getQueryData<TaskView>(queryKeys.task(task.id!)) ?? task
       let result
       try {
-        result = await onceMoreIfBusy(() =>
-          api.DELETE('/api/v1/tasks/{id}/dependencies/{dependencyId}', {
-            params: {
-              path: { id: task.id!, dependencyId: input.dependencyId },
-              header: ifMatch(cached.version),
-            },
-          }),
+        result = await onceMoreIfBusy(
+          () =>
+            api.DELETE('/api/v1/tasks/{id}/dependencies/{dependencyId}', {
+              params: {
+                path: { id: task.id!, dependencyId: input.dependencyId },
+                header: ifMatch(cached.version),
+              },
+            }),
+          unmounted(),
         )
       } catch {
         throw networkError()

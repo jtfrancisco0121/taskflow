@@ -44,7 +44,7 @@ import { ParentLink, SubtasksSection } from './SubtasksSection'
 import { useTask } from './useTask'
 import { useUpdateTask, type TaskPatch } from './useUpdateTask'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 /** Which hint slot and label each patch key belongs to. */
 const FIELD_OF: Record<keyof TaskPatch, { field: string; label: string }> = {
@@ -89,7 +89,7 @@ const SKELETON = (
  */
 export function TaskPanel({ taskId, onClose, children }: TaskPanelProps) {
   const query = useTask(taskId)
-  const task = query.data
+  const task = shownData(query)
   const stored = useUiStore((state) => state.taskDetailMode)
   const setMode = useUiStore((state) => state.setTaskDetailMode)
   const mode = stored ?? readTaskDetailMode()

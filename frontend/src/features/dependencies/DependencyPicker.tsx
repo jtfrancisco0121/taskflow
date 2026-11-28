@@ -6,7 +6,7 @@ import type { DependencyRelation, SearchHit, TaskView } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
 import { BUSY_MESSAGE, type DependencyWrites } from './useDependencies'
 import { RELATIONS, RELATION_LABEL } from './relations'
-import { hasData, loadFailed } from '../../api/queryState'
+import { hasData, loadFailed, shownData } from '../../api/queryState'
 
 const DEBOUNCE_MS = 250
 const REF = /^[A-Za-z]{2,6}-\d+$/
@@ -118,7 +118,9 @@ export function DependencyPicker({
       return found
     },
   })
-  const results = (search.data ?? []).filter((c) => c.taskId !== task.id && !related.has(c.taskId))
+  const results = (shownData(search) ?? []).filter(
+    (c) => c.taskId !== task.id && !related.has(c.taskId),
+  )
   const shown = q.length >= 2 ? results : []
 
   async function pick(candidate: Candidate) {

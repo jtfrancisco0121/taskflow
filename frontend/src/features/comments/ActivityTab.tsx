@@ -11,7 +11,7 @@ import { useLocationStatuses } from '../statuses'
 import { useMembers } from '../workspace'
 import { actorLabel, activitySentences, relatedTaskIds, type NameLookup } from './activitySentence'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 function useActivity(taskId: string) {
   return useInfiniteQuery({
@@ -34,7 +34,7 @@ export function ActivityTab({ task }: { task: TaskView }) {
   const { members } = useMembers(task.workspaceId)
   const entries = [
     ...new Map(
-      (activity.data?.pages.flatMap((page) => page.items ?? []) ?? []).map((e) => [e.id, e]),
+      (shownData(activity)?.pages.flatMap((page) => page.items ?? []) ?? []).map((e) => [e.id, e]),
     ).values(),
   ]
   // The other task of a relationship is read like any task: a refused read is "a task you can't
