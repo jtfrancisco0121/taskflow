@@ -81,6 +81,47 @@ describe('FR-9 relationship picker', () => {
     expect(post.body).toEqual({ otherTaskId: 'b7', relation: 'BLOCKING' })
   })
 
+  it('a second pick while an add is pending sends no request (ClickUp 14yq6g33592)', async () => {
+    const user = userEvent.setup()
+    let answer: (r: Response) => void = () => {}
+    const { stub, onClose } = setup({
+      'POST /api/v1/tasks/:id/dependencies': () =>
+        new Promise<Response>((resolve) => {
+          answer = resolve
+        }),
+    } as never)
+    await user.type(screen.getByRole('combobox', { name: 'Find a task' }), 'login')
+    await user.click(await screen.findByRole('option', { name: /ACME-7/ }))
+    await user.click(screen.getByRole('option', { name: /ACME-8/ }))
+    await user.keyboard('{Enter}')
+    const posts = () =>
+      stub.calls.filter((c) => c.method === 'POST' && c.url.pathname.endsWith('/dependencies'))
+    expect(posts()).toHaveLength(1)
+    expect(screen.getByRole('option', { name: /ACME-8/ })).toHaveAttribute('aria-disabled', 'true')
+    answer(
+      json({ dependency: { id: 'd', relation: 'WAITING_ON' }, task: { ...task, version: 4 } }, 201),
+    )
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(posts()).toHaveLength(1)
+  })
+
+  it('a pick is allowed again once a refused add has settled', async () => {
+    const user = userEvent.setup()
+    const { stub } = setup({
+      'POST /api/v1/tasks/:id/dependencies': () =>
+        problem(409, 'dependency.exists', 'These two tasks are already related'),
+    } as never)
+    await user.type(screen.getByRole('combobox', { name: 'Find a task' }), 'login')
+    await user.click(await screen.findByRole('option', { name: /ACME-7/ }))
+    await screen.findByRole('alert')
+    await user.click(screen.getByRole('option', { name: /ACME-8/ }))
+    await waitFor(() =>
+      expect(
+        stub.calls.filter((c) => c.method === 'POST' && c.url.pathname.endsWith('/dependencies')),
+      ).toHaveLength(2),
+    )
+  })
+
   it('Escape closes the picker', async () => {
     const user = userEvent.setup()
     const { onClose } = setup()

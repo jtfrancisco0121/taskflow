@@ -140,6 +140,33 @@ describe('FR-9 Dependencies section', () => {
     expect(del.headers.get('If-Match')).toBe('"3"')
   })
 
+  it('a second removal while one is pending sends no request (ClickUp 14yq6g33592)', async () => {
+    let answer: (r: Response) => void = () => {}
+    const stub = serve({ ...none, waitingOn: [item('b3', 3), item('b4', 4)] }, {
+      'DELETE /api/v1/tasks/:id/dependencies/:depId': () =>
+        new Promise<Response>((resolve) => {
+          answer = resolve
+        }),
+      'GET /api/v1/tasks/:id': () => json({ ...task, version: 5 }),
+    } as never)
+    const user = userEvent.setup()
+    const { queryClient } = render()
+    queryClient.setQueryData(queryKeys.task('t1'), task)
+    await user.click(await screen.findByRole('button', { name: 'Remove relationship with ACME-3' }))
+    const second = screen.getByRole('button', { name: 'Remove relationship with ACME-4' })
+    expect(second).toBeDisabled()
+    await user.click(second)
+    const deletes = () => stub.calls.filter((c) => c.method === 'DELETE')
+    expect(deletes()).toHaveLength(1)
+    answer(new Response(null, { status: 204 }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Remove relationship with ACME-4' }),
+      ).not.toBeDisabled(),
+    )
+    expect(deletes()).toHaveLength(1)
+  })
+
   it('puts a row back with an error toast when the removal fails', async () => {
     serve({ ...none, waitingOn: [item('b3', 3)] }, {
       'DELETE /api/v1/tasks/:id/dependencies/:depId': () => problem(500, 'x', 'Server error'),

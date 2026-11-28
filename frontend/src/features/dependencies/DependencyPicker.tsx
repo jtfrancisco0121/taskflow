@@ -56,7 +56,9 @@ async function refusal(error: unknown): Promise<string> {
 /**
  * The relationship picker (FR-9): a kind control, a combobox that searches the Workspace by words
  * (2+ characters) or looks a readable id up exactly, results without the task itself and tasks
- * already related. A refusal stays in place under the input.
+ * already related. A refusal stays in place under the input. One add at a time: a pick while an
+ * add (and its busy retry) is in flight is ignored, so a double click cannot send two (ClickUp
+ * 14yq6g33592).
  */
 export function DependencyPicker({
   task,
@@ -73,6 +75,8 @@ export function DependencyPicker({
   const [active, setActive] = useState(0)
   const [message, setMessage] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  // A ref, not add.isPending: two clicks in the same tick both see the old render.
+  const adding = useRef(false)
   const listId = useId()
   const add = useAddDependency(task)
   const workspaceId = task.workspaceId!
@@ -119,12 +123,16 @@ export function DependencyPicker({
   const shown = q.length >= 2 ? results : []
 
   async function pick(candidate: Candidate) {
+    if (adding.current) return
+    adding.current = true
     setMessage(null)
     try {
       await add.mutateAsync({ otherTaskId: candidate.taskId, relation })
       onClose()
     } catch (error) {
       setMessage(await refusal(error))
+    } finally {
+      adding.current = false
     }
   }
 
@@ -198,9 +206,10 @@ export function DependencyPicker({
             id={`${listId}-${i}`}
             role="option"
             aria-selected={i === active}
+            aria-disabled={add.isPending || undefined}
             onMouseEnter={() => setActive(i)}
             onClick={() => void pick(c)}
-            className={`cursor-pointer rounded px-2 py-1 text-sm ${i === active ? 'bg-accent-soft' : ''}`}
+            className={`rounded px-2 py-1 text-sm ${add.isPending ? 'cursor-wait opacity-60' : 'cursor-pointer'} ${i === active ? 'bg-accent-soft' : ''}`}
           >
             <span className="font-mono text-xs text-muted">{c.readableId}</span> {c.title}
             {c.listName && <span className="text-xs text-muted"> · {c.listName}</span>}

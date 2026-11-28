@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { messageOf } from '../../api/errors'
 import type { DependencyItem, DependencyList, TaskView } from '../../api/types'
@@ -38,6 +38,9 @@ function ordered(items: DependencyItem[] | undefined): DependencyItem[] {
 export function DependenciesSection({ task }: { task: TaskView }) {
   const query = useDependencies(task.id)
   const remove = useRemoveDependency(task)
+  // One removal at a time: a second one would send the version the first is about to bump, so it
+  // would fail as a conflict (ClickUp 14yq6g33592). A ref, so two clicks in one tick see it.
+  const removing = useRef(false)
   const [adding, setAdding] = useState(false)
   const location = useLocation()
   const me = getSessionUser()?.id
@@ -117,13 +120,20 @@ export function DependenciesSection({ task }: { task: TaskView }) {
                       <button
                         type="button"
                         aria-label={`Remove relationship with ${item.task?.readableId}`}
-                        onClick={() =>
-                          remove.mutate({
-                            dependencyId: item.dependencyId!,
-                            otherTaskId: item.task!.id!,
-                          })
-                        }
-                        className="rounded px-1 text-muted hover:bg-surface-2"
+                        disabled={remove.isPending}
+                        onClick={() => {
+                          if (removing.current) return
+                          removing.current = true
+                          remove.mutate(
+                            { dependencyId: item.dependencyId!, otherTaskId: item.task!.id! },
+                            {
+                              onSettled: () => {
+                                removing.current = false
+                              },
+                            },
+                          )
+                        }}
+                        className="rounded px-1 text-muted hover:bg-surface-2 disabled:cursor-wait disabled:opacity-60"
                       >
                         ×
                       </button>
