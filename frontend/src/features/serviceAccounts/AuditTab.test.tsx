@@ -43,7 +43,7 @@ describe('AuditTab', () => {
     const table = await screen.findByRole('table', { name: 'Calls per day' })
     expect(within(table).getAllByRole('row')).toHaveLength(30)
     expect(screen.getByText(/last used just now, 7 calls/)).toBeVisible()
-    expect(await screen.findByText('No changes yet.')).toBeVisible()
+    expect(await screen.findByRole('heading', { name: 'No changes yet' })).toBeVisible()
   })
 
   it('KEY-6: with no calls it says so', async () => {
@@ -56,7 +56,9 @@ describe('AuditTab', () => {
       [`GET ${BASE}/activity`]: { items: [] },
     })
     renderAudit()
-    expect(await screen.findByText('No calls in the last 30 days.')).toBeVisible()
+    expect(
+      await screen.findByRole('heading', { name: 'No calls in the last 30 days' }),
+    ).toBeVisible()
   })
 
   it('FR-9: a location change is text, a task change links, and Load more follows the cursor', async () => {
