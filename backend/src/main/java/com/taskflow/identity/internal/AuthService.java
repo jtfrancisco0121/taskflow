@@ -251,14 +251,15 @@ class AuthService {
   }
 
   /**
-   * Revokes the token's family. A token that can never be honoured again (revoked, or expired and
-   * never rotated) has nothing live in its family, so it returns without the family lock. Otherwise
-   * it first records a pending revocation for the family, without the family lock but bounded by
-   * the lock timeout (decision 010; a row held by a revoking transaction ends the family anyway),
-   * then makes one locked revoke attempt. If that attempt fails (lock contention or any other
-   * error), the pending row stands and the next refresh of any token in the family revokes it, so
-   * sign-out still answers normally. Only when neither the row nor the revoke lands can the family
-   * stay live: that is logged at ERROR with the family id and answers 503.
+   * Revokes the token's family. A revoked token has nothing live in its family, so it returns
+   * without the family lock (an expired, never-rotated one does not: a rotation of it may still be
+   * committing, PR #36 review r2). Otherwise it first records a pending revocation for the family,
+   * without the family lock but bounded by the lock timeout (decision 010; a row held by a revoking
+   * transaction ends the family anyway), then makes one locked revoke attempt. If that attempt
+   * fails (lock contention or any other error), the pending row stands and the next refresh of any
+   * token in the family revokes it, so sign-out still answers normally. Only when neither the row
+   * nor the revoke lands can the family stay live: that is logged at ERROR with the family id and
+   * answers 503.
    *
    * <p>Every log line names the family (or, before it is known, a prefix of the token hash), never
    * the raw token, and carries no stack: the exception is replaced by a handled 503, so the
@@ -271,7 +272,7 @@ class AuthService {
     String hash = sha256(rawToken);
     Optional<UUID> found;
     try {
-      found = liveFamilyOf(hash);
+      found = unrevokedFamilyOf(hash);
     } catch (RuntimeException e) {
       log.error(
           "Sign-out could not look up the family of token hash {}... ({}); it stays live until it"
@@ -390,6 +391,22 @@ class AuthService {
         .queryForList(
             "SELECT family_id FROM refresh_token WHERE token_hash = ? AND revoked_at IS NULL"
                 + " AND NOT (rotated_at IS NULL AND expires_at <= now())",
+            UUID.class,
+            hash)
+        .stream()
+        .findFirst();
+  }
+
+  /**
+   * Sign-out's family lookup: the token's family unless the token is revoked (PR #36 review r2).
+   * Only revocation is final here. "Expired and never rotated" is not: a refresh that read the
+   * token as live just before its expiry may still be committing a rotation, and its successor must
+   * end with the family. Such a token therefore takes the pending row and the locked revoke too.
+   */
+  private Optional<UUID> unrevokedFamilyOf(String hash) {
+    return jdbc
+        .queryForList(
+            "SELECT family_id FROM refresh_token WHERE token_hash = ? AND revoked_at IS NULL",
             UUID.class,
             hash)
         .stream()

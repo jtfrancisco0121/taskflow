@@ -165,8 +165,10 @@ Follow-ups from the PR #33 reviews, after the decision was implemented. All in `
 ## Hardening (ClickUp 14yq6g334r6, slice 2): sign-out always ends the family
 
 - **Pending-revocation row.** Table `refresh_pending_revocation` (`family_id` primary key, `created_at`;
-  `V202612040900__identity_refresh_pending_revocation.sql`). Sign-out looks up the token's family; a dead token
-  (revoked, or expired and never rotated) has nothing live in its family and returns 204 at once. Otherwise
+  `V202612040900__identity_refresh_pending_revocation.sql`). Sign-out looks up the token's family; a revoked token
+  has nothing live in its family and returns 204 at once. An expired, never-rotated token does not skip: a
+  refresh that read it as live just before expiry may still be committing a rotation, so its sign-out ends
+  the family like any other (PR #36 review r2; `RefreshLockContentionIT`). Refresh keeps that skip. Otherwise
   sign-out first writes the row with `INSERT ... ON CONFLICT DO NOTHING`, without the family lock (it cannot
   be blocked by the lock), then makes **one** locked revoke attempt with the 2 s lock timeout. Every refresh
   checks the row under the family lock, before any rotation or grace replay; if it is there, the refresh
@@ -210,7 +212,8 @@ Follow-ups from the PR #33 reviews, after the decision was implemented. All in `
   A refresh answered 5xx, 408, 429 or not at all (the network) is retried once after `Retry-After` (at most
   5 s, 1 s if missing); the session is kept until 3 refreshes in a row end that way, then cleared. A
   definitive answer (401, any other 4xx, a 2xx without an access token) clears the session at once and the
-  app goes to sign-in, so the browser never keeps an access token the server rejected
+  app goes to sign-in, so a definitive failure never leaves the rejected access token in place (a transient
+  one keeps it, at most until the third failed refresh in a row)
   (`frontend/src/api/session.ts`, `session.test.ts`, `client.ts`).
 - **Lock contention classification.** `DependencyService` uses the shared `LockContention` (40P01, 40001,
   55P03). It still answers 409 `dependency.busy` where the global mapping answers 503 `request.busy`; which

@@ -384,8 +384,65 @@ class RefreshLockContentionIT extends IntegrationTest {
     }
   }
 
+  /**
+   * PR #36 review r2, M1: "expired and never rotated" is not final for sign-out. A refresh that
+   * read the token as live just before expiry may still be committing its rotation; sign-out after
+   * the expiry sees the committed, unrotated, expired row. It must still end the family, so the
+   * successor the refresh commits is refused.
+   */
   @Test
-  void anExpiredUnrotatedTokensSignOutTakesNoFamilyLock() throws Exception {
+  void aSignOutAfterExpiryStillEndsARotationThatWasUncommittedAcrossTheExpiry() throws Exception {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    UUID family = familyOf(a);
+    UUID user =
+        jdbc.queryForObject(
+            "SELECT user_id FROM refresh_token WHERE token_hash = ?", UUID.class, hashOf(a));
+    jdbc.update(
+        "UPDATE refresh_token SET expires_at = now() + interval '1 second' WHERE token_hash = ?",
+        hashOf(a));
+
+    // The refresh: family lock, token rotated, successor inserted, not committed.
+    String successorRaw = "successor-" + UUID.randomUUID();
+    Connection rotation = holdFamilyLock(family);
+    try (PreparedStatement rotate =
+            rotation.prepareStatement(
+                "UPDATE refresh_token SET rotated_at = now() WHERE token_hash = ?");
+        PreparedStatement insert =
+            rotation.prepareStatement(
+                "INSERT INTO refresh_token (id, user_id, family_id, token_hash, expires_at)"
+                    + " VALUES (?, ?, ?, ?, now() + interval '30 days')")) {
+      rotate.setString(1, hashOf(a));
+      rotate.executeUpdate();
+      insert.setObject(1, UUID.randomUUID());
+      insert.setObject(2, user);
+      insert.setObject(3, family);
+      insert.setString(4, AuthService.sha256(successorRaw));
+      insert.executeUpdate();
+    }
+    Resp answer;
+    try {
+      // The token's committed row is now expired and reads as never rotated.
+      while (jdbc.queryForObject(
+          "SELECT expires_at > now() FROM refresh_token WHERE token_hash = ?",
+          Boolean.class,
+          hashOf(a))) {
+        Thread.sleep(50);
+      }
+      answer = pool.submit(() -> signOut(a)).get(15, TimeUnit.SECONDS);
+      rotation.commit();
+    } finally {
+      release(rotation);
+    }
+
+    assertThat(answer.status()).isEqualTo(204);
+    assertThat(refresh("refresh_token=" + successorRaw).status()).isEqualTo(401);
+    assertThat(liveTokensIn(family)).isZero();
+  }
+
+  /** The anti-flood skip stays for a revoked token only: that state is final. */
+  @Test
+  void anExpiredUnrotatedTokensSignOutStillEndsItsFamily() {
     Resp up = signup();
     String a = AuthIT.refreshCookie(up);
     jdbc.update(
@@ -393,15 +450,9 @@ class RefreshLockContentionIT extends IntegrationTest {
         hashOf(a));
     UUID family = familyOf(a);
 
-    Connection holder = holdFamilyLock(family);
-    try {
-      Future<Resp> request = pool.submit(() -> signOut(a));
-      int waiters = maxWaitersWhile(request, family, pidOf(holder));
+    assertThat(signOut(a).status()).isEqualTo(204);
 
-      assertThat(waiters).isZero();
-      assertThat(request.get(5, TimeUnit.SECONDS).status()).isEqualTo(204);
-    } finally {
-      release(holder);
-    }
+    assertThat(liveTokensIn(family)).isZero();
+    assertThat(pendingRevocationsOf(family)).isZero();
   }
 }
