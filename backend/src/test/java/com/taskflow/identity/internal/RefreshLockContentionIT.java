@@ -269,6 +269,59 @@ class RefreshLockContentionIT extends IntegrationTest {
   }
 
   /**
+   * PR #36 review: a revoking transaction (a refresh that found the row, or another sign-out) holds
+   * the family lock and has deleted the family's pending row but not committed. Sign-out's insert
+   * of the same row waits on that tuple; it must give up after the lock timeout like the locked
+   * attempt does, so sign-out answers 204 in bounded time while the holder still holds everything.
+   * Whether the holder commits (family revoked) or rolls back (row back), the family ends.
+   */
+  @Test
+  void aSignOutWhosePendingRowIsHeldByARevokingTransactionStillAnswers204InBoundedTime()
+      throws Exception {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    UUID family = familyOf(a);
+    jdbc.update("INSERT INTO refresh_pending_revocation (family_id) VALUES (?)", family);
+
+    Connection holder = holdFamilyLock(family);
+    try (PreparedStatement s =
+        holder.prepareStatement("DELETE FROM refresh_pending_revocation WHERE family_id = ?")) {
+      s.setObject(1, family);
+      s.executeUpdate();
+    }
+    AtomicBoolean lockHeld = new AtomicBoolean(true);
+    long started = System.nanoTime();
+    Future<Answered> request =
+        pool.submit(() -> {
+          Resp r = signOut(a);
+          return new Answered(r, lockHeld.get());
+        });
+    try {
+      // Two 2 s lock waits (the row, then the family) is the bound; 15 s is far above it. A
+      // sign-out that waits on the row until the holder ends answers only after this release.
+      request.get(15, TimeUnit.SECONDS);
+    } catch (TimeoutException stillWaiting) {
+      // Asserted below, after the release lets the sign-out finish.
+    } finally {
+      lockHeld.set(false);
+      release(holder);
+    }
+    Answered answered = request.get(30, TimeUnit.SECONDS);
+    long tookMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+
+    assertThat(answered.whileLockHeld())
+        .as("sign-out answered while the pending row and family lock were still held")
+        .isTrue();
+    assertThat(tookMillis).isLessThan(2 * AuthService.LOCK_WAIT.toMillis() + 3_000);
+    assertThat(answered.resp().status()).isEqualTo(204);
+    assertThat(answered.resp().headers().getFirst("Set-Cookie")).contains("Max-Age=0");
+    // The holder rolled back, so the row is back and the next refresh ends the family.
+    assertThat(pendingRevocationsOf(family)).isEqualTo(1);
+    assertThat(refresh(a).status()).isEqualTo(401);
+    assertThat(liveTokensIn(family)).isZero();
+  }
+
+  /**
    * The deliberate flood (PR #34 review): a holder of a live token keeps the family busy with
    * refreshes while the victim signs out. The sign-out still answers 204 and the family still ends
    * revoked, whoever wins the lock.

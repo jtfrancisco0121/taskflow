@@ -2,6 +2,7 @@ package com.taskflow.identity.internal;
 
 import com.taskflow.identity.UserInfo;
 import com.taskflow.shared.Ids;
+import com.taskflow.shared.LockContention;
 import com.taskflow.shared.LockTimeout;
 import com.taskflow.shared.RateLimiter;
 import com.taskflow.shared.TaskflowException;
@@ -252,11 +253,12 @@ class AuthService {
   /**
    * Revokes the token's family. A token that can never be honoured again (revoked, or expired and
    * never rotated) has nothing live in its family, so it returns without the family lock. Otherwise
-   * it first records a pending revocation for the family, without the lock (decision 010), then
-   * makes one locked revoke attempt. If that attempt fails (lock contention or any other error),
-   * the pending row stands and the next refresh of any token in the family revokes it, so sign-out
-   * still answers normally. Only when neither the row nor the revoke lands can the family stay
-   * live: that is logged at ERROR with the family id and answers 503.
+   * it first records a pending revocation for the family, without the family lock but bounded by
+   * the lock timeout (decision 010; a row held by a revoking transaction ends the family anyway),
+   * then makes one locked revoke attempt. If that attempt fails (lock contention or any other
+   * error), the pending row stands and the next refresh of any token in the family revokes it, so
+   * sign-out still answers normally. Only when neither the row nor the revoke lands can the family
+   * stay live: that is logged at ERROR with the family id and answers 503.
    *
    * <p>Every log line names the family (or, before it is known, a prefix of the token hash), never
    * the raw token, and carries no stack: the exception is replaced by a handled 503, so the
@@ -285,11 +287,27 @@ class AuthService {
     UUID family = found.get();
     RuntimeException pendingFailure = null;
     try {
-      jdbc.update(
-          "INSERT INTO refresh_pending_revocation (family_id) VALUES (?) ON CONFLICT DO NOTHING",
-          family);
+      // Its own short transaction, so the lock timeout bounds it: the insert waits on a
+      // transaction that holds this family's row (a revocation deleting it), never forever.
+      tx.executeWithoutResult(status -> {
+        LockTimeout.set(jdbc, LOCK_WAIT);
+        jdbc.update(
+            "INSERT INTO refresh_pending_revocation (family_id) VALUES (?) ON CONFLICT DO NOTHING",
+            family);
+      });
     } catch (RuntimeException e) {
-      pendingFailure = e;
+      if (LockContention.isContention(e)) {
+        // Another transaction holds this family's row: a revocation deleting it (its commit
+        // revokes the family, its rollback puts the row back) or a sign-out writing it. The
+        // family ends either way, so this is not a failure to record the revocation.
+        log.warn(
+            "Sign-out found the pending revocation of family {} held by another transaction ({});"
+                + " that transaction ends the family",
+            family,
+            describe(e));
+      } else {
+        pendingFailure = e;
+      }
     }
     try {
       tx.executeWithoutResult(status -> {

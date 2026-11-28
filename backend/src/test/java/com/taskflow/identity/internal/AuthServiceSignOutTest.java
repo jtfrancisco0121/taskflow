@@ -117,6 +117,46 @@ class AuthServiceSignOutTest {
     }
   }
 
+  /**
+   * PR #36 review: in autocommit the server default lock_timeout (0, wait forever) applied, so the
+   * insert could wait without limit on a revoking transaction that holds the same row.
+   */
+  @Test
+  void thePendingRowIsWrittenInATransactionBoundedByTheLockTimeout() {
+    auth.signOut(RAW);
+
+    assertThat(jdbc.pendingBounded).isTrue();
+  }
+
+  /**
+   * A lock timeout (or other contention) on the pending row means another transaction holds that
+   * family's row: a revocation deleting it (commit revokes, rollback leaves the row) or a sign-out
+   * writing it. The family ends either way, so with the locked attempt also busy this is a WARN and
+   * a normal answer, not the 503 kept for a family that stays live.
+   */
+  @Test
+  void contentionOnBothThePendingRowAndTheLockStillAnswersNormally() {
+    for (String state : List.of("55P03", "40P01", "40001")) {
+      jdbc.steps.clear();
+      logs.list.clear();
+      jdbc.failures.put(Step.PENDING, sqlState(state));
+      jdbc.failures.put(Step.LOCK, sqlState("55P03"));
+
+      auth.signOut(RAW);
+
+      assertThat(jdbc.steps).as(state).containsExactly(Step.LOOKUP, Step.PENDING, Step.LOCK);
+      assertThat(at(Level.ERROR)).as(state).isEmpty();
+      assertThat(at(Level.WARN))
+          .as(state)
+          .isNotEmpty()
+          .allSatisfy(e -> {
+            assertThat(e.getFormattedMessage()).contains(family.toString());
+            assertThat(e.getThrowableProxy()).isNull();
+          });
+      assertNoTokenLogged();
+    }
+  }
+
   @Test
   void aDatabaseErrorOnTheLockedAttemptIsAlsoDeferredToThePendingRow() {
     jdbc.failures.put(Step.LOCK, new DataAccessResourceFailureException("connection lost"));
@@ -193,6 +233,9 @@ class AuthServiceSignOutTest {
   private final class StubJdbc extends JdbcTemplate {
     final Map<Step, RuntimeException> failures = new EnumMap<>(Step.class);
     final List<Step> steps = new ArrayList<>();
+    boolean inTransaction;
+    boolean lockTimeoutSet;
+    Boolean pendingBounded;
 
     private void step(Step step) {
       steps.add(step);
@@ -210,7 +253,9 @@ class AuthServiceSignOutTest {
 
     @Override
     public void execute(String sql) {
-      // SET LOCAL lock_timeout: part of the locked attempt.
+      if (sql.startsWith("SET LOCAL lock_timeout") && inTransaction) {
+        lockTimeoutSet = true;
+      }
     }
 
     @Override
@@ -221,6 +266,7 @@ class AuthServiceSignOutTest {
     @Override
     public int update(String sql, Object... args) {
       if (sql.startsWith("INSERT INTO refresh_pending_revocation")) {
+        pendingBounded = inTransaction && lockTimeoutSet;
         step(Step.PENDING);
       } else if (sql.startsWith("UPDATE refresh_token SET revoked_at")) {
         step(Step.REVOKE);
@@ -233,16 +279,23 @@ class AuthServiceSignOutTest {
     }
   }
 
-  private static final class NoOpTransactions implements PlatformTransactionManager {
+  /** Tells the stub when a transaction is open, so it can see what runs bounded by its timeout. */
+  private final class NoOpTransactions implements PlatformTransactionManager {
     @Override
     public TransactionStatus getTransaction(TransactionDefinition definition) {
+      jdbc.inTransaction = true;
+      jdbc.lockTimeoutSet = false;
       return new SimpleTransactionStatus();
     }
 
     @Override
-    public void commit(TransactionStatus status) {}
+    public void commit(TransactionStatus status) {
+      jdbc.inTransaction = false;
+    }
 
     @Override
-    public void rollback(TransactionStatus status) {}
+    public void rollback(TransactionStatus status) {
+      jdbc.inTransaction = false;
+    }
   }
 }
