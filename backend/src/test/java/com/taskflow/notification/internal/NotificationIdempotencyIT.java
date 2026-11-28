@@ -15,16 +15,15 @@ import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.CannotGetJdbcConnectionException;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 @DisplayName("CAP-9 idempotent creation and failure handling")
-@TestPropertySource(
-    properties = {"taskflow.workers.enabled=true", "taskflow.outbox.amqp.enabled=true"})
+@WorkersIntegrationTest
 class NotificationIdempotencyIT extends NotificationSupport {
 
   @Autowired RabbitTemplate rabbit;
-  @MockitoSpyBean NotificationProcessor processor;
+
+  /** The spy from {@link WorkersIntegrationTest}. */
+  @Autowired NotificationProcessor processor;
 
   private boolean onDlq(String messageId) {
     long deadline = System.currentTimeMillis() + 4000;

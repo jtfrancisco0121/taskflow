@@ -3,6 +3,7 @@ package com.taskflow.task.internal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.taskflow.IntegrationTest;
+import com.taskflow.notification.internal.WorkersIntegrationTest;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -14,16 +15,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.test.context.TestPropertySource;
 
 @DisplayName("CAP-3 due-date sweep")
-@TestPropertySource(
-    properties = {
-      "taskflow.workers.enabled=true",
-      "taskflow.outbox.amqp.enabled=true",
-      "taskflow.due-sweep.interval-ms=3600000",
-      "taskflow.due-sweep.initial-delay-ms=3600000"
-    })
+@WorkersIntegrationTest
 class DueDateSweepIT extends IntegrationTest {
 
   @Autowired DueDateSweep sweep;

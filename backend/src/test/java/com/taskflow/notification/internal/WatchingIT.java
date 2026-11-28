@@ -7,11 +7,9 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.context.TestPropertySource;
 
 @DisplayName("CAP-10 watching")
-@TestPropertySource(
-    properties = {"taskflow.workers.enabled=true", "taskflow.outbox.amqp.enabled=true"})
+@WorkersIntegrationTest
 class WatchingIT extends NotificationSupport {
 
   @Test

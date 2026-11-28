@@ -10,12 +10,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @DisplayName("CAP-9 notification kinds and recipients")
-@TestPropertySource(
-    properties = {"taskflow.workers.enabled=true", "taskflow.outbox.amqp.enabled=true"})
+@WorkersIntegrationTest
 class NotificationKindsIT extends NotificationSupport {
 
   @Autowired EventRecorder events;

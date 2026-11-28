@@ -8,11 +8,9 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.context.TestPropertySource;
 
 @DisplayName("CAP-11 inbox")
-@TestPropertySource(
-    properties = {"taskflow.workers.enabled=true", "taskflow.outbox.amqp.enabled=true"})
+@WorkersIntegrationTest
 class InboxIT extends NotificationSupport {
 
   private String base(Fx f) {

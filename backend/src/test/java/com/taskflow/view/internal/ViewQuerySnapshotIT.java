@@ -13,7 +13,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 14yq6g334tg: one view query reads one snapshot. A task write that commits between the query's
@@ -23,7 +23,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 @DisplayName("VIEW-4 a view query reads one snapshot")
 class ViewQuerySnapshotIT extends ViewTestBase {
 
-  @MockitoSpyBean TaskReader tasks;
+  /** The spy from {@link com.taskflow.IntegrationTest}. */
+  @Autowired TaskReader tasks;
 
   @Test
   void aWriteCommittedMidQueryDoesNotSplitTheGroupFromTheTask() throws Exception {

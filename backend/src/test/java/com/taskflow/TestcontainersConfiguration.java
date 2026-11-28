@@ -5,7 +5,6 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.context.annotation.Bean;
 import org.springframework.test.context.DynamicPropertyRegistrar;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.RabbitMQContainer;
 
 @TestConfiguration(proxyBeanMethods = false)
@@ -14,11 +13,14 @@ public class TestcontainersConfiguration {
   /** A fixed test secret: tests mint their own tokens, for example an expired one. */
   public static final String JWT_SECRET = "test-secret-test-secret-test-secret-0123456789";
 
-  /** Keep this tag equal to the postgres image in deploy/compose.yaml. */
+  /**
+   * Keep this tag equal to the postgres image in deploy/compose.yaml. No TLS and a connecting wait
+   * (ClickUp 14yq6g334t6, guarded by TestcontainersPostgresGuardTest).
+   */
   @Bean
   @ServiceConnection
-  PostgreSQLContainer<?> postgresContainer() {
-    return new PostgreSQLContainer<>("postgres:18");
+  TaskflowPostgresContainer postgresContainer() {
+    return new TaskflowPostgresContainer("postgres:18");
   }
 
   /** Keep this tag equal to the redis image in deploy/compose.yaml. */

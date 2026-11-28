@@ -2,6 +2,7 @@ package com.taskflow;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.taskflow.task.TaskReader;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,10 +15,17 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
-/** Base for Testcontainers integration tests: real HTTP against the application. */
+/**
+ * Base for Testcontainers integration tests: real HTTP against the application. Every IT extends it
+ * and they share one Spring context (ClickUp 14yq6g334t6, counted by ItContextBudgetTest): the
+ * {@link TaskReader} spy (real calls, reset after each test) serves the tests that hold a view
+ * query mid-read, so they need no context of their own; get it with {@code @Autowired}.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Import(TestcontainersConfiguration.class)
+@MockitoSpyBean(types = TaskReader.class)
 public abstract class IntegrationTest {
 
   @Autowired protected TestRestTemplate rest;
