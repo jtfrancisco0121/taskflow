@@ -43,7 +43,7 @@ export function SetupPage() {
           error={errors.key?.message}
           {...form.register('key')}
         />
-        {create.isError && (
+        {create.error && (
           <p role="alert" className="text-sm text-red-700">
             {messageOf(create.error)}
           </p>

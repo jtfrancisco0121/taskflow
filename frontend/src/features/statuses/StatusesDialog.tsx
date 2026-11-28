@@ -12,6 +12,8 @@ import { GROUP_LABEL, type Group } from './statusTypes'
 import { ResetPanel } from './ResetPanel'
 import { StatusEditor } from './StatusEditor'
 import { useLocationStatuses } from './useLocationStatuses'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 export type StatusesLocation = {
   id: string
@@ -63,10 +65,13 @@ export function StatusesDialog({
           ))}
         </div>
       )}
-      {set.isError && (
+      {refreshFailed(set) && (
+        <RefreshNotice message={messageOf(set.error)} onRetry={() => void set.refetch()} />
+      )}
+      {loadFailed(set) && (
         <ErrorState message={messageOf(set.error)} onRetry={() => void set.refetch()} />
       )}
-      {set.isSuccess && (
+      {hasData(set) && (
         <div className="flex flex-col gap-3">
           <p className="rounded-md bg-surface-2 px-2 py-1 text-sm text-muted">
             {inheriting ? `Inherited from ${sourceName ?? 'a parent location'}` : 'Defined here'}

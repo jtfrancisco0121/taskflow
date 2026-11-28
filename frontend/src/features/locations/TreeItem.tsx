@@ -13,6 +13,7 @@ import { type MenuAction } from './menuItems'
 import { TreeItemMenu } from './TreeItemMenu'
 import { useCreateLocation, useUpdateLocation } from './useLocationMutations'
 import { useTreeChildren, type TreeNode } from './useTreeChildren'
+import { loadFailed, refreshFailed } from '../../api/queryState'
 
 type TreeItemProps = {
   workspaceId: string
@@ -218,7 +219,15 @@ export function TreeItem({ workspaceId, node, level, focusedId, onFocusItem }: T
               Loading…
             </li>
           )}
-          {expanded && children.isError && (
+          {expanded && refreshFailed(children) && (
+            <li role="none" className="list-none py-1 pl-8 text-xs text-muted">
+              Couldn&apos;t refresh.{' '}
+              <button type="button" className="underline" onClick={() => void children.refetch()}>
+                Retry
+              </button>
+            </li>
+          )}
+          {expanded && loadFailed(children) && (
             <li role="none" className="list-none py-1 pl-8 text-xs text-danger">
               Couldn&apos;t load.{' '}
               <button type="button" className="underline" onClick={() => void children.refetch()}>

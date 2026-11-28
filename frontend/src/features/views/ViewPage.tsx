@@ -19,6 +19,8 @@ import { useViews, viewKey } from './useViews'
 import { ViewTabs } from './ViewTabs'
 import { useViewStore } from './viewStore'
 import { ChipBar } from './ChipBar'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 const TYPE_NAME = { SPACE: 'Space', FOLDER: 'Folder', LIST: 'List' } as const
 const EMPTY_BASE = { v: 1 }
@@ -40,7 +42,7 @@ export function ViewPage({
   const statusesButton = useRef<HTMLButtonElement>(null)
   const [statusesOpen, setStatusesOpen] = useState(false)
 
-  if (scope.locationId && location.isError) {
+  if (scope.locationId && loadFailed(location)) {
     return (
       <div>
         <p>This location doesn&apos;t exist or you don&apos;t have access.</p>
@@ -77,9 +79,12 @@ export function ViewPage({
           </Button>
         )}
       </header>
-      {views.isError && <ErrorState message={messageOf(views.error)} />}
-      {views.isSuccess && !current && <p>This view doesn&apos;t exist or you can&apos;t see it.</p>}
-      {views.isSuccess && current && (
+      {loadFailed(views) && <ErrorState message={messageOf(views.error)} />}
+      {refreshFailed(views) && (
+        <RefreshNotice message={messageOf(views.error)} onRetry={() => void views.refetch()} />
+      )}
+      {hasData(views) && !current && <p>This view doesn&apos;t exist or you can&apos;t see it.</p>}
+      {hasData(views) && current && (
         <ViewBody
           scope={scope}
           views={views.data}

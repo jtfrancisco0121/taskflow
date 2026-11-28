@@ -4,6 +4,8 @@ import type { TaskView } from '../../api/types'
 import { ValueEditor, useLocationFields } from '../fields'
 import { FieldShell, type Hint } from './FieldShell'
 import type { TaskPatch } from './useUpdateTask'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 type Save = (field: string, label: string, patch: TaskPatch) => Promise<boolean>
 
@@ -43,7 +45,10 @@ export function CustomFieldsGroup({ task, hints, save }: Props) {
           <div className="h-8 rounded bg-surface-3" />
         </div>
       )}
-      {fields.isError && (
+      {refreshFailed(fields) && (
+        <RefreshNotice message={messageOf(fields.error)} onRetry={() => void fields.refetch()} />
+      )}
+      {loadFailed(fields) && (
         <p role="alert" className="text-sm text-danger">
           Couldn't load the custom fields: {messageOf(fields.error)}{' '}
           <button type="button" className="underline" onClick={() => void fields.refetch()}>
@@ -51,7 +56,7 @@ export function CustomFieldsGroup({ task, hints, save }: Props) {
           </button>
         </p>
       )}
-      {fields.isSuccess && shown.length === 0 && (
+      {hasData(fields) && shown.length === 0 && (
         <p className="text-sm text-muted">
           No custom fields here. Add one from the location's Fields.
         </p>

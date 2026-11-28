@@ -8,6 +8,8 @@ import { EmptyState } from '../../shared/ui/EmptyState'
 import { ErrorState } from '../../shared/ui/ErrorState'
 import { Skeleton } from '../../shared/ui/Skeleton'
 import { useAutomationRuns } from './useAutomations'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 const PILL: Record<string, string> = {
   SUCCEEDED: 'bg-ok-soft text-fg',
@@ -50,10 +52,13 @@ export function RunsSheet({
           ))}
         </div>
       )}
-      {runs.isError && (
+      {refreshFailed(runs) && (
+        <RefreshNotice message={messageOf(runs.error)} onRetry={() => void runs.refetch()} />
+      )}
+      {loadFailed(runs) && (
         <ErrorState message={messageOf(runs.error)} onRetry={() => void runs.refetch()} />
       )}
-      {runs.isSuccess && items.length === 0 && (
+      {hasData(runs) && items.length === 0 && (
         <EmptyState
           title="No runs yet"
           description="Each time this rule fires, the outcome is listed here."

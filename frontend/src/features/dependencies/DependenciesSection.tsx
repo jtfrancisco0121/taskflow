@@ -7,6 +7,8 @@ import { getSessionUser } from '../../api/session'
 import { useMembers } from '../workspace'
 import { DependencyPicker } from './DependencyPicker'
 import { useDependencies, useRemoveDependency } from './useDependencies'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { loadFailed, refreshFailed } from '../../api/queryState'
 
 type Group = { key: 'waitingOn' | 'blocking' | 'linked'; label: string }
 
@@ -79,7 +81,10 @@ export function DependenciesSection({ task }: { task: TaskView }) {
           <div className="h-4 rounded bg-surface-3" />
         </div>
       )}
-      {query.isError && (
+      {refreshFailed(query) && (
+        <RefreshNotice message={messageOf(query.error)} onRetry={() => void query.refetch()} />
+      )}
+      {loadFailed(query) && (
         <div role="alert" className="text-sm text-danger">
           <p className="m-0">Couldn&apos;t load dependencies.</p>
           <span className="sr-only">{messageOf(query.error)}</span>

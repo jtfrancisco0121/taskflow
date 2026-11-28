@@ -9,6 +9,8 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { CreateServiceAccountDialog } from './CreateServiceAccountDialog'
 import { isStatus, useServiceAccounts, useSetEnabled } from './hooks'
 import { ManageDenied } from './ManageDenied'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 function DisableButton({
   workspaceId,
@@ -78,18 +80,21 @@ export function ServiceAccountsPage() {
           ))}
         </div>
       )}
-      {query.isError && (
+      {refreshFailed(query) && (
+        <RefreshNotice message={messageOf(query.error)} onRetry={() => void query.refetch()} />
+      )}
+      {loadFailed(query) && (
         <div role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm">
           <p className="mb-2 text-red-900">{messageOf(query.error)}</p>
           <Button onClick={() => void query.refetch()}>Retry</Button>
         </div>
       )}
-      {query.isSuccess && query.accounts.length === 0 && (
+      {hasData(query) && query.accounts.length === 0 && (
         <p className="text-sm text-slate-600">
           No service accounts yet. Create one to give an agent its own access.
         </p>
       )}
-      {query.isSuccess && query.accounts.length > 0 && (
+      {hasData(query) && query.accounts.length > 0 && (
         <table className="w-full text-left text-sm">
           <caption className="sr-only">Service accounts</caption>
           <thead className="text-xs font-medium text-slate-500">

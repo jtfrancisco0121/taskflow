@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
+import { hasData } from '../../api/queryState'
 
 /** AD-6: GET /workspaces through useInfiniteQuery with the server's cursor. */
 export function useWorkspaces() {
@@ -25,5 +26,5 @@ export function useAllWorkspaces() {
     if (hasNextPage && !isFetchingNextPage) void fetchNextPage()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
   const workspaces = query.data?.pages.flatMap((page) => page.items ?? []) ?? []
-  return { ...query, workspaces, done: query.isSuccess && !hasNextPage }
+  return { ...query, workspaces, done: hasData(query) && !hasNextPage }
 }

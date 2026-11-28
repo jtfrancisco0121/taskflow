@@ -15,6 +15,9 @@ import {
   useSetRead,
   useUnreadCount,
 } from './useNotifications'
+import { messageOf } from '../../api/errors'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 /** The bell in the header: unread count (hidden at 0, "99+"), a popover of the 20 newest (CAP-11). */
 export function NotificationBell({ workspaceId }: { workspaceId: string }) {
@@ -112,10 +115,13 @@ function NotificationList({ workspaceId, onClose }: { workspaceId: string; onClo
           ))}
         </div>
       )}
-      {inbox.isError && (
+      {refreshFailed(inbox) && (
+        <RefreshNotice message={messageOf(inbox.error)} onRetry={() => void inbox.refetch()} />
+      )}
+      {loadFailed(inbox) && (
         <ErrorState message="Couldn't load notifications." onRetry={() => void inbox.refetch()} />
       )}
-      {inbox.isSuccess && items.length === 0 && (
+      {hasData(inbox) && items.length === 0 && (
         <p className="p-2 text-sm text-muted">No notifications yet.</p>
       )}
       <ul className="m-0 max-h-96 list-none overflow-auto p-0">

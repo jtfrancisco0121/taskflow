@@ -10,6 +10,8 @@ import { Button } from '../../shared/ui/Button'
 import { useLocationStatuses } from '../statuses'
 import { useMembers } from '../workspace'
 import { actorLabel, activitySentences, relatedTaskIds, type NameLookup } from './activitySentence'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 function useActivity(taskId: string) {
   return useInfiniteQuery({
@@ -64,7 +66,13 @@ export function ActivityTab({ task }: { task: TaskView }) {
   return (
     <div className="flex flex-col gap-2">
       {activity.isPending && <p role="status">Loading…</p>}
-      {activity.isError && (
+      {refreshFailed(activity) && (
+        <RefreshNotice
+          message={messageOf(activity.error)}
+          onRetry={() => void activity.refetch()}
+        />
+      )}
+      {loadFailed(activity) && (
         <p role="alert" className="text-sm text-danger">
           {messageOf(activity.error)}{' '}
           <button type="button" className="underline" onClick={() => void activity.refetch()}>
@@ -72,7 +80,7 @@ export function ActivityTab({ task }: { task: TaskView }) {
           </button>
         </p>
       )}
-      {activity.isSuccess && entries.length === 0 && (
+      {hasData(activity) && entries.length === 0 && (
         <p className="text-sm text-muted">No activity yet.</p>
       )}
       <ul className="m-0 flex list-none flex-col gap-2 p-0">
