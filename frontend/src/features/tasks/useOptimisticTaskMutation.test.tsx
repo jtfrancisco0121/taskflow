@@ -1,11 +1,12 @@
 import { QueryClientProvider, type InfiniteData } from '@tanstack/react-query'
 import { renderHook, act } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '../../api/queryKeys'
 import type { TaskView, ViewQueryResponse } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 import { newQueryClient } from '../../test/api'
+import { VIEW_REFRESH_MS } from './taskCaches'
 import {
   CONFLICT_MESSAGE,
   taskMutationGate,
@@ -145,5 +146,104 @@ describe('useOptimisticTaskMutation (AD-20)', () => {
       Promise.all([run({ task: task(), send: send(4) }), run({ task: task(), send: send(5) })]),
     )
     expect(versions).toEqual([3, 4])
+  })
+
+  // 14yq6g334tg guard: a saved write that changes the task's group reads every view again (a Board column holding
+  // the task in place would keep it under its old group); a write that keeps the group does not (no extra reads).
+  const invalidated = (queryClient: ReturnType<typeof setup>['queryClient']) =>
+    queryClient.getQueryState(queryKeys.view('w1', 'l1', 'h', undefined))?.isInvalidated
+  it.each([
+    ['status', { statusId: 'st-doing' }],
+    ['priority', { priority: 'URGENT' }],
+    ['assignees', { assigneeIds: ['u2'] }],
+    ['List', { listId: 'l2' }],
+    ['due date', { dueDate: '2026-12-20T17:00:00Z' }],
+    ['custom field', { customFields: { f1: ['o-a', 'o-b'] } }],
+  ] as const)('a saved %s change reads the loaded views again', async (_name, change) => {
+    const { run, queryClient } = setup()
+    await act(() =>
+      run({
+        task: task(),
+        optimistic: change as Partial<TaskView>,
+        send: async () => ({
+          response: new Response(null, { status: 200 }),
+          data: task({ ...(change as Partial<TaskView>), version: 4 }),
+        }),
+      }),
+    )
+    await vi.waitFor(() => expect(invalidated(queryClient)).toBe(true))
+  })
+
+  it('a saved change that keeps the group (a title, the same assignees reordered, the same fields) reads no view again', async () => {
+    const { run, queryClient } = setup()
+    queryClient.setQueryData(
+      queryKeys.task('t1'),
+      task({ assigneeIds: ['u1', 'u2'], customFields: { f1: 'o-a', f2: 3, f3: null } }),
+    )
+    await act(() =>
+      run({
+        task: task(),
+        optimistic: { title: 'Renamed' },
+        send: async () => ({
+          response: new Response(null, { status: 200 }),
+          data: task({
+            title: 'Renamed',
+            assigneeIds: ['u2', 'u1'],
+            customFields: { f2: 3, f1: 'o-a' },
+            version: 4,
+          }),
+        }),
+      }),
+    )
+    // Past the gathered refresh (VIEW_REFRESH_MS), so a scheduled read would have run.
+    await act(() => new Promise((resolve) => setTimeout(resolve, VIEW_REFRESH_MS + 50)))
+    expect(invalidated(queryClient)).toBe(false)
+  })
+  // 14yq6g334tg r2 M2: a refusal (4xx) undoes only this write's own change.
+  const refused = () => ({
+    response: new Response(JSON.stringify({ code: 'access.denied' }), { status: 403 }),
+    error: { code: 'access.denied' },
+  })
+
+  it('a 4xx with nothing changed meanwhile puts the view back and reads no view again', async () => {
+    const { run, queryClient, shown } = setup()
+    const outcome = await act(() =>
+      run({
+        task: task(),
+        optimistic: { title: 'Mine' },
+        silent: true,
+        send: async () => refused(),
+      }),
+    )
+    expect(outcome).toBe('failed')
+    expect(shown()?.title).toBe('One')
+    await act(() => new Promise((resolve) => setTimeout(resolve, VIEW_REFRESH_MS + 50)))
+    expect(invalidated(queryClient)).toBe(false)
+  })
+
+  it('a 4xx keeps a view another save changed meanwhile and reads it again', async () => {
+    const { run, queryClient } = setup()
+    const key = queryKeys.view('w1', 'l1', 'h', undefined)
+    const other = { id: 't2', workspaceId: 'w1', listId: 'l1', title: 'Other saved', version: 2 }
+    const outcome = await act(() =>
+      run({
+        task: task(),
+        optimistic: { title: 'Mine' },
+        silent: true,
+        send: async () => {
+          // Another save's refresh lands while this one waits: the view now lists the other task too.
+          queryClient.setQueryData<InfiniteData<ViewQueryResponse>>(key, (d) => ({
+            ...d!,
+            pages: [{ items: [...(d!.pages[0].items ?? []), { group: 'a', task: other }] }],
+          }))
+          return refused()
+        },
+      }),
+    )
+    expect(outcome).toBe('failed')
+    const items = queryClient.getQueryData<InfiniteData<ViewQueryResponse>>(key)?.pages[0].items
+    expect(items?.some((i) => i.task?.id === 't2')).toBe(true)
+    // It may still hold this write's optimistic title: it is read again.
+    await vi.waitFor(() => expect(invalidated(queryClient)).toBe(true))
   })
 })

@@ -1,3 +1,5 @@
+import { screen, within } from '@testing-library/react'
+import { expect } from 'vitest'
 import type { FieldView } from '../../api/types'
 import { json } from '../../test/api'
 
@@ -78,4 +80,20 @@ export const customFields: FieldView[] = [
 ]
 export const fieldRoutes = {
   'GET /api/v1/locations/:id/fields': { locationId: 'l1', canEdit: true, fields: customFields },
+}
+
+/**
+ * Guard (14yq6g334tg): on the Board, every column that has finished loading and has no further page shows a header
+ * count equal to the cards it renders. A count from one query and cards from another must never disagree.
+ */
+export function expectColumnCountsMatchCards() {
+  const board = screen.getByLabelText('Board')
+  for (const column of within(board).getAllByRole('region')) {
+    const name = column.getAttribute('aria-label') ?? ''
+    if (within(column).queryByRole('status', { name: `Loading ${name}` })) continue
+    if (within(column).queryByRole('button', { name: 'Load more' })) continue
+    const count = within(column).getByRole('heading').lastElementChild?.textContent
+    const cards = column.querySelectorAll('li').length
+    expect(Number(count), `count of the ${name} column`).toBe(cards)
+  }
 }
