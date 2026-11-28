@@ -34,6 +34,12 @@ class AuthService {
   static final int IP_ATTEMPT_LIMIT = 20;
   static final Duration IP_WINDOW = Duration.ofMinutes(1);
 
+  /**
+   * How long a refresh or sign-out waits for its family lock before giving up with 503 (mapped by
+   * ProblemDetailsHandler from 55P03), so a busy family cannot hold pool connections indefinitely.
+   */
+  static final String LOCK_TIMEOUT = "SET LOCAL lock_timeout = '2s'";
+
   /** An issued session: the access token plus the raw refresh token for the cookie. */
   record Session(UserInfo user, String accessToken, long expiresIn, String refreshToken) {}
 
@@ -148,7 +154,8 @@ class AuthService {
     long graceMillis = properties.refreshReuseGrace().toMillis();
     Result result =
         tx.execute(status -> {
-          if (!lockFamilyOf(hash)) {
+          jdbc.execute(LOCK_TIMEOUT);
+          if (!lockLiveFamilyOf(hash)) {
             return new Result(Outcome.INVALID, null);
           }
           // The family lock already orders every request on this family; FOR UPDATE stays as a
@@ -238,6 +245,7 @@ class AuthService {
     }
     String hash = sha256(rawToken);
     tx.executeWithoutResult(status -> {
+      jdbc.execute(LOCK_TIMEOUT);
       Optional<UUID> family = familyOf(hash);
       if (family.isPresent()) {
         lockFamily(family.get());
@@ -247,14 +255,30 @@ class AuthService {
   }
 
   /**
-   * Takes the family lock of the token with {@code hash}; false when no such token exists. Every
-   * refresh and sign-out takes this lock first, before any refresh_token row lock, so requests on
-   * one family run one after another: no lock-order deadlock between the token row and the
-   * family-wide statements, and a sign-out never misses a successor inserted by a concurrent
-   * rotation. family_id never changes, so reading it without a lock is safe.
+   * Takes the family lock of the token with {@code hash}; false, without locking, when no such
+   * token exists or it can never be honoured again. Every refresh and sign-out takes this lock
+   * first, before any refresh_token row lock, so requests on one family run one after another: no
+   * lock-order deadlock between the token row and the family-wide statements, and a sign-out never
+   * misses a successor inserted by a concurrent rotation. family_id never changes, so reading it
+   * without a lock is safe.
+   *
+   * <p>A revoked token, or an expired one that was never rotated, is refused before the lock
+   * (ClickUp 14yq6g334r6), so flooding with it cannot queue requests on the family. Both states are
+   * final, so the unlocked read cannot let a token through: a token read as live here is read again
+   * under the lock. Revocation is always family-wide, so there is nothing left to revoke; an
+   * expired, never-rotated token is its family's newest, so nothing after it can be live. An
+   * expired token that was rotated still takes the lock and revokes its family as reuse.
    */
-  private boolean lockFamilyOf(String hash) {
-    Optional<UUID> family = familyOf(hash);
+  private boolean lockLiveFamilyOf(String hash) {
+    Optional<UUID> family =
+        jdbc
+            .queryForList(
+                "SELECT family_id FROM refresh_token WHERE token_hash = ? AND revoked_at IS NULL"
+                    + " AND NOT (rotated_at IS NULL AND expires_at < now())",
+                UUID.class,
+                hash)
+            .stream()
+            .findFirst();
     family.ifPresent(this::lockFamily);
     return family.isPresent();
   }
