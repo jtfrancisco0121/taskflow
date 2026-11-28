@@ -120,6 +120,15 @@ class RefreshLockContentionIT extends IntegrationTest {
     return max;
   }
 
+  /** Blocks until a request other than the holder waits on the family's lock (at most 10 s). */
+  private void awaitWaiterOn(UUID family, int holderPid) throws Exception {
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+    while (waitersOn(family, holderPid) == 0) {
+      assertThat(System.nanoTime()).as("a waiter on the family lock").isLessThan(deadline);
+      Thread.sleep(20);
+    }
+  }
+
   @Test
   void aRevokedTokenIsRefusedWithoutWaitingOnItsFamilyLock() throws Exception {
     Resp up = signup();
@@ -198,8 +207,10 @@ class RefreshLockContentionIT extends IntegrationTest {
     Future<Resp> request;
     try {
       request = pool.submit(() -> signOut(a));
-      // Longer than one 2 s lock_timeout, shorter than the retries together.
-      Thread.sleep(3_000);
+      awaitWaiterOn(family, pidOf(holder));
+      // Counted from the first attempt's wait: past its 2 s lock_timeout, so only a retry can
+      // revoke, and well inside the second attempt's wait.
+      Thread.sleep(2_500);
     } finally {
       release(holder);
     }

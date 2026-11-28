@@ -2,13 +2,13 @@ package com.taskflow.identity.internal;
 
 import com.taskflow.identity.UserInfo;
 import com.taskflow.shared.Ids;
+import com.taskflow.shared.LockContention;
 import com.taskflow.shared.RateLimiter;
 import com.taskflow.shared.TaskflowException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.sql.SQLException;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -17,8 +17,6 @@ import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.CannotAcquireLockException;
-import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -248,9 +246,10 @@ class AuthService {
   /**
    * Revokes the token's family. A token that can never be honoured again (revoked, or expired and
    * never rotated) has nothing live in its family, so it returns without the family lock. Otherwise
-   * the locked revoke is tried {@link #SIGN_OUT_ATTEMPTS} times, each a fresh transaction with its
-   * own lock timeout, because the controller clears the cookie whatever happens and the browser
-   * cannot retry: giving up leaves the family live until it expires (decision 010, Hardening).
+   * the locked revoke is tried {@link #SIGN_OUT_ATTEMPTS} times on lock contention ({@link
+   * LockContention}), each a fresh transaction with its own lock timeout, because the controller
+   * clears the cookie whatever happens and the browser cannot retry: giving up leaves the family
+   * live until it expires (decision 010, Hardening).
    */
   void signOut(String rawToken) {
     if (rawToken == null || rawToken.isBlank()) {
@@ -268,36 +267,30 @@ class AuthService {
           revokeFamily(family.get());
         });
         return;
-      } catch (DataAccessException e) {
-        if (!isLockTimeout(e)) {
+      } catch (RuntimeException e) {
+        boolean contention = LockContention.isContention(e);
+        if (contention && attempt < SIGN_OUT_ATTEMPTS) {
+          continue;
+        }
+        // Whatever the cause, the controller still clears the cookie and the family stays live
+        // until it expires (decision 010), so name the family for an operator. Never the token.
+        log.error(
+            "Sign-out could not revoke family {} (attempt {} of {}, {}); it stays live until it"
+                + " expires",
+            family.get(),
+            attempt,
+            SIGN_OUT_ATTEMPTS,
+            e.getClass().getSimpleName(),
+            e);
+        if (!contention) {
           throw e;
         }
-        if (attempt == SIGN_OUT_ATTEMPTS) {
-          log.error(
-              "Sign-out could not revoke family {} after {} lock waits; it stays live until it"
-                  + " expires",
-              family.get(),
-              SIGN_OUT_ATTEMPTS);
-          throw new TaskflowException(
-              HttpStatus.SERVICE_UNAVAILABLE,
-              "request.busy",
-              "Signed out on this device, but the session could not be ended everywhere");
-        }
+        throw new TaskflowException(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "request.busy",
+            "Signed out on this device, but the session could not be ended everywhere");
       }
     }
-  }
-
-  /** A lock wait past {@link #LOCK_TIMEOUT}, however Spring translated SQLSTATE 55P03. */
-  private static boolean isLockTimeout(DataAccessException e) {
-    if (e instanceof CannotAcquireLockException) {
-      return true;
-    }
-    for (Throwable t = e; t != null; t = t.getCause()) {
-      if (t instanceof SQLException sql && "55P03".equals(sql.getSQLState())) {
-        return true;
-      }
-    }
-    return false;
   }
 
   /**

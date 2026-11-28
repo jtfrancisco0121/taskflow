@@ -1,10 +1,10 @@
 package com.taskflow.shared.internal;
 
+import com.taskflow.shared.LockContention;
 import com.taskflow.shared.TaskflowException;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -28,9 +28,6 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 class ProblemDetailsHandler extends ResponseEntityExceptionHandler {
 
   private static final Logger log = LoggerFactory.getLogger(ProblemDetailsHandler.class);
-
-  /** Deadlock, serialization failure and lock timeout: the same request can succeed on retry. */
-  private static final Set<String> CONTENTION_STATES = Set.of("40P01", "40001", "55P03");
 
   @ExceptionHandler(TaskflowException.class)
   ResponseEntity<ProblemDetail> domain(TaskflowException e) {
@@ -56,13 +53,12 @@ class ProblemDetailsHandler extends ResponseEntityExceptionHandler {
   }
 
   /**
-   * Lock contention is 503 with Retry-After rather than 500 (ClickUp 14yq6g334r6). Spring maps
-   * 40P01 and 40001 to {@link PessimisticLockingFailureException} but leaves a lock timeout (55P03)
-   * uncategorized, so its SQLSTATE is read; any other uncategorized error is rethrown unchanged.
+   * Lock contention ({@link LockContention}) is 503 with Retry-After rather than 500 (ClickUp
+   * 14yq6g334r6); any other uncategorized error is rethrown unchanged.
    */
   @ExceptionHandler({PessimisticLockingFailureException.class, UncategorizedSQLException.class})
   ResponseEntity<ProblemDetail> contention(DataAccessException e) {
-    if (!(e instanceof PessimisticLockingFailureException) && !hasContentionState(e)) {
+    if (!LockContention.isContention(e)) {
       throw e;
     }
     log.warn("lock contention: {}", e.getMostSpecificCause().getMessage());
@@ -70,15 +66,6 @@ class ProblemDetailsHandler extends ResponseEntityExceptionHandler {
         new TaskflowException(
                 HttpStatus.SERVICE_UNAVAILABLE, "request.busy", "The server is busy; retry shortly")
             .header(HttpHeaders.RETRY_AFTER, "1"));
-  }
-
-  private static boolean hasContentionState(Throwable e) {
-    for (Throwable t = e; t != null; t = t.getCause()) {
-      if (t instanceof java.sql.SQLException sql && CONTENTION_STATES.contains(sql.getSQLState())) {
-        return true;
-      }
-    }
-    return false;
   }
 
   @ExceptionHandler(ConstraintViolationException.class)
