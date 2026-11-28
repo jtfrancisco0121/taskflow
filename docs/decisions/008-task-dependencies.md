@@ -21,7 +21,9 @@ Status: accepted. Context: Phase 3B adds relationships between tasks (DEP-1..DEP
 5. **Writes serialise per Workspace.** A transaction-scoped advisory lock (own namespace), then both task
    rows `FOR UPDATE` in id order, then the `If-Match` comparison, the cycle check (recursive CTE over
    `WAITING_ON` rows, trashed tasks included), the insert and the version bump of both tasks. A lock wait
-   (5 s) or a deadlock is answered `409 dependency.busy`; the transaction is owned by the idempotency
+   (5 s) or a deadlock is answered like any lock contention, `503 request.busy` with `Retry-After`
+   (`LockContention.busy()`; a 409 with its own code until ClickUp 14yq6g334u1, JT Francisco 2026-11-28
+   "Unify on 503 later"); the transaction is owned by the idempotency
    filter, so there is no retry inside it and the client retries with the same key.
 6. **One choke point for blocker events.** `BlockerTransitions` records `task.blocker_resolved` and
    `task.blocker_reopened` on each live dependent whenever a blocker crosses the finished boundary: a status

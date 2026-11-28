@@ -62,10 +62,7 @@ class ProblemDetailsHandler extends ResponseEntityExceptionHandler {
       throw e;
     }
     log.warn("lock contention: {}", e.getMostSpecificCause().getMessage());
-    return domain(
-        new TaskflowException(
-                HttpStatus.SERVICE_UNAVAILABLE, "request.busy", "The server is busy; retry shortly")
-            .header(HttpHeaders.RETRY_AFTER, "1"));
+    return domain(LockContention.busy());
   }
 
   @ExceptionHandler(ConstraintViolationException.class)

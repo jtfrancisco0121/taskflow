@@ -11,6 +11,7 @@ import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.UncategorizedSQLException;
 
 /** ClickUp 14yq6g334r6: one contention predicate for the 503 handler and the sign-out retry. */
@@ -42,5 +43,20 @@ class LockContentionTest {
         .isFalse();
     assertThat(LockContention.isContention(new IllegalStateException("x"))).isFalse();
     assertThat(LockContention.isContention(null)).isFalse();
+  }
+
+  /** ClickUp 14yq6g334u1: the one answer to contention, shared by every endpoint. */
+  @Test
+  void busyIs503RequestBusyWithRetryAfter() {
+    TaskflowException busy = LockContention.busy();
+
+    assertThat(busy.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+    assertThat(busy.code()).isEqualTo("request.busy");
+    assertThat(busy.headers()).containsEntry("Retry-After", "1");
+  }
+
+  @Test
+  void eachBusyIsAFreshException() {
+    assertThat(LockContention.busy()).isNotSameAs(LockContention.busy());
   }
 }

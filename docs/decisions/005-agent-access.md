@@ -117,7 +117,7 @@ where it differs or adds detail.
     `taskId`: `WAITING_ON` (alias `BLOCKED_BY`), `BLOCKING` or `LINKED`. `add_dependency` is wrapped with
     `AgentTool.withIdempotencyKey` like `create_task`; errors are tool errors with the REST code
     (`dependency.cycle` with the `path`, `dependency.exists`, `dependency.limit`, `dependency.self`,
-    `dependency.not_found`, `dependency.busy`, `task.version_conflict`). `get_task` returns the REST task
+    `dependency.not_found`, `request.busy` on lock contention, `task.version_conflict`). `get_task` returns the REST task
     plus `dependencies` (the body of `GET /tasks/{id}/dependencies`; relationships to tasks the caller cannot
     see are only counted in `hiddenCount`); `blocked` and `blockerCount` are on every task and every
     `search_tasks` hit. `search_tasks` accepts `blocked: true | false`, alone or with `query`,
