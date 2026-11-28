@@ -11,7 +11,12 @@ import { queryKeys } from '../../api/queryKeys'
 import { cancelThenInvalidate, firstLoadsOf, inBackground, restartQueries } from '../../api/refresh'
 import type { components } from '../../api/schema'
 import type { TaskView } from '../../api/types'
-import { taskFirstLoadFilters, writeTaskToCaches } from './taskCaches'
+import {
+  refreshAfterTaskWrite,
+  regroups,
+  taskFirstLoadFilters,
+  writeTaskToCaches,
+} from './taskCaches'
 
 export type TaskPatch = components['schemas']['UpdateTaskRequest']
 
@@ -55,8 +60,15 @@ export function useUpdateTask(taskId: string) {
   const refreshActivity = () =>
     inBackground(cancelThenInvalidate(queryClient, { queryKey: queryKeys.activity(taskId) }))
 
+  // 14yq6g334tg: a task that changed group is read again in every view; otherwise only first loads restart.
+  const refreshAfter = (task: TaskView, firstLoads: Set<string>, regrouped: boolean) =>
+    task.workspaceId
+      ? refreshAfterTaskWrite(queryClient, task.workspaceId, firstLoads, regrouped)
+      : restartQueries(queryClient, firstLoads)
+
   const send = async (patch: TaskPatch): Promise<UpdateResult> => {
     const cached = queryClient.getQueryData<TaskView>(queryKeys.task(taskId))
+    // A group change (status, priority, assignees, List) is judged against this copy, cached before the write.
     let result
     try {
       result = await api.PATCH('/api/v1/tasks/{id}', {
@@ -74,18 +86,20 @@ export function useUpdateTask(taskId: string) {
       const current = (result.error as { current?: TaskView } | undefined)?.current
       if (current) {
         const firstLoads = firstLoadsAt(queryClient, current)
+        const regrouped = regroups(cached, current)
         writeTaskToCaches(queryClient, current)
         replaceInLists(queryClient, current)
-        inBackground(restartQueries(queryClient, firstLoads))
+        inBackground(refreshAfter(current, firstLoads, regrouped))
         refreshActivity()
         return { kind: 'conflict', current, attempted: patch }
       }
     }
     if (!response.ok || !result.data) throw toApiError(response, result.error)
     const firstLoads = firstLoadsAt(queryClient, result.data)
+    const regrouped = regroups(cached, result.data)
     writeTaskToCaches(queryClient, result.data)
     replaceInLists(queryClient, result.data)
-    inBackground(restartQueries(queryClient, firstLoads))
+    inBackground(refreshAfter(result.data, firstLoads, regrouped))
     refreshActivity()
     return { kind: 'saved', task: result.data }
   }

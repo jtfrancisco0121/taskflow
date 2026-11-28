@@ -6,8 +6,11 @@ import { cancelThenInvalidate, firstLoadsOf, inBackground, restartQueries } from
 import type { TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 import {
+  cachedTask,
   cachedVersion,
   patchTaskInCaches,
+  refreshAfterTaskWrite,
+  regroups,
   taskFirstLoadFilters,
   writeTaskToCaches,
 } from './taskCaches'
@@ -95,6 +98,8 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
     : useToastStore.getState().show
   const views = queryClient.getQueriesData({ queryKey: queryKeys.viewsAll(workspaceId) })
   const taskBefore = queryClient.getQueryData<TaskView>(queryKeys.task(id))
+  // The task as cached before this write's own optimistic change: a saved group change is judged against it.
+  const groupedBefore = cachedTask(queryClient, workspaceId, id)
   const restore = () => {
     views.forEach(([key, data]) => queryClient.setQueryData(key, data))
     queryClient.setQueryData(queryKeys.task(id), taskBefore)
@@ -151,6 +156,14 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
   writeTaskToCaches(queryClient, result.data)
   // An activity still on its first load read before this write: restart it, not just invalidate.
   inBackground(cancelThenInvalidate(queryClient, activity))
-  inBackground(restartQueries(queryClient, firstLoads))
+  // A task that changed group is read again in every view (14yq6g334tg); otherwise only first loads restart.
+  inBackground(
+    refreshAfterTaskWrite(
+      queryClient,
+      workspaceId,
+      firstLoads,
+      regroups(groupedBefore, result.data),
+    ),
+  )
   return 'saved'
 }

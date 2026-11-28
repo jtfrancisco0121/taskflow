@@ -36,6 +36,10 @@ export function BoardColumn({
     overId !== '' &&
     (overId.startsWith('col:') ? overId.slice(4) : overId.split('|')[0]) === column.key
   const tasks = query.items.flatMap((i) => (i.task ? [i.task] : []))
+  // 14yq6g334tg: a column that has all its cards shows their number, so the count and the cards come from one read
+  // and cannot disagree. Only a column with more pages (or still loading) shows the lead query's server count.
+  const count =
+    query.isSuccess && !query.hasNextPage ? tasks.length : (column.count ?? tasks.length)
   return (
     <section
       ref={setNodeRef}
@@ -45,7 +49,7 @@ export function BoardColumn({
     >
       <h2 className="mb-2 flex items-center justify-between gap-2 px-1 text-sm font-semibold text-fg">
         <span className="flex min-w-0 items-center gap-2">{heading}</span>
-        <span className="font-normal text-muted">{column.count ?? tasks.length}</span>
+        <span className="font-normal text-muted">{count}</span>
       </h2>
       {query.isPending && (
         <div role="status" aria-label={`Loading ${column.label}`} className="flex flex-col gap-2">

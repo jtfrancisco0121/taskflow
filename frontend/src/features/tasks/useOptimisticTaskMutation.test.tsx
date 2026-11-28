@@ -1,7 +1,7 @@
 import { QueryClientProvider, type InfiniteData } from '@tanstack/react-query'
 import { renderHook, act } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '../../api/queryKeys'
 import type { TaskView, ViewQueryResponse } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
@@ -145,5 +145,46 @@ describe('useOptimisticTaskMutation (AD-20)', () => {
       Promise.all([run({ task: task(), send: send(4) }), run({ task: task(), send: send(5) })]),
     )
     expect(versions).toEqual([3, 4])
+  })
+
+  // 14yq6g334tg guard: a saved write that changes the task's group reads every view again (a Board column holding
+  // the task in place would keep it under its old group); a write that keeps the group does not (no extra reads).
+  const invalidated = (queryClient: ReturnType<typeof setup>['queryClient']) =>
+    queryClient.getQueryState(queryKeys.view('w1', 'l1', 'h', undefined))?.isInvalidated
+  it.each([
+    ['status', { statusId: 'st-doing' }],
+    ['priority', { priority: 'URGENT' }],
+    ['assignees', { assigneeIds: ['u2'] }],
+    ['List', { listId: 'l2' }],
+  ] as const)('a saved %s change reads the loaded views again', async (_name, change) => {
+    const { run, queryClient } = setup()
+    await act(() =>
+      run({
+        task: task(),
+        optimistic: change as Partial<TaskView>,
+        send: async () => ({
+          response: new Response(null, { status: 200 }),
+          data: task({ ...(change as Partial<TaskView>), version: 4 }),
+        }),
+      }),
+    )
+    await vi.waitFor(() => expect(invalidated(queryClient)).toBe(true))
+  })
+
+  it('a saved change that keeps the group (a title, the same assignees reordered) reads no view again', async () => {
+    const { run, queryClient } = setup()
+    queryClient.setQueryData(queryKeys.task('t1'), task({ assigneeIds: ['u1', 'u2'] }))
+    await act(() =>
+      run({
+        task: task(),
+        optimistic: { title: 'Renamed' },
+        send: async () => ({
+          response: new Response(null, { status: 200 }),
+          data: task({ title: 'Renamed', assigneeIds: ['u2', 'u1'], version: 4 }),
+        }),
+      }),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(invalidated(queryClient)).toBe(false)
   })
 })

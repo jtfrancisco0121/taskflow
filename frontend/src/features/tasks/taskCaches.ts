@@ -1,5 +1,11 @@
-import type { InfiniteData, InvalidateQueryFilters, QueryClient } from '@tanstack/react-query'
+import {
+  matchQuery,
+  type InfiniteData,
+  type InvalidateQueryFilters,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { queryKeys } from '../../api/queryKeys'
+import { cancelThenInvalidate, restartQueries } from '../../api/refresh'
 import type { TaskView, ViewItem, ViewQueryResponse } from '../../api/types'
 
 type ViewPages = InfiniteData<ViewQueryResponse>
@@ -91,6 +97,62 @@ export function cachedVersion(
     }
   }
   return undefined
+}
+
+/** The cached copy of a task (task cache first, then any view page), or undefined when none is cached. */
+export function cachedTask(
+  queryClient: QueryClient,
+  workspaceId: string,
+  taskId: string,
+): TaskView | undefined {
+  const own = queryClient.getQueryData<TaskView>(queryKeys.task(taskId))
+  if (own) return own
+  for (const [, data] of queryClient.getQueriesData<ViewPages>({
+    queryKey: queryKeys.viewsAll(workspaceId),
+  })) {
+    for (const page of data?.pages ?? []) {
+      const hit = page.items?.find((item) => item.task?.id === taskId)
+      if (hit?.task) return hit.task
+    }
+  }
+  return undefined
+}
+
+const sameSet = (a: string[] = [], b: string[] = []) =>
+  a.length === b.length && [...a].sort().join('\u0000') === [...b].sort().join('\u0000')
+
+/**
+ * 14yq6g334tg: whether a write moved the task to another group of a view (a Board column, a grouped List section):
+ * its status, priority, assignees or List changed. writeTaskToCaches only updates a task where it is listed, so a
+ * changed group needs the views read again. An unknown `before` counts as changed.
+ */
+export function regroups(before: TaskView | undefined, after: TaskView): boolean {
+  if (!before) return true
+  return (
+    before.statusId !== after.statusId ||
+    before.priority !== after.priority ||
+    before.listId !== after.listId ||
+    !sameSet(before.assigneeIds, after.assigneeIds)
+  )
+}
+
+/**
+ * After a saved write (written to the caches already): restart what was on its first load (`firstLoads`, from
+ * firstLoadsOf before the write). When the task changed group, every view of the Workspace is read again too, loaded
+ * or not, so each Board column and its count (the lead query) follow the task to its new group from one read after
+ * the commit; first loads are cancelled first, so a read from before the commit cannot land last.
+ */
+export function refreshAfterTaskWrite(
+  queryClient: QueryClient,
+  workspaceId: string,
+  firstLoads: Set<string>,
+  regrouped: boolean,
+) {
+  if (!regrouped) return restartQueries(queryClient, firstLoads)
+  const views = { queryKey: queryKeys.viewsAll(workspaceId) }
+  return cancelThenInvalidate(queryClient, views, {
+    predicate: (query) => firstLoads.has(query.queryHash) && !matchQuery(views, query),
+  })
 }
 
 /**

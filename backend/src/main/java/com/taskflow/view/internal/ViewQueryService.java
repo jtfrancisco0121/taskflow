@@ -24,6 +24,7 @@ import java.util.UUID;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Runs a view config against a scope: the one task read of every renderer (AD-5). */
@@ -75,7 +76,13 @@ class ViewQueryService {
     this.workspaces = workspaces;
   }
 
-  @Transactional(readOnly = true)
+  /**
+   * One snapshot for the whole read (14yq6g334tg): the page's group pick, the task load and the
+   * group counts are separate statements, and under READ COMMITTED a write committed between them
+   * listed a task under its old group with its new data. PostgreSQL's REPEATABLE READ takes one
+   * snapshot per transaction; a read-only one never fails with a serialization error.
+   */
+  @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
   QueryResponse query(QueryRequest request) {
     ViewConfigValidator.validate(request.config());
     QueryScope s = request.scope();
