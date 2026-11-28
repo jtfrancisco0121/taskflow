@@ -85,7 +85,7 @@ fi
 cd "$root/frontend"
 # Playwright reuses a Vite already on :5173 outside CI: only this checkout's, proxying to $api.
 export VITE_API_PROXY_TARGET="$api"
-if port_busy 5173; then
+if port_in_use 5173; then
   why="$(owner_check 5173 "$root" vite "$api")" || refuse "not reusing the Vite dev server on :5173: $why"
 fi
 [ -d node_modules ] || npm ci

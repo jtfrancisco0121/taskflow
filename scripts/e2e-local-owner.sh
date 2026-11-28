@@ -16,6 +16,15 @@ owner_pid() {
   echo "$pid"
 }
 
+# Whether anything serves TCP port $1 on this machine, IPv4 or IPv6 (Vite's default host "localhost" resolves to
+# ::1 on macOS, which a 127.0.0.1-only probe misses): a listener lsof/ss can see, or an HTTP answer on localhost.
+port_in_use() {
+  [ -n "$(owner_pid "$1")" ] && return 0
+  local code
+  code="$(curl -s -o /dev/null -m 2 -w '%{http_code}' "http://localhost:$1/" 2>/dev/null)" || true
+  [ -n "$code" ] && [ "$code" != 000 ]
+}
+
 owner_cwd() {
   if [ -r "/proc/$1/cwd" ] || [ -L "/proc/$1/cwd" ]; then
     readlink "/proc/$1/cwd" 2>/dev/null || true
@@ -73,15 +82,16 @@ owner_check() {
   return 0
 }
 
-# A fake server on a free port, started in directory $1 with only the variables "$@" set; prints "<pid> <port>".
+# A fake server on a free port of host $FAKE_HOST (default 127.0.0.1), started in directory $1 with only the
+# variables "$@" set; prints "<pid> <port>".
 fake_listener() {
-  local dir="$1" out pid
+  local dir="$1" out pid host="${FAKE_HOST:-127.0.0.1}"
   shift
   out="$(mktemp)"
   (cd "$dir" && exec env -i PATH="$PATH" "$@" node -e '
     const s = require("http").createServer((q, r) => r.end("{}"))
-    s.listen(0, "127.0.0.1", () => require("fs").writeFileSync(process.argv[1], String(s.address().port)))
-  ' "$out") &
+    s.listen(0, process.argv[2], () => require("fs").writeFileSync(process.argv[1], String(s.address().port)))
+  ' "$out" "$host") &
   pid=$!
   for _ in $(seq 1 50); do
     [ -s "$out" ] && break
@@ -120,6 +130,27 @@ owner_self_test() {
   expect 1 "this checkout's Vite proxying elsewhere" "$root/frontend" vite "http://localhost:8081"
   expect 0 "this checkout's Vite proxying to the target" "$root/frontend" vite "http://localhost:8081" \
     VITE_API_PROXY_TARGET=http://localhost:8081
+  # Vite binds "localhost" (::1 here): the port must count as in use and its owner must still be checked.
+  local host
+  for host in localhost ::1; do
+    read -r pid port < <(FAKE_HOST="$host" fake_listener "$foreign")
+    if ! port_in_use "$port"; then
+      echo "e2e-local self-test: a listener on $host:$port was not seen as in use" >&2
+      failures=$((failures + 1))
+    fi
+    code=0
+    reason="$(owner_check "$port" "$root" vite "http://localhost:8080")" || code=$?
+    if [ "$code" != 1 ]; then
+      echo "e2e-local self-test: a foreign Vite on $host: expected 1, got $code ($reason)" >&2
+      failures=$((failures + 1))
+    fi
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    if port_in_use "$port"; then
+      echo "e2e-local self-test: port $port still counts as in use after its listener stopped" >&2
+      failures=$((failures + 1))
+    fi
+  done
   rmdir "$foreign" 2>/dev/null || true
   [ "$failures" = 0 ] || return 1
   echo "e2e-local self-test: ok"
