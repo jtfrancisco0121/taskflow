@@ -1,7 +1,12 @@
 import type { InvalidateQueryFilters, QueryClient } from '@tanstack/react-query'
 import { api } from '../../api/client'
 import { queryKeys } from '../../api/queryKeys'
-import { firstLoadsOf, invalidateAfterFirstLoads, invalidateAfterLoadsOf } from '../../api/refresh'
+import {
+  // eslint-disable-next-line no-restricted-syntax -- events only: Live events refetch after first loads land
+  firstLoadsOf,
+  invalidateAfterFirstLoads,
+  invalidateAfterLoadsOf,
+} from '../../api/refresh'
 import {
   cachedVersion,
   invalidateSubtaskScans,

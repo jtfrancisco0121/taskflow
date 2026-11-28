@@ -22,7 +22,7 @@ import { useLocationStatuses } from '../statuses'
 import { PriorityValue, StatusValue, useOptimisticTaskMutation } from '../tasks'
 import type { Priority } from '../../api/types'
 import { useMembers } from '../workspace'
-import { insertItem, planDrop, removeItem, targetFields } from './boardPlan'
+import { insertItem, moveCount, planDrop, removeItem, targetFields } from './boardPlan'
 import { BoardColumn, type Column } from './BoardColumn'
 import { ColumnsPicker } from './ColumnsPicker'
 import { DroppedNotice, NoMatches, hasFilter } from './ResultNotices'
@@ -101,6 +101,7 @@ export function BoardRenderer({
 
   const columnQueryKey = (key: string) =>
     queryKeys.view(scope.workspaceId, scopeId(scope), hash, key)
+  const leadQueryKey = queryKeys.view(scope.workspaceId, scopeId(scope), hash, undefined, 1)
   const columnItems = (key: string): TaskView[] =>
     (
       queryClient.getQueryData<InfiniteData<ViewQueryResponse>>(columnQueryKey(key))?.pages ?? []
@@ -172,6 +173,14 @@ export function BoardRenderer({
         qc.setQueryData<InfiniteData<ViewQueryResponse>>(columnQueryKey(to), (d) =>
           insertItem(removeItem(d, taskId), plan.index, moved),
         )
+        // PR #35 review item 1: a paged column (Load more) shows the lead query's server count, so the move is
+        // counted there too; rolled back with the snapshot on failure, replaced by the regroup re-read on success.
+        if (from !== to) {
+          const already = group === 'assignee' && (card.assigneeIds ?? []).includes(to)
+          qc.setQueryData<InfiniteData<ViewQueryResponse>>(leadQueryKey, (d) =>
+            moveCount(d, from, already ? null : to),
+          )
+        }
       },
       send: (version) =>
         api.POST('/api/v1/tasks/{id}/move', {

@@ -71,6 +71,14 @@ const firstLoadGuard = [
       "CallExpression[callee.property.name='refetch']:not(JSXAttribute[name.name=/^(onClick|onRetry)$/] CallExpression)",
     message: firstLoadMessage,
   },
+  // Stale background read (14yq6g334bn): a write must restart every read in flight that left before it, a background
+  // refetch of loaded data included, not only first loads. firstLoadsOf is for events (Live, a reconnect), which
+  // justify it with "eslint-disable-next-line no-restricted-syntax -- events only: <why>".
+  {
+    selector: "ImportSpecifier[imported.name='firstLoadsOf']",
+    message:
+      'A write must restart every read in flight, not only first loads: use fetchesInFlightOf or setDataRestartingFetches from src/api/refresh.ts (14yq6g334bn).',
+  },
 ]
 
 export default tseslint.config(

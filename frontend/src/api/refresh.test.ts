@@ -1,7 +1,7 @@
 import { QueryObserver } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
 import { newQueryClient } from '../test/api'
-import { cancelThenInvalidate, restartFirstLoads } from './refresh'
+import { cancelThenInvalidate, restartFirstLoads, setDataRestartingFetches } from './refresh'
 
 describe('restartFirstLoads', () => {
   it('leaves a loaded query alone (no extra request)', async () => {
@@ -68,6 +68,54 @@ describe('cancelThenInvalidate', () => {
     const stop = new QueryObserver(queryClient, { queryKey: ['a'], queryFn }).subscribe(() => {})
     await cancelThenInvalidate(queryClient, { queryKey: ['a'] })
     expect(queryFn).toHaveBeenCalledTimes(2)
+    stop()
+  })
+})
+
+describe('setDataRestartingFetches (14yq6g334bn)', () => {
+  it('a background refetch of loaded data in flight at the write does not overwrite it, and is read again', async () => {
+    const queryClient = newQueryClient()
+    const key = ['task', 't1']
+    const answers: Array<(v: string) => void> = []
+    const queryFn = vi.fn(
+      ({ signal }: { signal: AbortSignal }) =>
+        new Promise<string>((resolve) => {
+          answers.push(resolve)
+          signal.addEventListener('abort', () => undefined)
+        }),
+    )
+    queryClient.setQueryData(key, 'old')
+    const stop = new QueryObserver(queryClient, {
+      queryKey: key,
+      queryFn,
+      staleTime: Infinity,
+    }).subscribe(() => {})
+    void queryClient.refetchQueries({ queryKey: key }) // left before the write
+    await vi.waitFor(() => expect(answers).toHaveLength(1))
+    setDataRestartingFetches(queryClient, key, () => 'saved')
+    answers[0]('old') // the stale answer lands after the write
+    await vi.waitFor(() => expect(answers).toHaveLength(2))
+    expect(queryClient.getQueryData(key)).toBe('saved')
+    answers[1]('saved')
+    await vi.waitFor(() => expect(queryClient.getQueryState(key)?.fetchStatus).toBe('idle'))
+    expect(queryClient.getQueryData(key)).toBe('saved')
+    stop()
+  })
+
+  it('sends no extra read when nothing is in flight', async () => {
+    const queryClient = newQueryClient()
+    const key = ['task', 't1']
+    const queryFn = vi.fn(async () => 'server')
+    queryClient.setQueryData(key, 'old')
+    const stop = new QueryObserver(queryClient, {
+      queryKey: key,
+      queryFn,
+      staleTime: Infinity,
+    }).subscribe(() => {})
+    setDataRestartingFetches(queryClient, key, () => 'saved')
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(queryFn).not.toHaveBeenCalled()
+    expect(queryClient.getQueryData(key)).toBe('saved')
     stop()
   })
 })

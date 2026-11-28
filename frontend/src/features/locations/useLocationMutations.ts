@@ -5,7 +5,7 @@ import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
 import { queryKeys } from '../../api/queryKeys'
-import { cancelThenInvalidate, setDataRestartingFirstLoad } from '../../api/refresh'
+import { cancelThenInvalidate, setDataRestartingFetches } from '../../api/refresh'
 import { useUiStore } from '../../shared/ui-store'
 import type { TreeNode } from './useTreeChildren'
 
@@ -74,7 +74,7 @@ export function useUpdateLocation(workspaceId: string) {
         }),
       ),
     onSuccess: (location, vars) => {
-      setDataRestartingFirstLoad<TreeNode[]>(
+      setDataRestartingFetches<TreeNode[]>(
         queryClient,
         queryKeys.tree(workspaceId, vars.parentId ?? 'root'),
         (nodes) =>
@@ -84,7 +84,7 @@ export function useUpdateLocation(workspaceId: string) {
               : node,
           ),
       )
-      setDataRestartingFirstLoad(queryClient, queryKeys.location(vars.id), location)
+      setDataRestartingFetches(queryClient, queryKeys.location(vars.id), location)
     },
   })
 }

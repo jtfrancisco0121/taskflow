@@ -6,7 +6,7 @@ import { queryKeys } from '../../api/queryKeys'
 import type { TaskView, ViewQueryResponse } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 import { newQueryClient } from '../../test/api'
-import { VIEW_REFRESH_MS } from './taskCaches'
+import { flushViewRefreshNow } from './taskCaches'
 import {
   CONFLICT_MESSAGE,
   taskMutationGate,
@@ -176,9 +176,12 @@ describe('useOptimisticTaskMutation (AD-20)', () => {
 
   it('a saved change that keeps the group (a title, the same assignees reordered, the same fields) reads no view again', async () => {
     const { run, queryClient } = setup()
-    queryClient.setQueryData(
-      queryKeys.task('t1'),
-      task({ assigneeIds: ['u1', 'u2'], customFields: { f1: 'o-a', f2: 3, f3: null } }),
+    const cached = task({ assigneeIds: ['u1', 'u2'], customFields: { f1: 'o-a', f2: 3, f3: null } })
+    queryClient.setQueryData(queryKeys.task('t1'), cached)
+    // The view holds the same copy (14yq6g334bn m3: a save is judged against each view's own copy too).
+    queryClient.setQueryData<InfiniteData<ViewQueryResponse>>(
+      queryKeys.view('w1', 'l1', 'h', undefined),
+      { pages: [{ items: [{ group: 'a', task: cached }] }], pageParams: [undefined] },
     )
     await act(() =>
       run({
@@ -195,8 +198,8 @@ describe('useOptimisticTaskMutation (AD-20)', () => {
         }),
       }),
     )
-    // Past the gathered refresh (VIEW_REFRESH_MS), so a scheduled read would have run.
-    await act(() => new Promise((resolve) => setTimeout(resolve, VIEW_REFRESH_MS + 50)))
+    // m4: run the gathered refresh now, so a scheduled read would have run (no waiting on real timers).
+    act(() => flushViewRefreshNow(queryClient))
     expect(invalidated(queryClient)).toBe(false)
   })
   // 14yq6g334tg r2 M2: a refusal (4xx) undoes only this write's own change.
@@ -217,7 +220,7 @@ describe('useOptimisticTaskMutation (AD-20)', () => {
     )
     expect(outcome).toBe('failed')
     expect(shown()?.title).toBe('One')
-    await act(() => new Promise((resolve) => setTimeout(resolve, VIEW_REFRESH_MS + 50)))
+    act(() => flushViewRefreshNow(queryClient))
     expect(invalidated(queryClient)).toBe(false)
   })
 

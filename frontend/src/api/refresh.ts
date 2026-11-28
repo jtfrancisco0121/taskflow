@@ -37,24 +37,61 @@ function isFirstLoad(query: Query) {
   return query.state.data === undefined && query.state.fetchStatus === 'fetching'
 }
 
-/** Cancels and refetches the queries of a `firstLoadsOf` snapshot. */
-export async function restartQueries(queryClient: QueryClient, hashes: Set<string>) {
-  if (hashes.size === 0) return
-  await cancelThenInvalidate(queryClient, { predicate: (query) => hashes.has(query.queryHash) })
+/** An infinite query whose fetch in flight is a Load more (fetchNextPage): cancelling it would drop the page asked for. */
+export function isLoadingMore(query: Query) {
+  const meta = query.state.fetchMeta as { fetchMore?: unknown } | null
+  return query.state.fetchStatus === 'fetching' && !!meta?.fetchMore
 }
 
 /**
- * setQueryData for a write (a response, a 409 body) on a query that may still be on its first load: that load read
- * before the write and would overwrite it, so it is snapshotted before the write and restarted in the background.
+ * 14yq6g334bn: the queries matching `filters` with any fetch in flight: a first load, a background refetch of loaded
+ * data (a focus refetch, a Live refresh) or a Load more. Each may have read the server before a write commits and
+ * would land over it. Take this before writing the response into the cache, and restart them with restartQueries
+ * after the write. firstLoadsOf is the narrower form for events, not for writes.
  */
-export function setDataRestartingFirstLoad<T>(
+export function fetchesInFlightOf(queryClient: QueryClient, ...filters: InvalidateQueryFilters[]) {
+  const hashes = new Set<string>()
+  for (const filter of filters)
+    for (const query of queryClient.getQueryCache().findAll({ ...filter, fetchStatus: 'fetching' }))
+      hashes.add(query.queryHash)
+  return hashes
+}
+
+/**
+ * Cancels and refetches the queries of a `fetchesInFlightOf` (or `firstLoadsOf`) snapshot. A cancelled loaded query
+ * keeps the data written meanwhile (setQueryData moves TanStack's revert point). A Load more is not cancelled (its
+ * page would be lost): it is read again after it lands, since it rebuilt its pages from the cache it started with.
+ */
+export async function restartQueries(queryClient: QueryClient, hashes: Set<string>) {
+  if (hashes.size === 0) return
+  const cache = queryClient.getQueryCache()
+  const more = new Set<string>()
+  for (const hash of hashes) {
+    const query = cache.get(hash)
+    const load = query?.promise
+    if (!query || !load || !isLoadingMore(query)) continue
+    more.add(hash)
+    const after = () => void queryClient.invalidateQueries({ predicate: (q) => q === query })
+    load.then(after, after)
+  }
+  await cancelThenInvalidate(queryClient, {
+    predicate: (query) => hashes.has(query.queryHash) && !more.has(query.queryHash),
+  })
+}
+
+/**
+ * setQueryData for a write (a response, a 409 body) on a query that may have a fetch in flight: a first load or a
+ * background refetch that read before the write would overwrite it (14yq6g334bn), so it is snapshotted before the
+ * write and restarted in the background. No extra read when nothing is in flight.
+ */
+export function setDataRestartingFetches<T>(
   queryClient: QueryClient,
   queryKey: QueryKey,
   updater: Updater<T | undefined, T | undefined>,
 ) {
-  const firstLoad = firstLoadsOf(queryClient, { queryKey, exact: true })
+  const inFlight = fetchesInFlightOf(queryClient, { queryKey, exact: true })
   queryClient.setQueryData<T>(queryKey, updater)
-  inBackground(restartQueries(queryClient, firstLoad))
+  inBackground(restartQueries(queryClient, inFlight))
 }
 
 /**

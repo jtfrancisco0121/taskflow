@@ -108,3 +108,24 @@ describe('no native <select> in product code (slice 2, AD-5)', () => {
     )
   })
 })
+
+describe('stale background read guard (14yq6g334bn)', () => {
+  const code = "import { firstLoadsOf } from '../../api/refresh'\nexport const f = firstLoadsOf\n"
+
+  it('rejects firstLoadsOf in a write path (.ts and .tsx)', async () => {
+    for (const file of ['src/features/tasks/useUpdateTask.ts', 'src/features/views/Board.tsx']) {
+      expect(await ruleIds(code, file), file).toContain('no-restricted-syntax')
+    }
+  })
+
+  it('allows fetchesInFlightOf, and firstLoadsOf inside src/api/refresh.ts and tests', async () => {
+    const ok =
+      "import { fetchesInFlightOf } from '../../api/refresh'\nexport const f = fetchesInFlightOf\n"
+    expect(await ruleIds(ok, 'src/features/tasks/useUpdateTask.ts')).not.toContain(
+      'no-restricted-syntax',
+    )
+    expect(await ruleIds(code, 'src/features/tasks/Any.test.tsx')).not.toContain(
+      'no-restricted-syntax',
+    )
+  })
+})

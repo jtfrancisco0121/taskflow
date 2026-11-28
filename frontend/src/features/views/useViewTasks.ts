@@ -18,7 +18,17 @@ export function useViewTasks(
 ) {
   const { groupValue, limit = 50, enabled = true } = options
   const query = useInfiniteQuery({
-    queryKey: queryKeys.view(scope.workspaceId, scopeId(scope), configHash(config), groupValue),
+    // The page size is in the key (14yq6g334bn): the Board's lead query (limit 1) and a List (50) on the same scope
+    // and config are separate entries, so a List opened after the Board never shows the lead's one row.
+    queryKey: queryKeys.view(
+      scope.workspaceId,
+      scopeId(scope),
+      configHash(config),
+      groupValue,
+      limit,
+    ),
+    // The config a save is judged against (taskCaches.viewsTouchedBy): a change to a field it filters or sorts on.
+    meta: { viewConfig: config },
     enabled,
     initialPageParam: undefined as string | undefined,
     // The signal aborts the request when the query is cancelled (14yq6g334tg: a restarted read sends no extra load).

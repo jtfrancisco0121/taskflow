@@ -11,7 +11,7 @@ import { ApiError, messageOf, networkError, toApiError, unwrap } from '../../api
 import { IdempotencyKeys } from '../../api/idempotency'
 import { onceMoreIfBusy } from '../../api/retryAfter'
 import { queryKeys } from '../../api/queryKeys'
-import { cancelThenInvalidate, inBackground, setDataRestartingFirstLoad } from '../../api/refresh'
+import { cancelThenInvalidate, inBackground, setDataRestartingFetches } from '../../api/refresh'
 import type { DependencyList, DependencyRelation, TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 
@@ -62,7 +62,7 @@ function refresh(
  * load (read before that write) is restarted in the background.
  */
 function writeCurrent(queryClient: QueryClient, id: string, current: TaskView) {
-  setDataRestartingFirstLoad(queryClient, queryKeys.task(id), current)
+  setDataRestartingFetches(queryClient, queryKeys.task(id), current)
 }
 
 /** Adds a relationship from `task`'s side (POST, If-Match, one idempotency key per submission). */
