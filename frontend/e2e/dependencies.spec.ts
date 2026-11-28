@@ -1,12 +1,5 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
-import {
-  api,
-  apiSignUp,
-  inviteTokenFor,
-  signInThroughTheUi,
-  type ApiUser,
-  taskDetail,
-} from './helpers'
+import { api, apiSignUp, inviteTokenFor, signInAs, type ApiUser, taskDetail } from './helpers'
 import { expectValue, pick } from './ui'
 import { snap } from './screenshots'
 
@@ -80,7 +73,7 @@ test('UJ-1 / UJ-2: relate tasks from the panel, see Blocked everywhere, refuse a
 }, testInfo) => {
   const mara = await apiSignUp(request, 'Mara Owner')
   const s = await scene(request, mara)
-  await signInThroughTheUi(page, mara)
+  await signInAs(page, mara)
 
   // UJ-1: Mara makes the release wait on the login fix, from the task panel.
   await page.goto(`/t/${s.release.id}`)
@@ -183,7 +176,7 @@ test('RT / FR-11: the Blocked badge appears and disappears in a second browser w
 
   const contextB = await browser.newContext()
   const pageB = await contextB.newPage()
-  await signInThroughTheUi(pageB, b)
+  await signInAs(pageB, b)
   await pageB.goto(`/w/${s.workspace.id}/l/${s.releases.id}/v/default-board`)
   const card = pageB.locator(`[data-task-id="${s.release.id}"]`)
   await expect(card).toBeVisible()

@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
-import { api, apiSignUp, signInThroughTheUi } from './helpers'
+import { api, apiSignUp, signInAs } from './helpers'
 import { pick } from './ui'
 
 // Slice 4: the List view. A scene is set through the API, then the UI is driven like a user.
@@ -32,7 +32,7 @@ async function openList(
     })
     ids.set(task.title, created.id)
   }
-  await signInThroughTheUi(page, user)
+  await signInAs(page, user)
   await page.goto(`/w/${workspace.id}/l/${list.id}`)
   for (const task of tasks) await expect(page.getByRole('link', { name: task.title })).toBeVisible()
   return { user, workspace, list }

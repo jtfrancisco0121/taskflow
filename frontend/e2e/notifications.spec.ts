@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { api, apiSignUp, inviteTokenFor, signInThroughTheUi } from './helpers'
+import { api, apiSignUp, inviteTokenFor, signInAs } from './helpers'
 import { snap } from './screenshots'
 
 type Id = { id: string }
@@ -32,7 +32,7 @@ test('UJ-2: an assignment in A raises the bell in B within 2 seconds, and markin
 
   const contextB = await browser.newContext()
   const pageB = await contextB.newPage()
-  await signInThroughTheUi(pageB, b)
+  await signInAs(pageB, b)
   await pageB.goto(`/w/${workspace.id}`)
   const bell = pageB.getByRole('button', { name: /^Notifications/ })
   await expect(bell).toBeVisible()

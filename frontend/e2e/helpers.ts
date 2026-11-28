@@ -69,8 +69,19 @@ export async function apiSignUp(request: APIRequestContext, displayName: string)
   })
   expect(response.status()).toBe(201)
   const body = await response.json()
+  const cookie = response
+    .headersArray()
+    .find((h) => h.name.toLowerCase() === 'set-cookie' && h.value.startsWith('refresh_token='))
+  if (cookie) {
+    const [pair, ...attributes] = cookie.value.split(';').map((part) => part.trim())
+    const path = attributes.find((a) => a.toLowerCase().startsWith('path='))?.slice(5) ?? '/'
+    signUpSessions.set(body.user.id, { value: pair.slice('refresh_token='.length), path })
+  }
   return { token: body.accessToken, id: body.user.id, email, displayName }
 }
+
+/** The refresh cookie each apiSignUp received, until signInAs hands it to a browser (used once). */
+const signUpSessions = new Map<string, { value: string; path: string }>()
 
 export async function api<T = Record<string, unknown>>(
   request: APIRequestContext,
@@ -110,7 +121,32 @@ export async function inviteTokenFor(request: APIRequestContext, email: string):
   throw new Error(`no invite mail for ${email}`)
 }
 
-export async function signInThroughTheUi(page: Page, user: ApiUser) {
+/**
+ * Starts the app signed in as `user` (epic 14yq6g334tf). The sign-in form counts against the per-IP limit of
+ * 20 a minute, and repeat runs from 127.0.0.1 tripped it ("Too many attempts"). So the browser gets the refresh
+ * cookie apiSignUp already received and the app signs in through /auth/refresh, with no /auth/signin request.
+ * A refresh cookie is used once (the app rotates it): signing the same user in on a second page uses the form.
+ * Guarded by e2e/sign-in-budget.spec.ts.
+ */
+export async function signInAs(page: Page, user: ApiUser) {
+  const session = signUpSessions.get(user.id)
+  if (session) {
+    signUpSessions.delete(user.id)
+    await page.context().addCookies([
+      {
+        name: 'refresh_token',
+        value: session.value,
+        domain: 'localhost',
+        path: session.path,
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Strict',
+      },
+    ])
+    await page.goto('/')
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
+    return
+  }
   await page.goto('/signin')
   await page.getByLabel('Email').fill(user.email)
   await page.getByLabel('Password').fill(PASSWORD)
