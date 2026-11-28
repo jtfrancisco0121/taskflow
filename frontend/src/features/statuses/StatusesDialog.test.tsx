@@ -5,7 +5,7 @@ import { installFetch, json, problem, renderWithProviders } from '../../test/api
 import { createStatusSim, type SimStatus } from '../../test/statusSim'
 import { StatusesDialog, type StatusesLocation } from './StatusesDialog'
 import { useLocationStatuses } from './useLocationStatuses'
-import { pick } from '../../test/ui'
+import { pick, fill } from '../../test/ui'
 
 const st = (id: string, name: string, group: string, color = '#9ca3af'): SimStatus => ({
   id,
@@ -128,7 +128,7 @@ describe('StatusesDialog', () => {
     expect(await screen.findByText('Names must be unique within a set.')).toBeVisible()
     await user.clear(nameField(2))
     expect(await screen.findByText('Enter a name.')).toBeVisible()
-    await user.type(nameField(2), 'in progress')
+    await fill(user, nameField(2), 'in progress')
     const color = screen.getByRole('textbox', { name: 'Status 1 color' })
     await user.clear(color)
     await user.type(color, 'red')

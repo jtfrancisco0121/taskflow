@@ -6,6 +6,7 @@ import { SignInPage } from '../features/auth'
 import { getAccessToken } from '../api/session'
 import { json, problem, renderWithProviders, installFetch } from '../test/api'
 import { RequireSession } from './RequireSession'
+import { fill } from '../test/ui'
 
 function renderApp(route: string) {
   return renderWithProviders(
@@ -51,8 +52,8 @@ describe('RequireSession', () => {
     renderApp('/t/abc')
 
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeVisible()
-    await user.type(screen.getByLabelText('Email'), 'maya@example.com')
-    await user.type(screen.getByLabelText('Password'), 'correct-horse')
+    await fill(user, screen.getByLabelText('Email'), 'maya@example.com')
+    await fill(user, screen.getByLabelText('Password'), 'correct-horse')
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByRole('heading', { name: 'Task panel' })).toBeVisible()
