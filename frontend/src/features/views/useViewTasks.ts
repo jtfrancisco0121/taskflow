@@ -21,9 +21,11 @@ export function useViewTasks(
     queryKey: queryKeys.view(scope.workspaceId, scopeId(scope), configHash(config), groupValue),
     enabled,
     initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam }) =>
+    // The signal aborts the request when the query is cancelled (14yq6g334tg: a restarted read sends no extra load).
+    queryFn: ({ pageParam, signal }) =>
       unwrap(
         api.POST('/api/v1/views/query', {
+          signal,
           body: {
             scope: scope.locationId
               ? { locationId: scope.locationId }

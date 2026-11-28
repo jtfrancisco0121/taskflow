@@ -6,9 +6,13 @@ import { cancelThenInvalidate, firstLoadsOf, inBackground, restartQueries } from
 import type { TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
 import {
+  cachedTask,
   cachedVersion,
   patchTaskInCaches,
+  refreshAfterTaskWrite,
+  regroups,
   taskFirstLoadFilters,
+  viewFetchesOf,
   writeTaskToCaches,
 } from './taskCaches'
 
@@ -93,10 +97,15 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
   const show: (message: string, kind?: 'info' | 'error') => void = job.silent
     ? () => undefined
     : useToastStore.getState().show
-  const views = queryClient.getQueriesData({ queryKey: queryKeys.viewsAll(workspaceId) })
+  const cache = queryClient.getQueryCache()
+  const views = cache
+    .findAll({ queryKey: queryKeys.viewsAll(workspaceId) })
+    .map((query) => ({ query, data: query.state.data }))
   const taskBefore = queryClient.getQueryData<TaskView>(queryKeys.task(id))
+  // The task as cached before this write's own optimistic change: a saved group change is judged against it.
+  const groupedBefore = cachedTask(queryClient, workspaceId, id)
   const restore = () => {
-    views.forEach(([key, data]) => queryClient.setQueryData(key, data))
+    views.forEach(({ query, data }) => queryClient.setQueryData(query.queryKey, data))
     queryClient.setQueryData(queryKeys.task(id), taskBefore)
   }
   const activity = { queryKey: queryKeys.activity(id) }
@@ -110,6 +119,39 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
   }
   if (job.apply) job.apply(queryClient)
   if (job.optimistic) patchTaskInCaches(queryClient, workspaceId, id, job.optimistic)
+  // What this write itself left in each view: a view holding other data by the answer changed meanwhile.
+  const applied = new Map(views.map(({ query }) => [query, query.state.data]))
+  // Whether this write showed the task in another group (a Board card moved, a grouping field patched).
+  const shownRegrouped =
+    !!job.apply ||
+    (!!job.optimistic && regroups(groupedBefore, { ...groupedBefore, ...job.optimistic }))
+  /**
+   * 14yq6g334tg r2: a refusal (4xx) wrote nothing, so this write's own change is undone, and only that. A view that
+   * still holds what this write left in it gets its snapshot back. A view that changed meanwhile (another save's
+   * refresh, a Live event, a Load more) is not put back: its snapshot is older than that change (in a Bulk change, it
+   * would move a task saved meanwhile back to its old column). Those views, the view reads in flight, and every view
+   * when the task was shown in another group, are read again (gathered, like after a save).
+   */
+  const refuse = (viewFetches: Set<string>) => {
+    const changed = new Set<string>()
+    for (const { query, data } of views) {
+      // On its first load at the start: whatever it holds now came from the server, after this write began.
+      if (data === undefined) continue
+      if (cache.get(query.queryHash) === query && query.state.data === applied.get(query))
+        queryClient.setQueryData(query.queryKey, data)
+      else changed.add(query.queryHash)
+    }
+    queryClient.setQueryData(queryKeys.task(id), taskBefore)
+    inBackground(
+      refreshAfterTaskWrite(
+        queryClient,
+        workspaceId,
+        new Set(),
+        new Set([...viewFetches, ...changed]),
+        shownRegrouped,
+      ),
+    )
+  }
 
   let result: SendResult
   try {
@@ -121,6 +163,7 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
   }
   const { response } = result
   const firstLoads = firstLoadsOf(queryClient, ...taskFirstLoadFilters(workspaceId, id))
+  const viewFetches = viewFetchesOf(queryClient, workspaceId)
   if (response.status === 409) {
     const current = (result.error as { current?: TaskView } | undefined)?.current
     if (current) {
@@ -141,8 +184,8 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
     }
   }
   if (!response.ok || !result.data) {
-    // A 4xx is a refusal: nothing was written, so the snapshot is the truth.
-    if (response.status >= 400 && response.status < 500) restore()
+    // A 4xx is a refusal: nothing was written; this write's own change is undone (see refuse).
+    if (response.status >= 400 && response.status < 500) refuse(viewFetches)
     else restoreAndRefresh()
     const error = toApiError(response, result.error)
     show(error instanceof ApiError ? messageOf(error) : messageOf(networkError()), 'error')
@@ -151,6 +194,15 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
   writeTaskToCaches(queryClient, result.data)
   // An activity still on its first load read before this write: restart it, not just invalidate.
   inBackground(cancelThenInvalidate(queryClient, activity))
-  inBackground(restartQueries(queryClient, firstLoads))
+  // A task that changed group is read again in every view (14yq6g334tg); a view read in flight is read again anyway.
+  inBackground(
+    refreshAfterTaskWrite(
+      queryClient,
+      workspaceId,
+      firstLoads,
+      viewFetches,
+      regroups(groupedBefore, result.data),
+    ),
+  )
   return 'saved'
 }

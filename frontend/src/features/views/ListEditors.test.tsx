@@ -1,7 +1,8 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useToastStore } from '../../shared/toast-store'
+import { queryKeys } from '../../api/queryKeys'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { pick } from '../../test/ui'
 import { ListRenderer } from './ListRenderer'
@@ -164,5 +165,41 @@ describe('List popover editors (CAP-2)', () => {
     await waitFor(() =>
       expect(screen.getByLabelText('Priority of ACME-1')).toHaveTextContent('Low'),
     )
+  })
+  it('14yq6g334tg: an open picker survives a background refetch that moves its row to another group', async () => {
+    let alphaGroup = 'to do'
+    const rows = [task(1, { title: 'Alpha' }), task(2, { title: 'Beta' })]
+    installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': () => {
+        const items = [
+          { group: 'to do', task: rows[1] },
+          { group: alphaGroup, task: rows[0] },
+        ].sort((a, b) => a.group.localeCompare(b.group))
+        return json({
+          items,
+          groups: [...new Set(items.map((i) => i.group))].map((key) => ({
+            key,
+            label: key,
+            count: items.filter((i) => i.group === key).length,
+          })),
+        })
+      },
+    } as never)
+    const { queryClient } = renderWithProviders(
+      <ListRenderer scope={scope} config={{ v: 1, group: 'status' }} />,
+    )
+    await screen.findByLabelText('Status of ACME-1')
+    useViewStore.getState().setOpenEditor({ taskId: 't1', field: 'assignee' })
+    const option = await screen.findByRole('option', { name: 'Omar Haddad' })
+    const row = screen.getByLabelText('Status of ACME-1').closest('[role="row"]')
+
+    // A refetch (the regroup refresh after a status save) moves Alpha to "in progress".
+    alphaGroup = 'in progress'
+    await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll('w1') }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /in progress/ })).toBeVisible())
+
+    expect(option.isConnected).toBe(true)
+    expect(screen.getByLabelText('Status of ACME-1').closest('[role="row"]')).toBe(row)
   })
 })

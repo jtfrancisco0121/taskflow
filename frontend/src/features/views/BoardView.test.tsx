@@ -8,7 +8,14 @@ import { useToastStore } from '../../shared/toast-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { BoardRenderer } from './BoardRenderer'
 import { planDrop, targetFields } from './boardPlan'
-import { baseRoutes, customFieldIds, fieldRoutes, scope, task } from './testSupport'
+import {
+  baseRoutes,
+  customFieldIds,
+  expectColumnCountsMatchCards,
+  fieldRoutes,
+  scope,
+  task,
+} from './testSupport'
 
 const t = (n: number, extra: Record<string, unknown> = {}) => task(n, extra) as unknown as TaskView
 
@@ -150,6 +157,8 @@ describe('BOARD-1/2 Board view', () => {
     expect(body.beforeId === 't4' || body.afterId === 't4' || body.keepRank === true).toBe(true)
     // a screen-reader announcement is rendered in the live region
     await waitFor(() => expect(document.body.textContent).toMatch(/Task 1 was dropped in/))
+    // 14yq6g334tg guard: after the drop and its save, every column's count matches its cards.
+    await waitFor(() => expectColumnCountsMatchCards())
   })
 
   it('BOARD-2: a 409 puts the card back in its original column and says why', async () => {
@@ -168,6 +177,7 @@ describe('BOARD-1/2 Board view', () => {
     )
     const todo = screen.getByRole('region', { name: 'To do' })
     expect(todo).toHaveTextContent('Task 1')
+    await waitFor(() => expectColumnCountsMatchCards())
   })
 
   it('BOARD-2: a 5xx puts the card back', async () => {
@@ -301,6 +311,7 @@ describe('Board cards and column headers (slice 6)', () => {
     const header = within(screen.getByRole('region', { name: 'To do' })).getByRole('heading')
     expect(header).toHaveTextContent('To do')
     expect(header).toHaveTextContent('2')
+    expectColumnCountsMatchCards()
   })
 })
 

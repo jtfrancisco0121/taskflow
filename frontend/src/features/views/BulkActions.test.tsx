@@ -1,5 +1,5 @@
 import { QueryObserver } from '@tanstack/react-query'
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { queryKeys } from '../../api/queryKeys'
@@ -208,5 +208,35 @@ describe('LIST-1 Bulk actions', () => {
     await waitFor(() =>
       expect(useToastStore.getState().toasts.map((t) => t.message)).toContain('Restored 3 tasks.'),
     )
+  })
+  it('14yq6g334tg M2: a bulk change of 5 regrouping saves reads the List view at most twice', async () => {
+    const five = Array.from({ length: 5 }, (_, i) => task(i + 1))
+    const stub = serve(five, {
+      'PATCH /api/v1/tasks/:id': async (request: Request, body: unknown) => {
+        await new Promise((r) => setTimeout(r, 5))
+        const id = new URL(request.url).pathname.split('/').pop()!
+        return json({ ...task(Number(id.slice(1)), { version: 2 }), ...(body as object) })
+      },
+    })
+    const user = userEvent.setup()
+    renderWithProviders(<ListRenderer scope={scope} config={{ v: 1, group: 'status' }} />)
+    await screen.findByRole('link', { name: 'Task 1' })
+    await act(() => new Promise((r) => setTimeout(r, 150)))
+    const before = stub.count('POST', /\/views\/query$/)
+    useViewStore.setState({ selected: five.map((t) => t.id) })
+
+    await pick(user, await screen.findByLabelText('Set priority'), 'High')
+    await waitFor(() => expect(stub.count('PATCH', /\/tasks\//)).toBe(5))
+    await waitFor(() =>
+      expect(useToastStore.getState().toasts.map((t) => t.message)).toContain(
+        'Priority: 5 updated.',
+      ),
+    )
+    await act(() => new Promise((r) => setTimeout(r, 300)))
+
+    // One List view query (N + 1 with no columns): the coalesced regroup refresh plus the fan-out's own refresh.
+    const reads = stub.count('POST', /\/views\/query$/) - before
+    expect(reads).toBeGreaterThan(0)
+    expect(reads).toBeLessThanOrEqual(2)
   })
 })
