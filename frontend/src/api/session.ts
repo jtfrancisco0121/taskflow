@@ -1,5 +1,6 @@
 import createClient from 'openapi-fetch'
 import type { components, paths } from './schema'
+import { DEFAULT_RETRY_WAIT_MS, MAX_RETRY_WAIT_MS, retryWaitMs } from './retryAfter'
 
 /**
  * AD-2: the access token lives only in this module's memory. It is never written to localStorage,
@@ -70,15 +71,8 @@ export function clearSession() {
 type RefreshOptions = { fetch?: Fetcher; baseUrl?: string }
 
 /** Longest wait honoured from a 503's Retry-After, and the wait when it is missing or unreadable. */
-export const MAX_REFRESH_RETRY_WAIT_MS = 5_000
-const DEFAULT_REFRESH_RETRY_WAIT_MS = 1_000
-
-function retryWaitMs(response: Response): number {
-  const header = response.headers.get('Retry-After')
-  const seconds = header === null || header.trim() === '' ? NaN : Number(header)
-  if (!Number.isFinite(seconds) || seconds < 0) return DEFAULT_REFRESH_RETRY_WAIT_MS
-  return Math.min(seconds * 1_000, MAX_REFRESH_RETRY_WAIT_MS)
-}
+export const MAX_REFRESH_RETRY_WAIT_MS = MAX_RETRY_WAIT_MS
+const DEFAULT_REFRESH_RETRY_WAIT_MS = DEFAULT_RETRY_WAIT_MS
 
 /**
  * Refreshes in a row that may end on a transient failure before the session is cleared. Below it, a

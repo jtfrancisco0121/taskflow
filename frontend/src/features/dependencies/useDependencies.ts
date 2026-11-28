@@ -9,10 +9,14 @@ import { useRef } from 'react'
 import { api } from '../../api/client'
 import { ApiError, messageOf, networkError, toApiError, unwrap } from '../../api/errors'
 import { IdempotencyKeys } from '../../api/idempotency'
+import { onceMoreIfBusy } from '../../api/retryAfter'
 import { queryKeys } from '../../api/queryKeys'
 import { cancelThenInvalidate, inBackground, setDataRestartingFirstLoad } from '../../api/refresh'
 import type { DependencyList, DependencyRelation, TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
+
+/** What a relationship change says when the tasks stayed busy after its one retry. */
+export const BUSY_MESSAGE = 'These tasks are being changed right now. Try again.'
 
 /** DEP: the relationships of a task, grouped as the server returns them. */
 export function useDependencies(taskId: string | undefined) {
@@ -70,11 +74,14 @@ export function useAddDependency(task: TaskView) {
       const cached = queryClient.getQueryData<TaskView>(queryKeys.task(task.id!)) ?? task
       let result
       try {
-        result = await api.POST('/api/v1/tasks/{id}/dependencies', {
-          params: { path: { id: task.id! }, header: ifMatch(cached.version) },
-          body: input,
-          headers: { 'Idempotency-Key': keys.current.keyFor(input) },
-        })
+        // A busy answer is not stored under the key, so the retry sends the same key.
+        result = await onceMoreIfBusy(() =>
+          api.POST('/api/v1/tasks/{id}/dependencies', {
+            params: { path: { id: task.id! }, header: ifMatch(cached.version) },
+            body: input,
+            headers: { 'Idempotency-Key': keys.current.keyFor(input) },
+          }),
+        )
       } catch {
         throw networkError()
       }
@@ -102,12 +109,14 @@ export function useRemoveDependency(task: TaskView) {
       const cached = queryClient.getQueryData<TaskView>(queryKeys.task(task.id!)) ?? task
       let result
       try {
-        result = await api.DELETE('/api/v1/tasks/{id}/dependencies/{dependencyId}', {
-          params: {
-            path: { id: task.id!, dependencyId: input.dependencyId },
-            header: ifMatch(cached.version),
-          },
-        })
+        result = await onceMoreIfBusy(() =>
+          api.DELETE('/api/v1/tasks/{id}/dependencies/{dependencyId}', {
+            params: {
+              path: { id: task.id!, dependencyId: input.dependencyId },
+              header: ifMatch(cached.version),
+            },
+          }),
+        )
       } catch {
         throw networkError()
       }
@@ -146,9 +155,13 @@ export function useRemoveDependency(task: TaskView) {
         const current = (error.body as { current?: TaskView } | undefined)?.current
         if (current) writeCurrent(queryClient, task.id!, current)
       }
+      const busy = error instanceof ApiError && error.code === 'request.busy'
       useToastStore
         .getState()
-        .show(stale ? 'This task changed. Try again.' : messageOf(error), 'error')
+        .show(
+          stale ? 'This task changed. Try again.' : busy ? BUSY_MESSAGE : messageOf(error),
+          'error',
+        )
     },
     onSuccess: async (input) => {
       // The removal is saved: a failed re-read must not fail the mutation, or onError would put the row back.

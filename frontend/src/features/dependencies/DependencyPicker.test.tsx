@@ -112,12 +112,71 @@ describe('FR-9 relationship picker', () => {
     ['dependency.exists', 'These tasks are already related.'],
     ['dependency.limit', 'A task can have at most 100 relationships.'],
     ['task.not_found', "That task can't be found."],
-    ['dependency.busy', 'These tasks are being changed right now. Try again.'],
   ])('a refused add (%s) shows its message in place', async (code, text) => {
     const user = userEvent.setup()
     setup({ 'POST /api/v1/tasks/:id/dependencies': () => problem(409, code, 'x') } as never)
     await user.type(screen.getByRole('combobox', { name: 'Find a task' }), 'login')
     await user.click(await screen.findByRole('option', { name: /ACME-7/ }))
     expect(await screen.findByRole('alert')).toHaveTextContent(text)
+  })
+
+  // ClickUp 14yq6g334u1: lock contention is 503 request.busy with Retry-After, as everywhere else.
+  const busy = (retryAfter: string) =>
+    new Response(
+      JSON.stringify({
+        status: 503,
+        code: 'request.busy',
+        title: 'x',
+        detail: 'The server is busy',
+      }),
+      {
+        status: 503,
+        headers: { 'Content-Type': 'application/problem+json', 'Retry-After': retryAfter },
+      },
+    )
+
+  it('a busy add is retried once after Retry-After, with the same key, and succeeds', async () => {
+    const user = userEvent.setup()
+    let n = 0
+    const { stub, onClose } = setup({
+      'POST /api/v1/tasks/:id/dependencies': () =>
+        ++n === 1
+          ? busy('1')
+          : json({ dependency: { id: 'd1' }, task: { ...task, version: 4 } }, 201),
+    } as never)
+    await user.type(screen.getByRole('combobox', { name: 'Find a task' }), 'login')
+    const started = Date.now()
+    await user.click(await screen.findByRole('option', { name: /ACME-7/ }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled(), { timeout: 3_000 })
+    const posts = stub.calls.filter((c) => c.method === 'POST')
+    expect(posts).toHaveLength(2)
+    expect(Date.now() - started).toBeGreaterThanOrEqual(900)
+    expect(posts[1].headers.get('Idempotency-Key')).toBe(posts[0].headers.get('Idempotency-Key'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('a busy retry shows the busy message, not a generic error, and stops there', async () => {
+    const user = userEvent.setup()
+    const { stub, onClose } = setup({
+      'POST /api/v1/tasks/:id/dependencies': () => busy('0'),
+    } as never)
+    await user.type(screen.getByRole('combobox', { name: 'Find a task' }), 'login')
+    await user.click(await screen.findByRole('option', { name: /ACME-7/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'These tasks are being changed right now. Try again.',
+    )
+    expect(stub.count('POST', /dependencies$/)).toBe(2)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('a real 409 is not retried', async () => {
+    const user = userEvent.setup()
+    const { stub } = setup({
+      'POST /api/v1/tasks/:id/dependencies': () => problem(409, 'dependency.exists', 'x'),
+    } as never)
+    await user.type(screen.getByRole('combobox', { name: 'Find a task' }), 'login')
+    await user.click(await screen.findByRole('option', { name: /ACME-7/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('These tasks are already related.')
+    expect(stub.count('POST', /dependencies$/)).toBe(1)
   })
 })
