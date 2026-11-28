@@ -1,16 +1,34 @@
 #!/usr/bin/env bash
 # Runs the Playwright suite against the local stack, like the CI `e2e` job (GitHub Actions is not the only gate).
-# Starts the infrastructure, reuses a backend already answering on :8080 (else starts the dev profile and
-# stops it again on exit), and saves screenshots into the git-ignored artifacts/screenshots
+# Starts the infrastructure, reuses a backend already answering on :8080 only when it is this checkout's own on
+# the dev profile (else starts the dev profile and stops it again on exit; another checkout's backend or Vite on
+# the port fails the run: scripts/e2e-local-owner.sh), and saves screenshots into the git-ignored artifacts/screenshots
 # (E2E_SCREENSHOTS_DIR); to refresh the committed docs/screenshots on purpose, set E2E_SCREENSHOTS_DIR=docs/screenshots.
 # Every failed attempt (also a test that passed on a retry) keeps its trace and screenshot in
 # artifacts/e2e-failures/<run>/ (scripts/e2e-failures.mjs --self-test checks the parser).
 # Extra arguments go to Playwright, for example: bash scripts/e2e-local.sh e2e/fields-manager.spec.ts
+# E2E_API_URL=http://localhost:8081 runs this checkout's backend on that port (the Vite proxy follows it).
+# Every run first checks its own guards (owner check, failed-attempts reporter); --self-test runs only those.
 set -euo pipefail
 
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 api="${E2E_API_URL:-http://localhost:8080}"
+api_port="${api##*:}"
+api_port="${api_port%%/*}"
 backend_pid=""
+
+# shellcheck source=scripts/e2e-local-owner.sh
+source "$root/scripts/e2e-local-owner.sh"
+owner_self_test
+node "$root/scripts/e2e-failed-attempts-reporter.mjs" --self-test
+[ "${1:-}" = "--self-test" ] && exit 0
+
+# refuse <message>: stop before testing code that is not this checkout's.
+refuse() {
+  echo "e2e-local: $1" >&2
+  echo "e2e-local: stop that process, or set E2E_API_URL=http://localhost:<free port> to run this checkout's backend there" >&2
+  exit 1
+}
 
 cleanup() {
   if [ -n "$backend_pid" ]; then
@@ -21,6 +39,14 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+# A backend already answering is reused only when it is this checkout's, on the dev profile: checked before the
+# infrastructure starts, so another checkout's backend fails the run at once.
+reuse_backend=""
+if curl -fsS "$api/api/v1/meta" >/dev/null 2>&1; then
+  why="$(owner_check "$api_port" "$root" backend)" || refuse "not reusing the backend on $api: $why"
+  reuse_backend=1
+fi
 
 # Postgres and Redis often already run on this machine: when a default port is taken by something that is
 # not this Compose project, publish ours on default+10000 and point the backend we start at it.
@@ -35,8 +61,8 @@ REDIS_PORT="${REDIS_PORT:-$(pick_port redis 6379 6379)}"
 export POSTGRES_PORT="${POSTGRES_PORT:-5432}" REDIS_PORT="${REDIS_PORT:-6379}"
 "${compose[@]}" up -d --wait --wait-timeout 180
 
-if curl -fsS "$api/api/v1/meta" >/dev/null 2>&1; then
-  echo "e2e-local: reusing the backend already answering on $api"
+if [ -n "$reuse_backend" ]; then
+  echo "e2e-local: reusing this checkout's dev backend already answering on $api"
 else
   mkdir -p "$root/backend/target"
   cd "$root/backend"
@@ -44,6 +70,7 @@ else
   set -m
   TASKFLOW_DB_URL="${TASKFLOW_DB_URL:-jdbc:postgresql://localhost:$POSTGRES_PORT/taskflow}" \
     TASKFLOW_REDIS_PORT="${TASKFLOW_REDIS_PORT:-$REDIS_PORT}" \
+    TASKFLOW_PORT="$api_port" \
     SPRING_PROFILES_ACTIVE=dev nohup ./mvnw -B spring-boot:run > target/e2e-backend.log 2>&1 &
   backend_pid=$!
   set +m
@@ -56,6 +83,11 @@ else
 fi
 
 cd "$root/frontend"
+# Playwright reuses a Vite already on :5173 outside CI: only this checkout's, proxying to $api.
+export VITE_API_PROXY_TARGET="$api"
+if port_busy 5173; then
+  why="$(owner_check 5173 "$root" vite "$api")" || refuse "not reusing the Vite dev server on :5173: $why"
+fi
 [ -d node_modules ] || npm ci
 npx playwright install chromium
 export E2E_MAILPIT_URL="${E2E_MAILPIT_URL:-http://localhost:8025}"
@@ -63,7 +95,7 @@ export E2E_SCREENSHOTS_DIR="${E2E_SCREENSHOTS_DIR:-$root/artifacts/screenshots}"
 mkdir -p "$E2E_SCREENSHOTS_DIR"
 
 # Playwright empties frontend/test-results at the start of every run, so a rerun erased the trace of a failed
-# attempt. The JSON report names every attempt: copy the trace and screenshot of each failed or flaky test
+# attempt. The failed-attempts report (scripts/e2e-failed-attempts-reporter.mjs) names each one: copy the trace and screenshot of each failed or flaky test
 # to artifacts/e2e-failures/<run timestamp>/ and list them, then exit with Playwright's own code.
 results="$root/artifacts/e2e-results.json"
 mkdir -p "$root/artifacts"

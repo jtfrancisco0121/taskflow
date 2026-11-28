@@ -7,15 +7,17 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 1 : 0,
-  // The JSON report lets scripts/e2e-local.sh keep the trace and screenshot of every failed attempt, also of
-  // a test that passed on a retry (Playwright empties test-results/ at the start of each run).
-  reporter: process.env.CI
-    ? [
-        ['list'],
-        ['html', { open: 'never' }],
-        ['json', { outputFile: '../artifacts/e2e-results.json' }],
-      ]
-    : [['list'], ['json', { outputFile: '../artifacts/e2e-results.json' }]],
+  // The failed-attempts report lets scripts/e2e-local.sh keep the trace and screenshot of every failed attempt,
+  // also of a test that passed on a retry (Playwright empties test-results/ at the start of each run). It keeps
+  // only failed attempts: Playwright's 'json' reporter crashed on large repeat runs (ClickUp 14yq6g333cd).
+  reporter: [
+    ['list'],
+    ...(process.env.CI ? ([['html', { open: 'never' }]] as const) : []),
+    [
+      '../scripts/e2e-failed-attempts-reporter.mjs',
+      { outputFile: '../artifacts/e2e-results.json' },
+    ],
+  ],
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'retain-on-failure',
