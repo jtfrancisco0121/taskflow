@@ -33,13 +33,15 @@ export function OneTimeKeyDialog({ keyName, secret, onDone }: Props) {
     <Dialog title={`Key ${keyName} created`} onClose={() => undefined}>
       <p
         role="note"
-        className="mb-3 rounded border border-amber-500 bg-amber-50 p-3 text-sm text-amber-900"
+        className="mb-3 rounded-md border border-line-strong bg-warn-soft p-3 text-[13px] text-fg"
       >
         This key will not be shown again. Copy it now and store it in a secret manager.
       </p>
-      <div className="mb-2 flex items-center gap-2 rounded border border-slate-300 bg-slate-100 p-2">
+      <div className="mb-2 flex items-center gap-2 rounded-md border border-line-strong bg-surface-2 p-2">
+        {/* data-secret: the e2e screenshots mask this element, so no image ever carries a key. */}
         <code
           aria-label="API key"
+          data-secret=""
           className="flex-1 overflow-x-auto font-mono text-[13px] whitespace-nowrap select-all"
         >
           {secret}
@@ -48,7 +50,7 @@ export function OneTimeKeyDialog({ keyName, secret, onDone }: Props) {
           Copy
         </Button>
       </div>
-      <p aria-live="polite" className="mb-4 h-5 text-sm text-green-700">
+      <p aria-live="polite" className="mb-4 h-5 text-[13px] text-muted">
         {copied ? 'Key copied' : ''}
       </p>
       <div className="flex justify-end">

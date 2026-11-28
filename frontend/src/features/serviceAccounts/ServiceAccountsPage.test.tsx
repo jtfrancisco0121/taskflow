@@ -37,11 +37,8 @@ describe('ServiceAccountsPage', () => {
     installFetch({ [`GET ${BASE}`]: { items: [] } })
     renderPage()
     expect(screen.getByRole('status', { name: 'Loading service accounts' })).toBeVisible()
-    expect(
-      await screen.findByText(
-        'No service accounts yet. Create one to give an agent its own access.',
-      ),
-    ).toBeVisible()
+    expect(await screen.findByRole('heading', { name: 'No service accounts yet' })).toBeVisible()
+    expect(screen.getByText('Create one to give an agent its own access.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Create service account' })).toBeVisible()
   })
 
@@ -106,7 +103,7 @@ describe('ServiceAccountsPage', () => {
     await fill(user, within(dialog).getByLabelText('Name'), 'triage-agent')
     await user.click(within(dialog).getByRole('button', { name: 'Create service account' }))
     expect(await screen.findByRole('heading', { name: 'triage-agent' })).toBeVisible()
-    expect(await screen.findByText('No keys. Create one to connect an agent.')).toBeVisible()
+    expect(await screen.findByRole('heading', { name: 'No keys yet' })).toBeVisible()
   })
 
   it('FR-3: Disable opens a confirm with Cancel focused, then shows Disabled', async () => {

@@ -27,7 +27,7 @@ export function ConfirmDialog({
     <Dialog title={title} onClose={onCancel}>
       <p className="mb-4 text-sm">{children}</p>
       {error != null && (
-        <p role="alert" className="mb-3 text-sm text-red-700">
+        <p role="alert" className="mb-3 text-sm text-danger">
           {messageOf(error)}
         </p>
       )}
