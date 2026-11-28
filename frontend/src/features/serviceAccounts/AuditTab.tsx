@@ -6,6 +6,8 @@ import { formatDay, relativeTime } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
 import { changeSentence, linkedTaskId, trashedVersion } from './changeSentence'
 import { allPages, useAccountActivity, useAudit, useRestoreTask } from './hooks'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 function RestoreButton({ workspaceId, entry }: { workspaceId: string; entry: AccountActivity }) {
   const restore = useRestoreTask(workspaceId)
@@ -45,13 +47,19 @@ function RecentChanges({ workspaceId, accountId }: { workspaceId: string; accoun
         Recent changes
       </h2>
       {activity.isPending && <p role="status">Loading…</p>}
-      {activity.isError && (
+      {refreshFailed(activity) && (
+        <RefreshNotice
+          message={messageOf(activity.error)}
+          onRetry={() => void activity.refetch()}
+        />
+      )}
+      {loadFailed(activity) && (
         <div role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm">
           <p className="mb-2 text-red-900">{messageOf(activity.error)}</p>
           <Button onClick={() => void activity.refetch()}>Retry</Button>
         </div>
       )}
-      {activity.isSuccess && entries.length === 0 && (
+      {hasData(activity) && entries.length === 0 && (
         <p className="text-sm text-slate-600">No changes yet.</p>
       )}
       <ul className="m-0 flex list-none flex-col gap-2 p-0">
@@ -110,16 +118,19 @@ export function AuditTab({ workspaceId, accountId }: { workspaceId: string; acco
           Calls in the last 30 days
         </h2>
         {audit.isPending && <p role="status">Loading…</p>}
-        {audit.isError && (
+        {refreshFailed(audit) && (
+          <RefreshNotice message={messageOf(audit.error)} onRetry={() => void audit.refetch()} />
+        )}
+        {loadFailed(audit) && (
           <div role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm">
             <p className="mb-2 text-red-900">{messageOf(audit.error)}</p>
             <Button onClick={() => void audit.refetch()}>Retry</Button>
           </div>
         )}
-        {audit.isSuccess && (audit.data.totalCalls ?? 0) === 0 && (
+        {hasData(audit) && (audit.data.totalCalls ?? 0) === 0 && (
           <p className="text-sm text-slate-600">No calls in the last 30 days.</p>
         )}
-        {audit.isSuccess && (audit.data.totalCalls ?? 0) > 0 && (
+        {hasData(audit) && (audit.data.totalCalls ?? 0) > 0 && (
           <>
             <ul className="m-0 mb-3 flex list-none flex-col gap-1 p-0 text-sm">
               {(audit.data.keys ?? []).map((apiKey) => (

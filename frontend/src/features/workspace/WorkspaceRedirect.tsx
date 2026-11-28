@@ -2,11 +2,14 @@ import { Navigate } from 'react-router'
 import { messageOf } from '../../api/errors'
 import { readLastWorkspace } from './lastWorkspace'
 import { useAllWorkspaces } from './useWorkspaces'
+import { loadFailed, refreshFailed } from '../../api/queryState'
 
 /** FR-6, FR-7: `/` goes to the last Workspace if still available, else the first, else /setup. */
 export function WorkspaceRedirect() {
-  const { workspaces, done, isError, error } = useAllWorkspaces()
-  if (isError) {
+  const all = useAllWorkspaces()
+  const { workspaces, done, error } = all
+  // 14yq6g334fe: a failed refresh of a complete list still redirects; an error that leaves the list incomplete does not.
+  if (!done && (loadFailed(all) || refreshFailed(all))) {
     return (
       <p role="alert" className="text-red-700">
         {messageOf(error)}

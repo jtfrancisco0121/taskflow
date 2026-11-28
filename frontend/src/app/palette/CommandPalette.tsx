@@ -12,6 +12,7 @@ import { Kbd } from '../../shared/ui/Kbd'
 import { useUiStore } from '../../shared/ui-store'
 import { buildCommands, type PaletteGroup } from './buildCommands'
 import { useShortcut } from './useShortcut'
+import { loadFailed } from '../../api/queryState'
 
 const ORDER: PaletteGroup[] = ['Go to', 'Workspaces', 'Theme', 'Actions']
 
@@ -108,7 +109,7 @@ function PaletteBody({
   const typed = search.trim()
   if (workspaceId && typed.length >= 2) {
     const searching = q.length < 2 || query.isFetching
-    const status: CommandGroup['status'] = query.isError
+    const status: CommandGroup['status'] = loadFailed(query)
       ? { kind: 'error', text: 'Couldn’t search tasks.' }
       : searching && hits.length === 0
         ? { kind: 'loading', text: 'Searching…' }

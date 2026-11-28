@@ -9,6 +9,8 @@ import { Button } from '../../shared/ui/Button'
 import { useSession } from '../auth'
 import { useMembers } from '../workspace'
 import { useComments, useCreateComment, useDeleteComment, useEditComment } from './useComments'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 /** FR-19, FR-20: comments oldest first with a composer; the author can edit and delete. */
 export function CommentsTab({ task }: { task: TaskView }) {
@@ -26,7 +28,13 @@ export function CommentsTab({ task }: { task: TaskView }) {
   return (
     <div className="flex flex-col gap-3">
       {comments.isPending && <p role="status">Loading…</p>}
-      {comments.isError && (
+      {refreshFailed(comments) && (
+        <RefreshNotice
+          message={messageOf(comments.error)}
+          onRetry={() => void comments.refetch()}
+        />
+      )}
+      {loadFailed(comments) && (
         <p role="alert" className="text-sm text-danger">
           {messageOf(comments.error)}{' '}
           <button type="button" className="underline" onClick={() => void comments.refetch()}>
@@ -34,7 +42,7 @@ export function CommentsTab({ task }: { task: TaskView }) {
           </button>
         </p>
       )}
-      {comments.isSuccess && items.length === 0 && (
+      {hasData(comments) && items.length === 0 && (
         <p className="text-sm text-muted">No comments yet.</p>
       )}
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
@@ -146,7 +154,7 @@ function CommentItem({
       {editing ? (
         <div className="flex flex-col gap-2">
           <RichTextEditor label="Edit comment" members={members} value={body} onChange={setDraft} />
-          {edit.isError && (
+          {edit.error && (
             <p role="alert" className="text-sm text-danger">
               {messageOf(edit.error)}
             </p>
@@ -186,7 +194,7 @@ function CommentItem({
             Confirm delete
           </Button>
           <Button onClick={() => setConfirming(false)}>Keep</Button>
-          {remove.isError && (
+          {remove.error && (
             <span role="alert" className="text-danger">
               {messageOf(remove.error)}
             </span>

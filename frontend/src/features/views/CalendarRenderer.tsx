@@ -36,6 +36,8 @@ import type { ViewScope } from './scope'
 import { parseUrlState, type UrlState } from './urlState'
 import { useTaskActions } from './useTaskActions'
 import { useViewTasks } from './useViewTasks'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { loadFailed, refreshFailed } from '../../api/queryState'
 
 /** Keyboard dragging jumps by day cells: Left/Right one day, Up/Down one week. */
 const dayCoordinates: KeyboardCoordinateGetter = (event, { context }) => {
@@ -118,6 +120,9 @@ export function CalendarRenderer({
 
   // Later pages may still hold in-range tasks: nothing in range yet is loading, not empty, until paging is done.
   const loading = query.isPending || (shown === 0 && (hasNextPage || isFetchingNextPage))
+  // CAL-1: the Calendar reads every page of the range, so a failed later page leaves the range incomplete: an error, not
+  // a stale-data notice (14yq6g334fe keeps the notice for a failed refresh of a complete range).
+  const incomplete = query.isFetchNextPageError
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -163,7 +168,10 @@ export function CalendarRenderer({
           ))}
         </div>
       </div>
-      {query.isError ? (
+      {refreshFailed(query) && !incomplete && (
+        <RefreshNotice message={messageOf(query.error)} onRetry={() => void query.refetch()} />
+      )}
+      {loadFailed(query) || incomplete ? (
         <ErrorState message={messageOf(query.error)} onRetry={() => void query.refetch()} />
       ) : (
         <>

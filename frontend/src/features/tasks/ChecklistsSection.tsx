@@ -9,6 +9,8 @@ import {
   type Checklist,
   type ChecklistItem,
 } from './useChecklists'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 const inputClass =
   'min-w-0 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-sm text-fg hover:border-line-strong focus-visible:border-line-strong focus-visible:outline-2 focus-visible:outline-focus-ring'
@@ -211,7 +213,10 @@ export function ChecklistsSection({
       {query.isPending && (
         <div aria-busy="true" className="h-4 animate-pulse rounded bg-surface-3" />
       )}
-      {query.isError && (
+      {refreshFailed(query) && (
+        <RefreshNotice message={messageOf(query.error)} onRetry={() => void query.refetch()} />
+      )}
+      {loadFailed(query) && (
         <p role="alert" className="text-sm text-danger">
           Couldn’t load the checklists: {messageOf(query.error)}{' '}
           <button type="button" className="underline" onClick={() => void query.refetch()}>
@@ -219,7 +224,7 @@ export function ChecklistsSection({
           </button>
         </p>
       )}
-      {query.isSuccess && lists.length === 0 && (
+      {hasData(query) && lists.length === 0 && (
         <p className="text-sm text-muted">No checklists yet.</p>
       )}
       {lists.map((list) => (

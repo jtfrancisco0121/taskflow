@@ -1,8 +1,9 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { fireEvent } from '@testing-library/react'
 import { Route, Routes, useLocation } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
+import { queryKeys } from '../../api/queryKeys'
 import { useTaskOrder } from '../../shared/task-order'
 import { useUiStore } from '../../shared/ui-store'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
@@ -106,6 +107,9 @@ function renderPanel(
     { route, state },
   )
 }
+
+/** The open task detail (modal by default). */
+const findOpenPanel = () => queryTaskDetail('Task ACME-1') as HTMLElement
 
 const patches = (stub: ReturnType<typeof serve>['stub']) =>
   stub.calls.filter((c) => c.method === 'PATCH')
@@ -675,6 +679,63 @@ describe('TaskPanel', () => {
       expect(await screen.findByText('Server broke')).toBeVisible()
       await user.click(screen.getByRole('button', { name: 'Retry' }))
       expect(await findTaskDetail('Task ACME-1')).toBeVisible()
+    })
+
+    // ClickUp 14yq6g334fe: a background refresh that fails keeps the open task, with a non-blocking Retry notice.
+    it('a failed background refresh keeps the task on screen with a Retry notice, and Retry clears it', async () => {
+      let fail = false
+      serve({}, {
+        'GET /api/v1/tasks/:id': () => (fail ? problem(500, 'boom', 'Server broke') : json(base)),
+      } as never)
+      const user = userEvent.setup()
+      const { queryClient } = renderPanel()
+      expect(within(await findTaskDetail('Task ACME-1')).getByLabelText('Title')).toHaveValue(
+        'Draft launch post',
+      )
+
+      fail = true
+      await act(() => queryClient.refetchQueries({ queryKey: queryKeys.task('t1') }))
+      const notice = await screen.findByRole('status', { name: 'Couldn’t refresh' })
+      expect(within(findOpenPanel()).getByLabelText('Title')).toHaveValue('Draft launch post')
+      expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
+
+      fail = false
+      await user.click(within(notice).getByRole('button', { name: 'Retry' }))
+      await waitFor(() =>
+        expect(screen.queryByRole('status', { name: 'Couldn’t refresh' })).toBeNull(),
+      )
+      expect(within(findOpenPanel()).getByLabelText('Title')).toHaveValue('Draft launch post')
+    })
+
+    it.each([
+      [404, 'task.not_found'],
+      [403, 'access.denied'],
+    ])(
+      'a refresh that fails with %i shows the gone state, not the stale task',
+      async (code, errorCode) => {
+        let fail = false
+        serve({}, {
+          'GET /api/v1/tasks/:id': () => (fail ? problem(code, errorCode, 'No') : json(base)),
+        } as never)
+        const { queryClient } = renderPanel()
+        await findTaskDetail('Task ACME-1')
+
+        fail = true
+        await act(() => queryClient.refetchQueries({ queryKey: queryKeys.task('t1') }))
+        expect(await screen.findByText('This task is gone or you can’t see it.')).toBeVisible()
+        expect(screen.queryByLabelText('Title')).toBeNull()
+        expect(screen.queryByRole('status', { name: 'Couldn’t refresh' })).toBeNull()
+        expect(screen.getByRole('button', { name: 'Close' })).toBeVisible()
+      },
+    )
+
+    it('a failed first load shows the error screen with Retry, and no refresh notice', async () => {
+      serve({}, { 'GET /api/v1/tasks/:id': () => problem(500, 'boom', 'Server broke') } as never)
+      renderPanel()
+      expect(await screen.findByText('Server broke')).toBeVisible()
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible()
+      expect(screen.queryByRole('status', { name: 'Couldn’t refresh' })).toBeNull()
+      expect(screen.queryByLabelText('Title')).toBeNull()
     })
 
     it('shows a skeleton while the task loads', async () => {
