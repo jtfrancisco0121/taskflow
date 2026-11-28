@@ -5,6 +5,12 @@ import { queryKeys } from '../../api/queryKeys'
 import type { TaskView } from '../../api/types'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { DependencyPicker } from './DependencyPicker'
+import { useDependencyWrites } from './useDependencies'
+
+function Picker(props: { task: TaskView; related: Set<string>; onClose: () => void }) {
+  const writes = useDependencyWrites(props.task)
+  return <DependencyPicker {...props} writes={writes} />
+}
 
 const task = {
   id: 't1',
@@ -29,9 +35,7 @@ function setup(routes: Record<string, never> = {}, related = new Set<string>()) 
     ...routes,
   } as never)
   const onClose = vi.fn()
-  const view = renderWithProviders(
-    <DependencyPicker task={task} related={related} onClose={onClose} />,
-  )
+  const view = renderWithProviders(<Picker task={task} related={related} onClose={onClose} />)
   view.queryClient.setQueryData(queryKeys.task('t1'), task)
   return { stub, onClose, ...view }
 }
@@ -79,6 +83,47 @@ describe('FR-9 relationship picker', () => {
       (c) => c.method === 'POST' && c.url.pathname.endsWith('/dependencies'),
     )!
     expect(post.body).toEqual({ otherTaskId: 'b7', relation: 'BLOCKING' })
+  })
+
+  it('a second pick while an add is pending sends no request (ClickUp 14yq6g33592)', async () => {
+    const user = userEvent.setup()
+    let answer: (r: Response) => void = () => {}
+    const { stub, onClose } = setup({
+      'POST /api/v1/tasks/:id/dependencies': () =>
+        new Promise<Response>((resolve) => {
+          answer = resolve
+        }),
+    } as never)
+    await user.type(screen.getByRole('combobox', { name: 'Find a task' }), 'login')
+    await user.click(await screen.findByRole('option', { name: /ACME-7/ }))
+    await user.click(screen.getByRole('option', { name: /ACME-8/ }))
+    await user.keyboard('{Enter}')
+    const posts = () =>
+      stub.calls.filter((c) => c.method === 'POST' && c.url.pathname.endsWith('/dependencies'))
+    expect(posts()).toHaveLength(1)
+    expect(screen.getByRole('option', { name: /ACME-8/ })).toHaveAttribute('aria-disabled', 'true')
+    answer(
+      json({ dependency: { id: 'd', relation: 'WAITING_ON' }, task: { ...task, version: 4 } }, 201),
+    )
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    expect(posts()).toHaveLength(1)
+  })
+
+  it('a pick is allowed again once a refused add has settled', async () => {
+    const user = userEvent.setup()
+    const { stub } = setup({
+      'POST /api/v1/tasks/:id/dependencies': () =>
+        problem(409, 'dependency.exists', 'These two tasks are already related'),
+    } as never)
+    await user.type(screen.getByRole('combobox', { name: 'Find a task' }), 'login')
+    await user.click(await screen.findByRole('option', { name: /ACME-7/ }))
+    await screen.findByRole('alert')
+    await user.click(screen.getByRole('option', { name: /ACME-8/ }))
+    await waitFor(() =>
+      expect(
+        stub.calls.filter((c) => c.method === 'POST' && c.url.pathname.endsWith('/dependencies')),
+      ).toHaveLength(2),
+    )
   })
 
   it('Escape closes the picker', async () => {
