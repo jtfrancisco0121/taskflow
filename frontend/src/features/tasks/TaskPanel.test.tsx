@@ -707,6 +707,28 @@ describe('TaskPanel', () => {
       expect(within(findOpenPanel()).getByLabelText('Title')).toHaveValue('Draft launch post')
     })
 
+    it.each([
+      [404, 'task.not_found'],
+      [403, 'access.denied'],
+    ])(
+      'a refresh that fails with %i shows the gone state, not the stale task',
+      async (code, errorCode) => {
+        let fail = false
+        serve({}, {
+          'GET /api/v1/tasks/:id': () => (fail ? problem(code, errorCode, 'No') : json(base)),
+        } as never)
+        const { queryClient } = renderPanel()
+        await findTaskDetail('Task ACME-1')
+
+        fail = true
+        await act(() => queryClient.refetchQueries({ queryKey: queryKeys.task('t1') }))
+        expect(await screen.findByText('This task is gone or you can’t see it.')).toBeVisible()
+        expect(screen.queryByLabelText('Title')).toBeNull()
+        expect(screen.queryByRole('status', { name: 'Couldn’t refresh' })).toBeNull()
+        expect(screen.getByRole('button', { name: 'Close' })).toBeVisible()
+      },
+    )
+
     it('a failed first load shows the error screen with Retry, and no refresh notice', async () => {
       serve({}, { 'GET /api/v1/tasks/:id': () => problem(500, 'boom', 'Server broke') } as never)
       renderPanel()

@@ -89,9 +89,15 @@ const loadStateGuard = [
     selector: 'ObjectPattern > Property[key.name=/^(isError|isSuccess)$/]',
     message: loadStateMessage,
   },
+  // q.status or a destructured status, compared to 'error' on either side.
   {
     selector:
-      "BinaryExpression[operator=/^[!=]==?$/][right.value='error'] > MemberExpression.left[property.name='status']",
+      "BinaryExpression[operator=/^[!=]==?$/][right.value='error'] > :matches(MemberExpression[property.name='status'], Identifier[name='status']).left",
+    message: loadStateMessage,
+  },
+  {
+    selector:
+      "BinaryExpression[operator=/^[!=]==?$/][left.value='error'] > :matches(MemberExpression[property.name='status'], Identifier[name='status']).right",
     message: loadStateMessage,
   },
 ]

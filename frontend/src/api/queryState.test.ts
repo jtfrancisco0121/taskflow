@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
+import { ApiError } from './errors'
 import { hasData, loadFailed, refreshFailed } from './queryState'
 
 // ClickUp 14yq6g334fe: a failed background refresh keeps the last data on screen; only a failed first load blanks it.
@@ -29,5 +30,19 @@ describe('query load states', () => {
     expect(hasData({ status: 'success', data: null })).toBe(true)
     expect(hasData(firstLoadError)).toBe(false)
     expect(hasData(loading)).toBe(false)
+  })
+
+  it('a 401, 403 or 404 on a refresh is the error screen, not a stale-data notice; a 500 keeps the data', () => {
+    const failedWith = (status: number) => ({
+      status: 'error' as const,
+      data: { id: 't1' },
+      error: new ApiError({ status }),
+    })
+    for (const status of [401, 403, 404]) {
+      expect(loadFailed(failedWith(status))).toBe(true)
+      expect(refreshFailed(failedWith(status))).toBe(false)
+    }
+    expect(loadFailed(failedWith(500))).toBe(false)
+    expect(refreshFailed(failedWith(500))).toBe(true)
   })
 })

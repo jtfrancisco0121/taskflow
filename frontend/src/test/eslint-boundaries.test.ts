@@ -140,6 +140,14 @@ describe('query load state goes through src/api/queryState.ts (14yq6g334fe)', ()
     ).toHaveLength(3)
   })
 
+  it('rejects a reversed comparison and a destructured status compared to "error"', async () => {
+    expect(
+      await restricted(
+        "export function A(q: any) {\n  const { status } = q\n  return 'error' === q.status || status === 'error' || 'error' !== status\n}\n",
+      ),
+    ).toHaveLength(3)
+  })
+
   it('rejects them in .ts product code too', async () => {
     expect(
       await restricted('export const a = (q: any) => q.isError', 'src/features/tasks/useThing.ts'),
