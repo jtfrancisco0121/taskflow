@@ -110,6 +110,12 @@ class RefreshReuseGuardIT extends IntegrationTest {
     assertThat(refresh(a).status()).isEqualTo(401);
   }
 
+  /*
+   * The two cases below pin the 30 s grace from both sides. The database clock only moves forward
+   * between the test's UPDATE and the refresh, so a slow run can only push a token further out of
+   * the window: 31 s cannot flip, while the inside case needs headroom. It is 25 s, so it flips
+   * only if the refresh starts more than 5 s after the UPDATE (ClickUp 14yq6g334r6 item 4).
+   */
   @Test
   void anOldTokenReplayed31SecondsAfterItsRotationRevokesTheFamily() {
     Resp up = signup();
@@ -127,14 +133,14 @@ class RefreshReuseGuardIT extends IntegrationTest {
   }
 
   @Test
-  void anOldTokenReplayed29SecondsAfterItsRotationGetsTheSameSuccessor() {
+  void anOldTokenReplayed25SecondsAfterItsRotationGetsTheSameSuccessor() {
     Resp up = signup();
     String a = AuthIT.refreshCookie(up);
     Resp toB = refresh(a);
     assertThat(toB.status()).isEqualTo(200);
     String b = AuthIT.refreshCookie(toB);
     jdbc.update(
-        "UPDATE refresh_token SET rotated_at = now() - interval '29 seconds' WHERE token_hash = ?",
+        "UPDATE refresh_token SET rotated_at = now() - interval '25 seconds' WHERE token_hash = ?",
         hashOf(a));
 
     Resp replay = refresh(a);
