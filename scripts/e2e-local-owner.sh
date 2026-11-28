@@ -101,6 +101,49 @@ fake_listener() {
   rm -f "$out"
 }
 
+# Whether this host can listen on IPv6 loopback (::1). E2E_NO_IPV6_LOOPBACK=1 answers no, so the self-test can
+# prove the skip path on a host that has it.
+ipv6_loopback() {
+  [ -z "${E2E_NO_IPV6_LOOPBACK:-}" ] || return 1
+  node -e '
+    const s = require("net").createServer()
+    s.on("error", () => process.exit(1))
+    s.listen(0, "::1", () => s.close(() => process.exit(0)))
+  ' 2>/dev/null
+}
+
+# Vite binds "localhost" (::1 on macOS): the port must count as in use and its owner must still be checked. The ::1
+# case runs only where IPv6 loopback exists, so a host without it does not fail every e2e run.
+host_cases() { # <checkout root> <foreign dir>
+  local root="$1" foreign="$2" host pid port code reason bad=0
+  local hosts=(localhost)
+  if ipv6_loopback; then
+    hosts+=(::1)
+  else
+    echo "e2e-local self-test: no IPv6 loopback here, skipped the ::1 case"
+  fi
+  for host in "${hosts[@]}"; do
+    read -r pid port < <(FAKE_HOST="$host" fake_listener "$foreign")
+    if ! port_in_use "$port"; then
+      echo "e2e-local self-test: a listener on $host:$port was not seen as in use" >&2
+      bad=1
+    fi
+    code=0
+    reason="$(owner_check "$port" "$root" vite "http://localhost:8080")" || code=$?
+    if [ "$code" != 1 ]; then
+      echo "e2e-local self-test: a foreign Vite on $host: expected 1, got $code ($reason)" >&2
+      bad=1
+    fi
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    if port_in_use "$port"; then
+      echo "e2e-local self-test: port $port still counts as in use after its listener stopped" >&2
+      bad=1
+    fi
+  done
+  return "$bad"
+}
+
 owner_self_test() {
   local root here foreign failures=0 pid port reason code
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -130,28 +173,18 @@ owner_self_test() {
   expect 1 "this checkout's Vite proxying elsewhere" "$root/frontend" vite "http://localhost:8081"
   expect 0 "this checkout's Vite proxying to the target" "$root/frontend" vite "http://localhost:8081" \
     VITE_API_PROXY_TARGET=http://localhost:8081
-  # Vite binds "localhost" (::1 here): the port must count as in use and its owner must still be checked.
-  local host
-  for host in localhost ::1; do
-    read -r pid port < <(FAKE_HOST="$host" fake_listener "$foreign")
-    if ! port_in_use "$port"; then
-      echo "e2e-local self-test: a listener on $host:$port was not seen as in use" >&2
-      failures=$((failures + 1))
-    fi
-    code=0
-    reason="$(owner_check "$port" "$root" vite "http://localhost:8080")" || code=$?
-    if [ "$code" != 1 ]; then
-      echo "e2e-local self-test: a foreign Vite on $host: expected 1, got $code ($reason)" >&2
-      failures=$((failures + 1))
-    fi
-    kill "$pid" 2>/dev/null || true
-    wait "$pid" 2>/dev/null || true
-    if port_in_use "$port"; then
-      echo "e2e-local self-test: port $port still counts as in use after its listener stopped" >&2
-      failures=$((failures + 1))
-    fi
-  done
+  host_cases "$root" "$foreign" || failures=$((failures + 1))
   rmdir "$foreign" 2>/dev/null || true
+  # A host without IPv6 loopback must skip the ::1 case and still pass (review on PR #37).
+  local skip
+  skip="$(E2E_NO_IPV6_LOOPBACK=1 bash "${BASH_SOURCE[0]}" --self-test-hosts 2>&1)" || {
+    echo "e2e-local self-test: without ::1 the host cases failed: $skip" >&2
+    failures=$((failures + 1))
+  }
+  if ! grep -q "skipped the ::1 case" <<<"$skip"; then
+    echo "e2e-local self-test: without ::1 the ::1 case was not skipped ($skip)" >&2
+    failures=$((failures + 1))
+  fi
   [ "$failures" = 0 ] || return 1
   echo "e2e-local self-test: ok"
 }
@@ -159,6 +192,14 @@ owner_self_test() {
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
   case "${1:-}" in
     --self-test) owner_self_test ;;
+    --self-test-hosts)
+      root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+      foreign="$(cd "$(mktemp -d)" && pwd -P)"
+      code=0
+      host_cases "$root" "$foreign" || code=$?
+      rmdir "$foreign" 2>/dev/null || true
+      exit "$code"
+      ;;
     *)
       echo "usage: e2e-local-owner.sh --self-test (sourced by scripts/e2e-local.sh)" >&2
       exit 2
