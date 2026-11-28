@@ -1,5 +1,5 @@
 import { QueryObserver } from '@tanstack/react-query'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -140,6 +140,8 @@ describe('FR-9 Dependencies section', () => {
     expect(del.headers.get('If-Match')).toBe('"3"')
   })
 
+  // Two clicks in one act() land before React re-renders, so the second button is still enabled and
+  // only the in-flight guard can stop it (user-event skips disabled buttons and would test nothing).
   it('a second removal while one is pending sends no request (ClickUp 14yq6g33592)', async () => {
     let answer: (r: Response) => void = () => {}
     const stub = serve({ ...none, waitingOn: [item('b3', 3), item('b4', 4)] }, {
@@ -149,15 +151,17 @@ describe('FR-9 Dependencies section', () => {
         }),
       'GET /api/v1/tasks/:id': () => json({ ...task, version: 5 }),
     } as never)
-    const user = userEvent.setup()
     const { queryClient } = render()
     queryClient.setQueryData(queryKeys.task('t1'), task)
-    await user.click(await screen.findByRole('button', { name: 'Remove relationship with ACME-3' }))
+    const first = await screen.findByRole('button', { name: 'Remove relationship with ACME-3' })
     const second = screen.getByRole('button', { name: 'Remove relationship with ACME-4' })
-    expect(second).toBeDisabled()
-    await user.click(second)
+    act(() => {
+      first.click()
+      second.click()
+    })
     const deletes = () => stub.calls.filter((c) => c.method === 'DELETE')
-    expect(deletes()).toHaveLength(1)
+    await waitFor(() => expect(deletes()).toHaveLength(1))
+    expect(screen.getByRole('button', { name: 'Remove relationship with ACME-4' })).toBeDisabled()
     answer(new Response(null, { status: 204 }))
     await waitFor(() =>
       expect(
@@ -165,6 +169,81 @@ describe('FR-9 Dependencies section', () => {
       ).not.toBeDisabled(),
     )
     expect(deletes()).toHaveLength(1)
+  })
+
+  it('a pick while a removal is pending sends no request (ClickUp 14yq6g33592)', async () => {
+    let answer: (r: Response) => void = () => {}
+    const stub = serve({ ...none, waitingOn: [item('b3', 3)] }, {
+      'DELETE /api/v1/tasks/:id/dependencies/:depId': () =>
+        new Promise<Response>((resolve) => {
+          answer = resolve
+        }),
+      'GET /api/v1/tasks/:id': () => json({ ...task, version: 5 }),
+      'GET /api/v1/workspaces/:id/search': () =>
+        json({ items: [{ taskId: 'b7', readableId: 'ACME-7', title: 'Fix login' }] }),
+      'POST /api/v1/tasks/:id/dependencies': () =>
+        json(
+          { dependency: { id: 'd', relation: 'WAITING_ON' }, task: { ...task, version: 6 } },
+          201,
+        ),
+    } as never)
+    const user = userEvent.setup()
+    const { queryClient } = render()
+    queryClient.setQueryData(queryKeys.task('t1'), task)
+    await user.click(await screen.findByRole('button', { name: 'Add a relationship' }))
+    await user.type(screen.getByRole('combobox', { name: 'Find a task' }), 'login')
+    const option = await screen.findByRole('option', { name: /ACME-7/ })
+    await user.click(screen.getByRole('button', { name: 'Remove relationship with ACME-3' }))
+    await user.click(option)
+    const posts = () => stub.calls.filter((c) => c.method === 'POST')
+    expect(posts()).toHaveLength(0)
+    answer(new Response(null, { status: 204 }))
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: /ACME-7/ })).not.toHaveAttribute('aria-disabled'),
+    )
+    await user.click(screen.getByRole('option', { name: /ACME-7/ }))
+    await waitFor(() => expect(posts()).toHaveLength(1))
+  })
+
+  it('a removal while an add is pending sends no request (ClickUp 14yq6g33592)', async () => {
+    const stub = serve({ ...none, waitingOn: [item('b3', 3)] }, {
+      'DELETE /api/v1/tasks/:id/dependencies/:depId': () => new Response(null, { status: 204 }),
+      'GET /api/v1/workspaces/:id/search': () =>
+        json({ items: [{ taskId: 'b7', readableId: 'ACME-7', title: 'Fix login' }] }),
+      'POST /api/v1/tasks/:id/dependencies': () => new Promise<Response>(() => {}),
+    } as never)
+    const user = userEvent.setup()
+    const { queryClient } = render()
+    queryClient.setQueryData(queryKeys.task('t1'), task)
+    await user.click(await screen.findByRole('button', { name: 'Add a relationship' }))
+    await user.type(screen.getByRole('combobox', { name: 'Find a task' }), 'login')
+    const option = await screen.findByRole('option', { name: /ACME-7/ })
+    const removeButton = screen.getByRole('button', { name: 'Remove relationship with ACME-3' })
+    act(() => {
+      option.click()
+      removeButton.click()
+    })
+    await waitFor(() => expect(stub.calls.filter((c) => c.method === 'POST')).toHaveLength(1))
+    expect(stub.calls.filter((c) => c.method === 'DELETE')).toHaveLength(0)
+  })
+
+  it('closing and reopening the picker keeps a pending add: a new pick sends nothing (ClickUp 14yq6g33592)', async () => {
+    const stub = serve(none, {
+      'GET /api/v1/workspaces/:id/search': () =>
+        json({ items: [{ taskId: 'b7', readableId: 'ACME-7', title: 'Fix login' }] }),
+      'POST /api/v1/tasks/:id/dependencies': () => new Promise<Response>(() => {}),
+    } as never)
+    const user = userEvent.setup()
+    const { queryClient } = render()
+    queryClient.setQueryData(queryKeys.task('t1'), task)
+    await user.click(await screen.findByRole('button', { name: 'Add a relationship' }))
+    await user.type(screen.getByRole('combobox', { name: 'Find a task' }), 'login')
+    await user.click(await screen.findByRole('option', { name: /ACME-7/ }))
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    await user.click(screen.getByRole('button', { name: 'Add a relationship' }))
+    await user.type(screen.getByRole('combobox', { name: 'Find a task' }), 'login')
+    await user.click(await screen.findByRole('option', { name: /ACME-7/ }))
+    expect(stub.calls.filter((c) => c.method === 'POST')).toHaveLength(1)
   })
 
   it('puts a row back with an error toast when the removal fails', async () => {

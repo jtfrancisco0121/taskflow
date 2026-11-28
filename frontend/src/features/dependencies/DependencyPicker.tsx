@@ -4,7 +4,7 @@ import { api } from '../../api/client'
 import { ApiError, messageOf, unwrap } from '../../api/errors'
 import type { DependencyRelation, SearchHit, TaskView } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
-import { BUSY_MESSAGE, useAddDependency } from './useDependencies'
+import { BUSY_MESSAGE, type DependencyWrites } from './useDependencies'
 import { RELATIONS, RELATION_LABEL } from './relations'
 import { hasData, loadFailed } from '../../api/queryState'
 
@@ -57,17 +57,18 @@ async function refusal(error: unknown): Promise<string> {
 /**
  * The relationship picker (FR-9): a kind control, a combobox that searches the Workspace by words
  * (2+ characters) or looks a readable id up exactly, results without the task itself and tasks
- * already related. A refusal stays in place under the input. One add at a time: a pick while an
- * add (and its busy retry) is in flight is ignored, so a double click cannot send two (ClickUp
- * 14yq6g33592).
+ * already related. A refusal stays in place under the input. A pick while any dependency write of
+ * the section (an add with its busy retry, or a remove) is in flight is ignored (ClickUp 14yq6g33592).
  */
 export function DependencyPicker({
   task,
   related,
+  writes,
   onClose,
 }: {
   task: TaskView
   related: Set<string>
+  writes: DependencyWrites
   onClose: () => void
 }) {
   const [relation, setRelation] = useState<DependencyRelation>('WAITING_ON')
@@ -76,10 +77,7 @@ export function DependencyPicker({
   const [active, setActive] = useState(0)
   const [message, setMessage] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  // A ref, not add.isPending: two clicks in the same tick both see the old render.
-  const adding = useRef(false)
   const listId = useId()
-  const add = useAddDependency(task)
   const workspaceId = task.workspaceId!
 
   useEffect(() => inputRef.current?.focus(), [])
@@ -124,16 +122,14 @@ export function DependencyPicker({
   const shown = q.length >= 2 ? results : []
 
   async function pick(candidate: Candidate) {
-    if (adding.current) return
-    adding.current = true
+    const added = writes.add({ otherTaskId: candidate.taskId, relation })
+    if (!added) return
     setMessage(null)
     try {
-      await add.mutateAsync({ otherTaskId: candidate.taskId, relation })
+      await added
       onClose()
     } catch (error) {
       setMessage(await refusal(error))
-    } finally {
-      adding.current = false
     }
   }
 
@@ -207,10 +203,10 @@ export function DependencyPicker({
             id={`${listId}-${i}`}
             role="option"
             aria-selected={i === active}
-            aria-disabled={add.isPending || undefined}
+            aria-disabled={writes.pending || undefined}
             onMouseEnter={() => setActive(i)}
             onClick={() => void pick(c)}
-            className={`rounded px-2 py-1 text-sm ${add.isPending ? 'cursor-wait opacity-60' : 'cursor-pointer'} ${i === active ? 'bg-accent-soft' : ''}`}
+            className={`rounded px-2 py-1 text-sm ${writes.pending ? 'cursor-wait opacity-60' : 'cursor-pointer'} ${i === active ? 'bg-accent-soft' : ''}`}
           >
             <span className="font-mono text-xs text-muted">{c.readableId}</span> {c.title}
             {c.listName && <span className="text-xs text-muted"> · {c.listName}</span>}

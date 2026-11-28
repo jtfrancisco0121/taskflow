@@ -5,6 +5,12 @@ import { queryKeys } from '../../api/queryKeys'
 import type { TaskView } from '../../api/types'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { DependencyPicker } from './DependencyPicker'
+import { useDependencyWrites } from './useDependencies'
+
+function Picker(props: { task: TaskView; related: Set<string>; onClose: () => void }) {
+  const writes = useDependencyWrites(props.task)
+  return <DependencyPicker {...props} writes={writes} />
+}
 
 const task = {
   id: 't1',
@@ -29,9 +35,7 @@ function setup(routes: Record<string, never> = {}, related = new Set<string>()) 
     ...routes,
   } as never)
   const onClose = vi.fn()
-  const view = renderWithProviders(
-    <DependencyPicker task={task} related={related} onClose={onClose} />,
-  )
+  const view = renderWithProviders(<Picker task={task} related={related} onClose={onClose} />)
   view.queryClient.setQueryData(queryKeys.task('t1'), task)
   return { stub, onClose, ...view }
 }

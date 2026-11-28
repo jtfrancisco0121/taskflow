@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { messageOf } from '../../api/errors'
 import type { DependencyItem, DependencyList, TaskView } from '../../api/types'
@@ -6,7 +6,7 @@ import { Button } from '../../shared/ui/Button'
 import { getSessionUser } from '../../api/session'
 import { useMembers } from '../workspace'
 import { DependencyPicker } from './DependencyPicker'
-import { useDependencies, useRemoveDependency } from './useDependencies'
+import { useDependencies, useDependencyWrites } from './useDependencies'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
 import { loadFailed, refreshFailed } from '../../api/queryState'
 
@@ -39,10 +39,8 @@ function ordered(items: DependencyItem[] | undefined): DependencyItem[] {
  */
 export function DependenciesSection({ task }: { task: TaskView }) {
   const query = useDependencies(task.id)
-  const remove = useRemoveDependency(task)
-  // One removal at a time: a second one would send the version the first is about to bump, so it
-  // would fail as a conflict (ClickUp 14yq6g33592). A ref, so two clicks in one tick see it.
-  const removing = useRef(false)
+  // Adds and removes one at a time, kept across closing the picker (ClickUp 14yq6g33592).
+  const writes = useDependencyWrites(task)
   const [adding, setAdding] = useState(false)
   const location = useLocation()
   const me = getSessionUser()?.id
@@ -73,7 +71,12 @@ export function DependenciesSection({ task }: { task: TaskView }) {
         )}
       </div>
       {adding && canEdit && (
-        <DependencyPicker task={task} related={related} onClose={() => setAdding(false)} />
+        <DependencyPicker
+          task={task}
+          related={related}
+          writes={writes}
+          onClose={() => setAdding(false)}
+        />
       )}
       {query.isPending && (
         <div aria-busy="true" className="flex animate-pulse flex-col gap-2">
@@ -125,19 +128,13 @@ export function DependenciesSection({ task }: { task: TaskView }) {
                       <button
                         type="button"
                         aria-label={`Remove relationship with ${item.task?.readableId}`}
-                        disabled={remove.isPending}
-                        onClick={() => {
-                          if (removing.current) return
-                          removing.current = true
-                          remove.mutate(
-                            { dependencyId: item.dependencyId!, otherTaskId: item.task!.id! },
-                            {
-                              onSettled: () => {
-                                removing.current = false
-                              },
-                            },
-                          )
-                        }}
+                        disabled={writes.pending}
+                        onClick={() =>
+                          void writes.remove({
+                            dependencyId: item.dependencyId!,
+                            otherTaskId: item.task!.id!,
+                          })
+                        }
                         className="rounded px-1 text-muted hover:bg-surface-2 disabled:cursor-wait disabled:opacity-60"
                       >
                         ×

@@ -178,3 +178,35 @@ export function useRemoveDependency(task: TaskView) {
     },
   })
 }
+
+type AddInput = { otherTaskId: string; relation: DependencyRelation }
+type RemoveInput = { dependencyId: string; otherTaskId: string }
+
+/**
+ * The Dependencies section's writes, one at a time (ClickUp 14yq6g33592): an add and a remove, or two
+ * of either, never overlap, since the second would send the version the first is about to bump. A
+ * write asked for while one is in flight is ignored (`null`). The flag is a ref, so two clicks in one
+ * tick both see it, and it lives with the section, so closing and reopening the picker keeps it.
+ */
+export function useDependencyWrites(task: TaskView) {
+  const add = useAddDependency(task)
+  const remove = useRemoveDependency(task)
+  const busy = useRef(false)
+  function once<T>(run: () => Promise<T>): Promise<T> | null {
+    if (busy.current) return null
+    busy.current = true
+    return run().finally(() => {
+      busy.current = false
+    })
+  }
+  return {
+    pending: add.isPending || remove.isPending,
+    add: (input: AddInput) => once(() => add.mutateAsync(input)),
+    // A failed removal puts its row back with a toast (onError); nothing else to report.
+    remove: (input: RemoveInput) => once(() => remove.mutateAsync(input).then(noop, noop)),
+  }
+}
+
+export type DependencyWrites = ReturnType<typeof useDependencyWrites>
+
+function noop() {}
