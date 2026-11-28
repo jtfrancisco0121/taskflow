@@ -40,6 +40,8 @@ import { useTaskActions } from './useTaskActions'
 import { useViewTasks } from './useViewTasks'
 import { AssigneeEditor, DueEditor, PriorityEditor, StartEditor, StatusEditor } from './ListEditors'
 import { useViewStore } from './viewStore'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 const ROW_HEIGHT = 36
 const HEADER_HEIGHT = 32
@@ -143,12 +145,15 @@ export function TableRenderer({
     else setColumns(moveColumn(columns, field, direction))
   }
 
-  if (query.isError) {
+  if (loadFailed(query)) {
     return <ErrorState message={messageOf(query.error)} onRetry={() => void query.refetch()} />
   }
 
   return (
     <div>
+      {refreshFailed(query) && (
+        <RefreshNotice message={messageOf(query.error)} onRetry={() => void query.refetch()} />
+      )}
       <DroppedNotice dropped={query.droppedFields} config={config} update={update} />
       <ColumnsPicker columns={columns} fields={fields} builtIn onChange={setColumns} />
       <div role="table" aria-label="Tasks table" aria-rowcount={hasNextPage ? -1 : rows.length + 1}>
@@ -250,7 +255,7 @@ export function TableRenderer({
           ))}
         </div>
       )}
-      {query.isSuccess &&
+      {hasData(query) &&
         rows.length === 0 &&
         (hasFilter(config) ? (
           <NoMatches update={update} />

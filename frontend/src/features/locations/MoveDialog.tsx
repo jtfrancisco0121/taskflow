@@ -113,7 +113,7 @@ export function MoveDialog({ workspaceId, node, onClose, restoreFocus }: MoveDia
           />
         ))}
       </fieldset>
-      {move.isError && (
+      {move.error && (
         <p role="alert" className="mb-2 text-sm text-red-700">
           {messageOf(move.error)}
         </p>

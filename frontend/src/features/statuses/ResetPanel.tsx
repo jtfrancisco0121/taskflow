@@ -8,6 +8,8 @@ import { Skeleton } from '../../shared/ui/Skeleton'
 import { resolveRemap } from './buildRemap'
 import { useLocationStatuses } from './useLocationStatuses'
 import { useResetStatuses } from './useStatusMutations'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
 
 type ResetPanelProps = {
   workspaceId: string
@@ -36,7 +38,7 @@ export function ResetPanel({
     name: status.name ?? '',
   }))
   const resolution = resolveRemap(own, targets, choices)
-  const ready = inherited.isSuccess && resolution.unresolved.length === 0
+  const ready = hasData(inherited) && resolution.unresolved.length === 0
 
   if (inherited.isPending) {
     return (
@@ -46,13 +48,19 @@ export function ResetPanel({
       </div>
     )
   }
-  if (inherited.isError) {
+  if (loadFailed(inherited)) {
     return (
       <ErrorState message={messageOf(inherited.error)} onRetry={() => void inherited.refetch()} />
     )
   }
   return (
     <div className="flex flex-col gap-3">
+      {refreshFailed(inherited) && (
+        <RefreshNotice
+          message={messageOf(inherited.error)}
+          onRetry={() => void inherited.refetch()}
+        />
+      )}
       <p className="text-sm text-fg">
         Reset to the inherited set? This location will use the statuses of its parent again.
       </p>
@@ -73,7 +81,7 @@ export function ResetPanel({
           ))}
         </fieldset>
       )}
-      {reset.isError && (
+      {reset.error && (
         <p role="alert" className="text-sm text-danger">
           {messageOf(reset.error)}
         </p>

@@ -7,6 +7,8 @@ import { AuditTab } from './AuditTab'
 import { isStatus, useServiceAccount, useSetEnabled } from './hooks'
 import { KeysTab } from './KeysTab'
 import { ManageDenied } from './ManageDenied'
+import { hasData, refreshFailed } from '../../api/queryState'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
 
 type Tab = 'keys' | 'audit'
 
@@ -21,7 +23,8 @@ export function ServiceAccountDetailPage() {
   if (account.isPending) {
     return <p role="status">Loading…</p>
   }
-  if (account.isError) {
+  // Not pending and no data: the first load failed (a failed refresh keeps the page, below).
+  if (!hasData(account)) {
     return (
       <div
         role="alert"
@@ -54,6 +57,14 @@ export function ServiceAccountDetailPage() {
           </span>
         )}
       </PageHeader>
+      {refreshFailed(account) && (
+        <div className="mb-4">
+          <RefreshNotice
+            message={messageOf(account.error)}
+            onRetry={() => void account.refetch()}
+          />
+        </div>
+      )}
       {account.data.disabled && (
         <div
           role="status"

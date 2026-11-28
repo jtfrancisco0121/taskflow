@@ -4,6 +4,7 @@ import { Button } from '../../shared/ui/Button'
 import { DropdownMenu, type MenuItem } from '../../shared/ui/DropdownMenu'
 import { NEW_WORKSPACE_PATH, workspacePath } from './routes'
 import { useWorkspaces } from './useWorkspaces'
+import { loadFailed } from '../../api/queryState'
 
 const roleLabel = (role?: string) => (role ? role.charAt(0) + role.slice(1).toLowerCase() : '')
 
@@ -43,7 +44,7 @@ export function WorkspaceSwitcher({ currentId }: { currentId: string | undefined
         </Button>
       }
       header={
-        query.isError ? (
+        loadFailed(query) ? (
           <p role="alert" className="px-2 py-1 text-xs text-danger">
             {messageOf(query.error)}
           </p>

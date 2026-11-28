@@ -1,0 +1,33 @@
+// @vitest-environment node
+import { describe, expect, it } from 'vitest'
+import { hasData, loadFailed, refreshFailed } from './queryState'
+
+// ClickUp 14yq6g334fe: a failed background refresh keeps the last data on screen; only a failed first load blanks it.
+describe('query load states', () => {
+  const firstLoadError = { status: 'error', data: undefined } as const
+  const refreshError = { status: 'error', data: { id: 't1' } } as const
+  const loaded = { status: 'success', data: { id: 't1' } } as const
+  const loading = { status: 'pending', data: undefined } as const
+
+  it('loadFailed is true only for an error with no data', () => {
+    expect(loadFailed(firstLoadError)).toBe(true)
+    expect(loadFailed(refreshError)).toBe(false)
+    expect(loadFailed(loaded)).toBe(false)
+    expect(loadFailed(loading)).toBe(false)
+  })
+
+  it('refreshFailed is true only for an error with data still held', () => {
+    expect(refreshFailed(refreshError)).toBe(true)
+    expect(refreshFailed(firstLoadError)).toBe(false)
+    expect(refreshFailed(loaded)).toBe(false)
+    expect(refreshFailed(loading)).toBe(false)
+  })
+
+  it('hasData holds through a failed refresh, and counts a null result as data', () => {
+    expect(hasData(refreshError)).toBe(true)
+    expect(hasData(loaded)).toBe(true)
+    expect(hasData({ status: 'success', data: null })).toBe(true)
+    expect(hasData(firstLoadError)).toBe(false)
+    expect(hasData(loading)).toBe(false)
+  })
+})

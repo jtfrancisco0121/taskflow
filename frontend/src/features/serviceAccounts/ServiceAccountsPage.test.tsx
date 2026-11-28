@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
 import { describe, expect, it } from 'vitest'
@@ -165,5 +165,62 @@ describe('ServiceAccountsLink', () => {
       expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument()
       unmount()
     }
+  })
+
+  // ClickUp 14yq6g334fe: a failed background refresh keeps the accounts and the account on screen, with a Retry notice.
+  describe('a failed background refresh (14yq6g334fe)', () => {
+    const failing = (state: { fail: boolean }, body: unknown) => () =>
+      state.fail ? problem(500, 'internal.error', 'The request failed') : json(body)
+
+    it('keeps the accounts table and shows a Retry notice that recovers', async () => {
+      const state = { fail: false }
+      installFetch({ [`GET ${BASE}`]: failing(state, { items: [account()] }) })
+      const user = userEvent.setup()
+      const { queryClient } = renderPage()
+      await screen.findByRole('table', { name: 'Service accounts' })
+
+      state.fail = true
+      await act(() => queryClient.refetchQueries())
+      const notice = await screen.findByRole('status', { name: 'Couldn’t refresh' })
+      expect(screen.getByRole('link', { name: 'triage-agent' })).toBeVisible()
+      expect(screen.queryByRole('alert')).toBeNull()
+
+      state.fail = false
+      await user.click(within(notice).getByRole('button', { name: 'Retry' }))
+      await waitFor(() =>
+        expect(screen.queryByRole('status', { name: 'Couldn’t refresh' })).toBeNull(),
+      )
+      expect(screen.getByRole('link', { name: 'triage-agent' })).toBeVisible()
+    })
+
+    it('keeps the account page and its keys when the account fails to refresh', async () => {
+      const state = { fail: false }
+      installFetch({
+        [`GET ${BASE}/:id`]: failing(state, account()),
+        [`GET ${BASE}/:id/api-keys`]: [],
+      })
+      const { queryClient } = renderWithProviders(
+        <Routes>
+          <Route path={`${PATTERN}/:serviceAccountId`} element={<ServiceAccountDetailPage />} />
+        </Routes>,
+        { route: `${LIST}/sa1` },
+      )
+      expect(await screen.findByRole('heading', { name: 'triage-agent' })).toBeVisible()
+
+      state.fail = true
+      await act(() => queryClient.refetchQueries())
+      expect(await screen.findByRole('status', { name: 'Couldn’t refresh' })).toBeVisible()
+      expect(screen.getByRole('heading', { name: 'triage-agent' })).toBeVisible()
+      expect(screen.getByRole('tablist', { name: 'Service account' })).toBeVisible()
+    })
+
+    it('a failed first load still shows the error with Retry, and no refresh notice', async () => {
+      installFetch({ [`GET ${BASE}`]: problem(500, 'internal.error', 'The request failed') })
+      renderPage()
+      const alert = await screen.findByRole('alert')
+      expect(within(alert).getByRole('button', { name: 'Retry' })).toBeVisible()
+      expect(screen.queryByRole('status', { name: 'Couldn’t refresh' })).toBeNull()
+      expect(screen.queryByRole('table', { name: 'Service accounts' })).toBeNull()
+    })
   })
 })

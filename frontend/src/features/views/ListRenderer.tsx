@@ -27,6 +27,8 @@ import { useViewTasks } from './useViewTasks'
 import { useListKeys } from './useListKeys'
 import { useTaskOrder } from '../../shared/task-order'
 import { useViewStore } from './viewStore'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { loadFailed, refreshFailed } from '../../api/queryState'
 
 const ROW_HEIGHT = 36
 
@@ -130,12 +132,15 @@ export function ListRenderer({
       </div>
     )
   }
-  if (query.isError) {
+  if (loadFailed(query)) {
     return <ErrorState message={messageOf(query.error)} onRetry={() => void query.refetch()} />
   }
 
   return (
     <div>
+      {refreshFailed(query) && (
+        <RefreshNotice message={messageOf(query.error)} onRetry={() => void query.refetch()} />
+      )}
       <DroppedNotice dropped={query.droppedFields} config={config} update={update} />
       {update && (
         <ColumnsPicker
