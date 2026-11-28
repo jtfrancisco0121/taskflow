@@ -22,19 +22,40 @@ import { useViewStore, type EditorField } from './viewStore'
 const trigger =
   'inline-flex h-7 max-w-full items-center gap-1 rounded-md border border-transparent px-1 text-[13px] text-fg hover:border-line-strong focus-visible:outline-2 focus-visible:outline-focus-ring'
 
-/** Whether this row's editor of `field` is the open one, and how to open or close it (click and keys alike). */
+/**
+ * Whether this row's editor of `field` is the open one, and how to open or close it (click and keys alike).
+ *
+ * Closing hands focus back to the trigger at once, inside the row, so the next row key (s, p, a, d, j, k) works.
+ * Radix only returns focus in a timer after the popover has unmounted; a key pressed in that gap fell on the body
+ * and was lost (list.spec "row keys" flake). Focus that already moved elsewhere (a click outside, a confirmation
+ * Dialog) is left alone, and Radix's own late return then sees it on the trigger and does nothing (keepFocusIfMoved).
+ */
 function useEditorOpen(taskId: string, field: EditorField) {
   const open = useViewStore((s) => s.openEditor?.taskId === taskId && s.openEditor.field === field)
   const set = useViewStore((s) => s.setOpenEditor)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   return {
-    open,
-    onOpenChange: (next: boolean) => set(next ? { taskId, field } : null),
+    triggerRef,
+    editor: {
+      open,
+      onOpenChange: (next: boolean) => {
+        if (!next) handFocusBack(triggerRef.current)
+        set(next ? { taskId, field } : null)
+      },
+    },
   }
+}
+
+/** Focuses `trigger` when focus is in a floating layer (the closing editor) or fell to the body. */
+function handFocusBack(trigger: HTMLElement | null) {
+  const active = document.activeElement
+  const lost = !active || active === document.body || active.closest('[data-tf-floating]') !== null
+  if (trigger?.isConnected && lost) trigger.focus()
 }
 
 export function StatusEditor({ task, statuses }: { task: TaskView; statuses: StatusInfo[] }) {
   const guarded = useGuardedStatus()
-  const editor = useEditorOpen(task.id!, 'status')
+  const { editor, triggerRef } = useEditorOpen(task.id!, 'status')
   const current = statuses.find((s) => s.id === task.statusId)
   return (
     <>
@@ -44,6 +65,7 @@ export function StatusEditor({ task, statuses }: { task: TaskView; statuses: Sta
         {...editor}
         trigger={
           <button
+            ref={triggerRef}
             type="button"
             aria-label={`Status of ${task.readableId}`}
             className={trigger}
@@ -65,7 +87,7 @@ export function StatusEditor({ task, statuses }: { task: TaskView; statuses: Sta
 
 export function PriorityEditor({ task }: { task: TaskView }) {
   const actions = useTaskActions()
-  const editor = useEditorOpen(task.id!, 'priority')
+  const { editor, triggerRef } = useEditorOpen(task.id!, 'priority')
   const priority = task.priority ?? 'NONE'
   return (
     <Picker
@@ -74,6 +96,7 @@ export function PriorityEditor({ task }: { task: TaskView }) {
       {...editor}
       trigger={
         <button
+          ref={triggerRef}
           type="button"
           aria-label={`Priority of ${task.readableId}`}
           className={trigger}
@@ -106,7 +129,7 @@ export function AssigneeEditor({
   names: Map<string, string>
 }) {
   const actions = useTaskActions()
-  const editor = useEditorOpen(task.id!, 'assignee')
+  const { editor, triggerRef } = useEditorOpen(task.id!, 'assignee')
   const assignees = task.assigneeIds ?? []
   const pending = useRef<string[]>(assignees)
   const latest = useRef<string[]>(assignees)
@@ -139,6 +162,7 @@ export function AssigneeEditor({
       {...editor}
       trigger={
         <button
+          ref={triggerRef}
           type="button"
           aria-label={`Assignees of ${task.readableId}`}
           className={trigger}
@@ -179,7 +203,7 @@ function DayEditor({
 }) {
   const actions = useTaskActions()
   const { editor: key, word, Word } = DAY_FIELD[field]
-  const editor = useEditorOpen(task.id!, key)
+  const { editor, triggerRef } = useEditorOpen(task.id!, key)
   const days = quickDays()
   const day = toInputDay(task[field])
   const overdue = field === 'dueDate' && !!day && day < days.today && !done
@@ -194,6 +218,7 @@ function DayEditor({
       {...editor}
       trigger={
         <button
+          ref={triggerRef}
           type="button"
           aria-label={`${Word} date of ${task.readableId}`}
           aria-describedby={overdue ? `overdue-${task.id}` : undefined}

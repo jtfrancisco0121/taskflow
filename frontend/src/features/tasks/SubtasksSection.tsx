@@ -6,6 +6,8 @@ import { StatusValue } from './editorItems'
 import { useCreateTask } from './useCreateTask'
 import { useSubtasks } from './useSubtasks'
 import { useTask } from './useTask'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 const finished = (group: string | undefined) => group === 'DONE' || group === 'CLOSED'
 
@@ -67,7 +69,13 @@ export function SubtasksSection({ task, statuses }: { task: TaskView; statuses: 
       {subtasks.isPending && (
         <div aria-busy="true" className="h-4 animate-pulse rounded bg-surface-3" />
       )}
-      {subtasks.isError && (
+      {refreshFailed(subtasks) && (
+        <RefreshNotice
+          message={messageOf(subtasks.error)}
+          onRetry={() => void subtasks.refetch()}
+        />
+      )}
+      {loadFailed(subtasks) && (
         <p role="alert" className="text-sm text-danger">
           Couldn’t load the subtasks: {messageOf(subtasks.error)}{' '}
           <button type="button" className="underline" onClick={() => void subtasks.refetch()}>
@@ -75,7 +83,7 @@ export function SubtasksSection({ task, statuses }: { task: TaskView; statuses: 
           </button>
         </p>
       )}
-      {subtasks.isSuccess && items.length === 0 && (
+      {hasData(subtasks) && items.length === 0 && (
         <p className="text-sm text-muted">No subtasks yet.</p>
       )}
       <ul className="m-0 flex list-none flex-col gap-1 p-0">

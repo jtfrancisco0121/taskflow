@@ -59,7 +59,7 @@ export function QuickAdd({
         }}
         className="h-9 w-full rounded-md border border-dashed border-line-strong bg-surface px-2 text-[13px] text-fg placeholder:text-faint focus-visible:outline-2 focus-visible:outline-focus-ring"
       />
-      {create.isError && (
+      {create.error && (
         <p role="alert" className="mt-1 text-[13px] text-danger">
           {messageOf(create.error)}
         </p>

@@ -16,6 +16,8 @@ import { RuleBuilder } from './RuleBuilder'
 import { RuleCard } from './RuleCard'
 import { RunsSheet } from './RunsSheet'
 import { useAutomations, useDeleteAutomation, useToggleAutomation } from './useAutomations'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
 
 /** `/w/:ws/l/:loc/automations`: the rules of a Location, own and inherited (CAP-8). */
 export function AutomationsPage() {
@@ -37,7 +39,7 @@ export function AutomationsPage() {
     field: (id: string) => fields.data?.fields?.find((f) => f.id === id)?.name ?? 'a field',
   }
 
-  if (list.isError || location.isError) {
+  if (loadFailed(list) || loadFailed(location)) {
     const status = (list.error as { status?: number } | null)?.status
     const message =
       status === 404
@@ -95,6 +97,11 @@ export function AutomationsPage() {
           )}
         </div>
       </PageHeader>
+      {refreshFailed(list) && (
+        <div className="mb-2">
+          <RefreshNotice message={messageOf(list.error)} onRetry={() => void list.refetch()} />
+        </div>
+      )}
       {atLimit && canEdit && (
         <p className="mb-2 text-sm text-fg">
           This location has reached its limit of {list.data?.limit} rules. Delete one to add more.
@@ -107,12 +114,12 @@ export function AutomationsPage() {
           ))}
         </div>
       )}
-      {list.isSuccess && !canEdit && (
+      {hasData(list) && !canEdit && (
         <p className="mb-3 text-sm text-muted">
           You can view rules here. Ask an editor to change them.
         </p>
       )}
-      {list.isSuccess && rules.length === 0 && (
+      {hasData(list) && rules.length === 0 && (
         <EmptyState
           title="No rules here yet"
           description={

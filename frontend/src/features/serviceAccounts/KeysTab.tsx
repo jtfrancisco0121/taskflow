@@ -7,6 +7,8 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { CreateKeyDialog } from './CreateKeyDialog'
 import { useApiKeys, useRevokeApiKey } from './hooks'
 import { OneTimeKeyDialog } from './OneTimeKeyDialog'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 const STATUS: Record<string, string> = { ACTIVE: 'Active', REVOKED: 'Revoked', EXPIRED: 'Expired' }
 
@@ -77,16 +79,19 @@ export function KeysTab({ workspaceId, accountId }: { workspaceId: string; accou
           ))}
         </div>
       )}
-      {keys.isError && (
+      {refreshFailed(keys) && (
+        <RefreshNotice message={messageOf(keys.error)} onRetry={() => void keys.refetch()} />
+      )}
+      {loadFailed(keys) && (
         <div role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm">
           <p className="mb-2 text-red-900">{messageOf(keys.error)}</p>
           <Button onClick={() => void keys.refetch()}>Retry</Button>
         </div>
       )}
-      {keys.isSuccess && keys.data.length === 0 && (
+      {hasData(keys) && keys.data.length === 0 && (
         <p className="text-sm text-slate-600">No keys. Create one to connect an agent.</p>
       )}
-      {keys.isSuccess && keys.data.length > 0 && (
+      {hasData(keys) && keys.data.length > 0 && (
         <table className="w-full text-left text-sm">
           <caption className="sr-only">API keys</caption>
           <thead className="text-xs font-medium text-slate-500">

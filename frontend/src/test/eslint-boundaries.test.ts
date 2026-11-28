@@ -129,3 +129,69 @@ describe('stale background read guard (14yq6g334bn)', () => {
     )
   })
 })
+
+// ClickUp 14yq6g334fe: a failed background refresh flips isError (and drops isSuccess) while the data is still held, so
+// a screen that branches on those flags blanks data it has. Product code reads load state through src/api/queryState.ts.
+describe('query load state goes through src/api/queryState.ts (14yq6g334fe)', () => {
+  const file = 'src/features/tasks/Thing.tsx'
+  const restricted = async (code: string, filePath = file) =>
+    (await ruleIds(code, filePath)).filter((id) => id === 'no-restricted-syntax')
+
+  it('rejects an early return on query.isError', async () => {
+    expect(
+      await restricted(
+        'export function A(q: any) {\n  if (q.isError) return null\n  return q.data\n}\n',
+      ),
+    ).toHaveLength(1)
+  })
+
+  it('rejects isError in a ternary and isSuccess gating the data', async () => {
+    expect(
+      await restricted(
+        'export const a = (q: any) => (q.isError ? 1 : q.data)\nexport const b = (q: any) => q.isSuccess && q.data\n',
+      ),
+    ).toHaveLength(2)
+  })
+
+  it('rejects a destructured isError or isSuccess, and status compared to "error"', async () => {
+    expect(
+      await restricted(
+        "export function A(q: any) {\n  const { isError, isSuccess } = q\n  return isError || isSuccess || q.status === 'error'\n}\n",
+      ),
+    ).toHaveLength(3)
+  })
+
+  it('rejects a reversed comparison and a destructured status compared to "error"', async () => {
+    expect(
+      await restricted(
+        "export function A(q: any) {\n  const { status } = q\n  return 'error' === q.status || status === 'error' || 'error' !== status\n}\n",
+      ),
+    ).toHaveLength(3)
+  })
+
+  it('rejects them in .ts product code too', async () => {
+    expect(
+      await restricted('export const a = (q: any) => q.isError', 'src/features/tasks/useThing.ts'),
+    ).toHaveLength(1)
+  })
+
+  it('accepts the helpers, a mutation error read, and the flags in tests and the helper module', async () => {
+    expect(
+      await restricted(
+        "import { loadFailed, refreshFailed, hasData } from '../../api/queryState'\nexport const a = (q: any, m: any) => [loadFailed(q), refreshFailed(q), hasData(q), m.error]\n",
+      ),
+    ).toEqual([])
+    expect(
+      await restricted(
+        'export const a = (q: any) => q.isError',
+        'src/features/tasks/Thing.test.tsx',
+      ),
+    ).toEqual([])
+    expect(
+      await restricted(
+        "export const a = (q: any) => q.status === 'error'",
+        'src/api/queryState.ts',
+      ),
+    ).toEqual([])
+  })
+})

@@ -6,7 +6,9 @@ import { Button } from '../../shared/ui/Button'
 import { getSessionUser } from '../../api/session'
 import { useMembers } from '../workspace'
 import { DependencyPicker } from './DependencyPicker'
-import { useDependencies, useRemoveDependency } from './useDependencies'
+import { useDependencies, useDependencyWrites } from './useDependencies'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { loadFailed, refreshFailed } from '../../api/queryState'
 
 type Group = { key: 'waitingOn' | 'blocking' | 'linked'; label: string }
 
@@ -37,7 +39,8 @@ function ordered(items: DependencyItem[] | undefined): DependencyItem[] {
  */
 export function DependenciesSection({ task }: { task: TaskView }) {
   const query = useDependencies(task.id)
-  const remove = useRemoveDependency(task)
+  // Adds and removes one at a time, kept across closing the picker (ClickUp 14yq6g33592).
+  const writes = useDependencyWrites(task)
   const [adding, setAdding] = useState(false)
   const location = useLocation()
   const me = getSessionUser()?.id
@@ -68,7 +71,12 @@ export function DependenciesSection({ task }: { task: TaskView }) {
         )}
       </div>
       {adding && canEdit && (
-        <DependencyPicker task={task} related={related} onClose={() => setAdding(false)} />
+        <DependencyPicker
+          task={task}
+          related={related}
+          writes={writes}
+          onClose={() => setAdding(false)}
+        />
       )}
       {query.isPending && (
         <div aria-busy="true" className="flex animate-pulse flex-col gap-2">
@@ -76,7 +84,10 @@ export function DependenciesSection({ task }: { task: TaskView }) {
           <div className="h-4 rounded bg-surface-3" />
         </div>
       )}
-      {query.isError && (
+      {refreshFailed(query) && (
+        <RefreshNotice message={messageOf(query.error)} onRetry={() => void query.refetch()} />
+      )}
+      {loadFailed(query) && (
         <div role="alert" className="text-sm text-danger">
           <p className="m-0">Couldn&apos;t load dependencies.</p>
           <span className="sr-only">{messageOf(query.error)}</span>
@@ -117,13 +128,14 @@ export function DependenciesSection({ task }: { task: TaskView }) {
                       <button
                         type="button"
                         aria-label={`Remove relationship with ${item.task?.readableId}`}
+                        disabled={writes.pending}
                         onClick={() =>
-                          remove.mutate({
+                          void writes.remove({
                             dependencyId: item.dependencyId!,
                             otherTaskId: item.task!.id!,
                           })
                         }
-                        className="rounded px-1 text-muted hover:bg-surface-2"
+                        className="rounded px-1 text-muted hover:bg-surface-2 disabled:cursor-wait disabled:opacity-60"
                       >
                         ×
                       </button>

@@ -9,6 +9,8 @@ import { PageHeader } from '../../shared/ui/PageHeader'
 import { Skeleton } from '../../shared/ui/Skeleton'
 import { notificationText } from './notificationText'
 import { useInbox, useMarkAllRead, useSetRead } from './useNotifications'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 /** `/w/:ws/inbox`: Unread and All tabs, cursor paging, mark read or unread (CAP-11). */
 export function InboxPage() {
@@ -47,10 +49,13 @@ export function InboxPage() {
           ))}
         </div>
       )}
-      {inbox.isError && (
+      {refreshFailed(inbox) && (
+        <RefreshNotice message={messageOf(inbox.error)} onRetry={() => void inbox.refetch()} />
+      )}
+      {loadFailed(inbox) && (
         <ErrorState message={messageOf(inbox.error)} onRetry={() => void inbox.refetch()} />
       )}
-      {inbox.isSuccess && items.length === 0 && (
+      {hasData(inbox) && items.length === 0 && (
         <EmptyState
           title={tab === 'unread' ? "You're all caught up." : 'No notifications yet.'}
           description={

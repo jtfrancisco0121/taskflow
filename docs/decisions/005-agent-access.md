@@ -54,7 +54,10 @@ where it differs or adds detail.
    actor and key on every write. Tools are `shared.AgentTool` beans owned by their module (`task`,
    `workspace`, `view`); each does the same `Permissions.require` and service call as its REST
    endpoint and returns the same view. A `TaskflowException` becomes a tool result with `isError: true`
-   and the REST problem `code`, including `current` on a 409.
+   and the REST problem `code`, including `current` on a 409. Lock contention (40P01, 40001, 55P03)
+   raised anywhere in a tool call is `request.busy` (status 503), never `internal`; a tool result has no
+   headers, so the REST `Retry-After` comes as `retryAfterSeconds` (whole seconds) in the error body,
+   for every tool (ClickUp 14yq6g33592).
 10. **Plain-text tool inputs (AD-12).** `description` and `text` are plain text, one rich-text paragraph
     per line, validated by `RichText.validate`.
 11. **MCP creates take an optional `idempotencyKey` argument** (updated after the Phase 3 review;

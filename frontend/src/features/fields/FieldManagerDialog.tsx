@@ -10,6 +10,8 @@ import { FIELD_TYPES, MAX_OWN_FIELDS, typeOf } from './fieldTypes'
 import { OptionChip } from './OptionChip'
 import { useHideField, useRetireField, useUpdateField } from './useFieldMutations'
 import { useLocationFields } from './useLocationFields'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 export type FieldsLocation = {
   id: string
@@ -120,10 +122,16 @@ export function FieldManagerDialog({
               ))}
             </div>
           )}
-          {fields.isError && (
+          {refreshFailed(fields) && (
+            <RefreshNotice
+              message={messageOf(fields.error)}
+              onRetry={() => void fields.refetch()}
+            />
+          )}
+          {loadFailed(fields) && (
             <ErrorState message={messageOf(fields.error)} onRetry={() => void fields.refetch()} />
           )}
-          {fields.isSuccess && (
+          {hasData(fields) && (
             <>
               {!canEdit && (
                 <p className="rounded-md bg-surface-2 px-2 py-1 text-[13px] text-muted">

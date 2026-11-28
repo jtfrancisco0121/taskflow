@@ -23,9 +23,12 @@ import org.springframework.test.context.MergedContextConfiguration;
  * setups instead ({@link IntegrationTest}, {@link WorkersIntegrationTest}, the outbox relay one).
  *
  * <p>This counts the contexts the way Spring caches them (one per distinct {@link
- * MergedContextConfiguration}). A new {@code @TestPropertySource}, {@code @MockitoSpyBean} field or
+ * MergedContextConfiguration}), over every top-level test class (named like surefire's or
+ * failsafe's includes: *IT, *Test, *Tests) with {@code @SpringBootTest} in its hierarchy. A new
+ * {@code @TestPropertySource}, {@code @MockitoSpyBean} or {@code @MockitoBean} field or
  * {@code @Import} on an IT makes a new context: reuse a shared setup, or raise {@link #BUDGET} on
- * purpose with the reason in the commit.
+ * purpose with the IT and its reason in the list below. Such a class must also be named *IT, so it
+ * runs in failsafe's integration phase with the containers, never in the surefire unit phase.
  */
 @DisplayName("Integration test context budget")
 class ItContextBudgetTest {
@@ -54,6 +57,47 @@ class ItContextBudgetTest {
   static final int BUDGET = 13;
 
   @Test
+  void springBootTestsAreNamedItSoFailsafeRunsThem() throws Exception {
+    assertThat(misnamed(integrationTests()))
+        .as(
+            "@SpringBootTest classes not named *IT (surefire would start containers in the unit phase)")
+        .isEmpty();
+  }
+
+  @Test
+  void aSpringBootTestNamedLikeAUnitTestIsCaught() {
+    assertThat(misnamed(java.util.List.of(MisnamedContextTest.class, NamedRightIT.class)))
+        .containsExactly("MisnamedContextTest");
+  }
+
+  @Test
+  void theScanFindsASpringBootTestNamedLikeAUnitTest() throws Exception {
+    // The real scan skips nested classes; with them allowed, it must find the fixture named *Test,
+    // so a
+    // scan narrowed back to *IT names (the pre-fix pattern) fails here (review on PR #44).
+    java.util.List<Class<?>> fixtures = new java.util.ArrayList<>();
+    for (Class<?> type : scan(false)) {
+      if (type.getEnclosingClass() == ItContextBudgetTest.class) fixtures.add(type);
+    }
+    assertThat(misnamed(fixtures)).containsExactly("MisnamedContextTest");
+  }
+
+  /** Fixtures for the checks above; nested, so neither surefire nor failsafe runs them. */
+  @SpringBootTest
+  static class MisnamedContextTest {}
+
+  @SpringBootTest
+  static class NamedRightIT {}
+
+  static java.util.List<String> misnamed(Iterable<Class<?>> springBootTests) {
+    java.util.List<String> out = new java.util.ArrayList<>();
+    for (Class<?> type : springBootTests) {
+      if (!type.getSimpleName().endsWith("IT")) out.add(type.getSimpleName());
+    }
+    return out;
+  }
+
+  @Test
   void integrationTestsShareAtMostTheBudgetedNumberOfContexts() throws Exception {
     Map<MergedContextConfiguration, TreeSet<String>> contexts = new java.util.HashMap<>();
     for (Class<?> it : integrationTests()) {
@@ -72,19 +116,29 @@ class ItContextBudgetTest {
   }
 
   private static Iterable<Class<?>> integrationTests() throws ClassNotFoundException {
+    return scan(true);
+  }
+
+  /** Test classes named like surefire's or failsafe's includes, with @SpringBootTest. */
+  private static java.util.Collection<Class<?>> scan(boolean topLevelOnly)
+      throws ClassNotFoundException {
     ClassPathScanningCandidateComponentProvider scanner =
         new ClassPathScanningCandidateComponentProvider(false) {
           @Override
           protected boolean isCandidateComponent(
               org.springframework.beans.factory.annotation.AnnotatedBeanDefinition definition) {
             return definition.getMetadata().isConcrete()
-                && definition.getMetadata().isIndependent();
+                && definition.getMetadata().isIndependent()
+                && (!topLevelOnly || !definition.getMetadata().hasEnclosingClass());
           }
         };
-    scanner.addIncludeFilter(new RegexPatternTypeFilter(java.util.regex.Pattern.compile(".*IT")));
+    scanner.addIncludeFilter(
+        new RegexPatternTypeFilter(java.util.regex.Pattern.compile(".*(IT|Test|Tests)")));
     Map<String, Class<?>> found = new TreeMap<>();
     for (BeanDefinition definition : scanner.findCandidateComponents("com.taskflow")) {
-      Class<?> type = Class.forName(definition.getBeanClassName());
+      Class<?> type =
+          Class.forName(
+              definition.getBeanClassName(), false, ItContextBudgetTest.class.getClassLoader());
       if (MergedAnnotations.from(type, MergedAnnotations.SearchStrategy.TYPE_HIERARCHY)
           .isPresent(SpringBootTest.class)) {
         found.put(type.getName(), type);

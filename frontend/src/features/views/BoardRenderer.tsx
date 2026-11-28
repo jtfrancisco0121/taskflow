@@ -31,6 +31,8 @@ import { scopeId, type ViewScope } from './scope'
 import { configHash, type Column as ConfigColumn, type UrlState } from './urlState'
 import { customColumns, useScopeFields } from './useScopeFields'
 import { useViewTasks } from './useViewTasks'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 /** BOARD-1/2: columns by status, priority or assignee, dnd-kit drops, optimistic with rollback. */
 export function BoardRenderer({
@@ -238,7 +240,7 @@ export function BoardRenderer({
       </div>
     )
   }
-  if (columns.length === 0 && lead.isError) {
+  if (columns.length === 0 && loadFailed(lead)) {
     return <ErrorState message={messageOf(lead.error)} onRetry={() => void lead.refetch()} />
   }
 
@@ -271,9 +273,14 @@ export function BoardRenderer({
           },
         }}
       >
-        {lead.isError && columns.length > 0 && (
+        {loadFailed(lead) && columns.length > 0 && (
           <div className="mb-2">
             <ErrorState message={messageOf(lead.error)} onRetry={() => void lead.refetch()} />
+          </div>
+        )}
+        {refreshFailed(lead) && (
+          <div className="mb-2">
+            <RefreshNotice message={messageOf(lead.error)} onRetry={() => void lead.refetch()} />
           </div>
         )}
         <div className="flex gap-3 overflow-x-auto pb-4" aria-label="Board">
@@ -288,7 +295,7 @@ export function BoardRenderer({
               chipFields={chipFields}
             />
           ))}
-          {lead.isSuccess &&
+          {hasData(lead) &&
             columns.length === 0 &&
             (hasFilter(config) ? (
               <NoMatches update={update} />

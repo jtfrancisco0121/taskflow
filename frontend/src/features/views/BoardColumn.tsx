@@ -9,6 +9,7 @@ import { Skeleton } from '../../shared/ui/Skeleton'
 import { BoardCard } from './BoardCard'
 import type { ViewScope } from './scope'
 import { useViewTasks } from './useViewTasks'
+import { hasData, loadFailed } from '../../api/queryState'
 
 export type Column = { key: string; label: string; count?: number }
 
@@ -58,7 +59,7 @@ export function BoardColumn({
           <Skeleton className="h-16 w-full" />
         </div>
       )}
-      {query.isError && !query.data && (
+      {loadFailed(query) && (
         <ErrorState message={messageOf(query.error)} onRetry={() => void query.refetch()} />
       )}
       <SortableContext
@@ -76,7 +77,7 @@ export function BoardColumn({
             />
           ))}
         </ul>
-        {query.isSuccess && tasks.length === 0 && (
+        {hasData(query) && tasks.length === 0 && (
           <p className="min-h-12 rounded-md border border-dashed border-line-strong p-2 text-center text-xs leading-8 text-faint">
             No tasks
           </p>

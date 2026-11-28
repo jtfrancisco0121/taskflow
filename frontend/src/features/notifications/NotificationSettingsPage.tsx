@@ -9,6 +9,8 @@ import { PageHeader } from '../../shared/ui/PageHeader'
 import { Skeleton } from '../../shared/ui/Skeleton'
 import { Switch } from '../../shared/ui/Switch'
 import { useSavePreference, type Pref } from './useNotifications'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 const LABEL: Record<string, string> = {
   ASSIGNED: 'Assigned to me',
@@ -54,16 +56,19 @@ export function NotificationSettingsPage() {
           ))}
         </div>
       )}
-      {prefs.isError && (
+      {refreshFailed(prefs) && (
+        <RefreshNotice message={messageOf(prefs.error)} onRetry={() => void prefs.refetch()} />
+      )}
+      {loadFailed(prefs) && (
         <ErrorState message={messageOf(prefs.error)} onRetry={() => void prefs.refetch()} />
       )}
-      {prefs.isSuccess && kinds.length === 0 && (
+      {hasData(prefs) && kinds.length === 0 && (
         <EmptyState
           title="No notification events yet."
           description="Events you can choose to hear about will be listed here."
         />
       )}
-      {prefs.isSuccess && kinds.length > 0 && (
+      {hasData(prefs) && kinds.length > 0 && (
         <table className="w-full rounded-md border border-line bg-surface text-[13px]">
           <thead>
             <tr className="text-left text-muted">
