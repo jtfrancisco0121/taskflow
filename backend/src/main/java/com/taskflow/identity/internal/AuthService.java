@@ -171,7 +171,7 @@ class AuthService {
           // second guard on the row itself.
           List<StoredRefresh> found =
               jdbc.query(
-                  "SELECT id, user_id, family_id, expires_at < now() AS expired, revoked_at IS NOT"
+                  "SELECT id, user_id, family_id, expires_at <= now() AS expired, revoked_at IS NOT"
                       + " NULL AS revoked,"
                       + " rotated_at IS NOT NULL AS rotated, rotated_at > now() - (? * interval '1"
                       + " millisecond') AS in_grace FROM refresh_token WHERE token_hash = ? FOR"
@@ -370,7 +370,7 @@ class AuthService {
     return jdbc
         .queryForList(
             "SELECT family_id FROM refresh_token WHERE token_hash = ? AND revoked_at IS NULL"
-                + " AND NOT (rotated_at IS NULL AND expires_at < now())",
+                + " AND NOT (rotated_at IS NULL AND expires_at <= now())",
             UUID.class,
             hash)
         .stream()
