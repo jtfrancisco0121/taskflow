@@ -178,11 +178,13 @@ class AuthService {
           boolean live = !stored.revoked() && !stored.expiresAt().isBefore(Instant.now());
           String successor = successors.of(rawToken);
           if (live && !stored.rotated()) {
-            jdbc.update("UPDATE refresh_token SET rotated_at = now() WHERE id = ?", stored.id());
+            // The user is checked first, so a refused token is never left rotated with no
+            // successor.
             Optional<UserInfo> user = humanUser(stored.userId());
             if (user.isEmpty()) {
               return new Result(Outcome.INVALID, null);
             }
+            jdbc.update("UPDATE refresh_token SET rotated_at = now() WHERE id = ?", stored.id());
             insertRefresh(user.get().id(), stored.familyId(), successor);
             return new Result(Outcome.OK, session(user.get(), successor));
           }

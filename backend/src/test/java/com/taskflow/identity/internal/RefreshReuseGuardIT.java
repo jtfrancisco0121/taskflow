@@ -141,6 +141,27 @@ class RefreshReuseGuardIT extends IntegrationTest {
     assertThat(liveTokens(up)).isEqualTo(2);
   }
 
+  /**
+   * ClickUp 14yq6g334r6 item 6: a token whose user is no longer a human is refused without being
+   * marked rotated, so it never becomes a rotated token with no successor.
+   */
+  @Test
+  void aTokenOfAUserWhoIsNoLongerHumanIsRefusedWithoutBeingRotated() {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    jdbc.update(
+        "UPDATE app_user SET kind = 'SERVICE_ACCOUNT' WHERE email = ?", up.text("/user/email"));
+
+    assertThat(refresh(a).status()).isEqualTo(401);
+    assertThat(
+            jdbc.queryForObject(
+                "SELECT rotated_at IS NULL FROM refresh_token WHERE token_hash = ?",
+                Boolean.class,
+                hashOf(a)))
+        .isTrue();
+    assertThat(liveTokens(up)).isEqualTo(1);
+  }
+
   @Test
   void noRawRefreshTokenIsStored() {
     Resp up = signup();
