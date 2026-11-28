@@ -4,6 +4,9 @@ import { ApiError, messageOf } from '../../api/errors'
 import type { AccountActivity } from '../../api/types'
 import { formatDay, relativeTime } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { ErrorState } from '../../shared/ui/ErrorState'
+import { Skeleton } from '../../shared/ui/Skeleton'
 import { changeSentence, linkedTaskId, trashedVersion } from './changeSentence'
 import { allPages, useAccountActivity, useAudit, useRestoreTask } from './hooks'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
@@ -46,7 +49,13 @@ function RecentChanges({ workspaceId, accountId }: { workspaceId: string; accoun
       <h2 id="recent-changes" className="mb-2 text-base font-semibold">
         Recent changes
       </h2>
-      {activity.isPending && <p role="status">Loading…</p>}
+      {activity.isPending && (
+        <div role="status" aria-label="Loading changes" className="flex flex-col gap-2">
+          {[0, 1, 2].map((row) => (
+            <Skeleton key={row} className="h-6 w-full" />
+          ))}
+        </div>
+      )}
       {refreshFailed(activity) && (
         <RefreshNotice
           message={messageOf(activity.error)}
@@ -54,13 +63,13 @@ function RecentChanges({ workspaceId, accountId }: { workspaceId: string; accoun
         />
       )}
       {loadFailed(activity) && (
-        <div role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm">
-          <p className="mb-2 text-red-900">{messageOf(activity.error)}</p>
-          <Button onClick={() => void activity.refetch()}>Retry</Button>
-        </div>
+        <ErrorState message={messageOf(activity.error)} onRetry={() => void activity.refetch()} />
       )}
       {hasData(activity) && entries.length === 0 && (
-        <p className="text-sm text-slate-600">No changes yet.</p>
+        <EmptyState
+          title="No changes yet"
+          description="Tasks this account creates or changes appear here."
+        />
       )}
       <ul className="m-0 flex list-none flex-col gap-2 p-0">
         {entries.map((entry) => {
@@ -69,19 +78,19 @@ function RecentChanges({ workspaceId, accountId }: { workspaceId: string; accoun
             <li key={entry.id} className="flex items-center gap-2 text-sm">
               <span>
                 {taskId ? (
-                  <Link to={`/t/${taskId}`} className="text-blue-700 hover:underline">
+                  <Link to={`/t/${taskId}`} className="text-accent hover:underline">
                     {changeSentence(entry)}
                   </Link>
                 ) : (
                   changeSentence(entry)
                 )}
                 {entry.actorKeyName && (
-                  <span className="text-slate-500"> (key {entry.actorKeyName})</span>
+                  <span className="text-muted"> (key {entry.actorKeyName})</span>
                 )}
               </span>
               <time
                 dateTime={entry.createdAt}
-                className="ml-auto text-xs text-slate-500"
+                className="ml-auto text-xs text-muted"
                 title={entry.createdAt}
               >
                 {relativeTime(entry.createdAt)}
@@ -117,18 +126,24 @@ export function AuditTab({ workspaceId, accountId }: { workspaceId: string; acco
         <h2 id="calls-heading" className="mb-2 text-base font-semibold">
           Calls in the last 30 days
         </h2>
-        {audit.isPending && <p role="status">Loading…</p>}
+        {audit.isPending && (
+          <div role="status" aria-label="Loading calls" className="flex flex-col gap-2">
+            {[0, 1, 2].map((row) => (
+              <Skeleton key={row} className="h-6 w-full" />
+            ))}
+          </div>
+        )}
         {refreshFailed(audit) && (
           <RefreshNotice message={messageOf(audit.error)} onRetry={() => void audit.refetch()} />
         )}
         {loadFailed(audit) && (
-          <div role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm">
-            <p className="mb-2 text-red-900">{messageOf(audit.error)}</p>
-            <Button onClick={() => void audit.refetch()}>Retry</Button>
-          </div>
+          <ErrorState message={messageOf(audit.error)} onRetry={() => void audit.refetch()} />
         )}
         {hasData(audit) && (audit.data.totalCalls ?? 0) === 0 && (
-          <p className="text-sm text-slate-600">No calls in the last 30 days.</p>
+          <EmptyState
+            title="No calls in the last 30 days"
+            description="Calls appear here once an agent uses one of this account's keys."
+          />
         )}
         {hasData(audit) && (audit.data.totalCalls ?? 0) > 0 && (
           <>
@@ -146,14 +161,14 @@ export function AuditTab({ workspaceId, accountId }: { workspaceId: string; acco
               <tbody>
                 {days.map((day) => (
                   <tr key={day.day}>
-                    <th scope="row" className="w-28 py-0.5 font-normal text-slate-600">
+                    <th scope="row" className="w-28 py-0.5 font-normal text-muted">
                       {formatDay(day.day)}
                     </th>
                     <td className="py-0.5">
                       <div className="flex items-center gap-2">
-                        <div className="h-2 flex-1 rounded bg-slate-100">
+                        <div className="h-2 flex-1 rounded-sm bg-surface-2">
                           <div
-                            className="h-2 rounded bg-blue-600"
+                            className="h-2 rounded-sm bg-accent"
                             style={{ width: `${((day.calls ?? 0) / max) * 100}%` }}
                           />
                         </div>

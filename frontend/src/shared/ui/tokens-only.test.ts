@@ -39,6 +39,8 @@ describe('the library, /design, the shell and the rebuilt feature files use toke
       // slice 9b: automations and the status manager
       '../../features/automations/{AutomationsPage,RuleCard,RuleBuilder,RunsSheet}.tsx',
       '../../features/statuses/{StatusesDialog,StatusEditor,ResetPanel}.tsx',
+      // slice 9c: agent access
+      '../../features/serviceAccounts/*.tsx',
     ],
     {
       query: '?raw',

@@ -4,7 +4,10 @@ import { messageOf } from '../../api/errors'
 import type { ServiceAccountView } from '../../api/types'
 import { formatDay, relativeTime } from '../../shared/dates'
 import { Button } from '../../shared/ui/Button'
+import { EmptyState } from '../../shared/ui/EmptyState'
+import { ErrorState } from '../../shared/ui/ErrorState'
 import { PageHeader } from '../../shared/ui/PageHeader'
+import { Skeleton } from '../../shared/ui/Skeleton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CreateServiceAccountDialog } from './CreateServiceAccountDialog'
 import { isStatus, useServiceAccounts, useSetEnabled } from './hooks'
@@ -76,7 +79,7 @@ export function ServiceAccountsPage() {
       {query.isPending && (
         <div role="status" aria-label="Loading service accounts" className="flex flex-col gap-2">
           {[0, 1, 2].map((row) => (
-            <div key={row} className="h-8 animate-pulse rounded bg-slate-200" />
+            <Skeleton key={row} className="h-9 w-full" />
           ))}
         </div>
       )}
@@ -84,57 +87,55 @@ export function ServiceAccountsPage() {
         <RefreshNotice message={messageOf(query.error)} onRetry={() => void query.refetch()} />
       )}
       {loadFailed(query) && (
-        <div role="alert" className="rounded border border-red-300 bg-red-50 p-3 text-sm">
-          <p className="mb-2 text-red-900">{messageOf(query.error)}</p>
-          <Button onClick={() => void query.refetch()}>Retry</Button>
-        </div>
+        <ErrorState message={messageOf(query.error)} onRetry={() => void query.refetch()} />
       )}
       {hasData(query) && query.accounts.length === 0 && (
-        <p className="text-sm text-slate-600">
-          No service accounts yet. Create one to give an agent its own access.
-        </p>
+        <EmptyState
+          title="No service accounts yet"
+          description="Create one to give an agent its own access."
+        />
       )}
       {hasData(query) && query.accounts.length > 0 && (
-        <table className="w-full text-left text-sm">
+        <table className="w-full overflow-hidden rounded-md border border-line bg-surface text-left text-[13px] text-fg">
           <caption className="sr-only">Service accounts</caption>
-          <thead className="text-xs font-medium text-slate-500">
+          <thead className="bg-surface-2 text-xs font-medium text-muted">
             <tr>
-              <th className="py-2">Name</th>
-              <th className="py-2">Status</th>
-              <th className="py-2">Keys</th>
-              <th className="py-2">Last used</th>
-              <th className="py-2">Created</th>
-              <th className="py-2">
+              <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2">Keys</th>
+              <th className="px-3 py-2">Last used</th>
+              <th className="px-3 py-2">Created</th>
+              <th className="px-3 py-2">
                 <span className="sr-only">Actions</span>
               </th>
             </tr>
           </thead>
           <tbody>
             {query.accounts.map((account) => (
-              <tr key={account.id} className="border-t border-slate-200">
-                <td className="py-2">
+              <tr key={account.id} className="border-t border-line">
+                <td className="px-3 py-2">
                   <Link
                     to={`/w/${workspaceId}/settings/service-accounts/${account.id}`}
-                    className="font-medium text-blue-700 hover:underline"
+                    className="font-medium text-accent hover:underline"
                   >
                     {account.name}
                   </Link>
                 </td>
-                <td className="py-2">
+                <td className="px-3 py-2">
                   {account.disabled ? (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                    <span className="rounded-full bg-surface-3 px-2 py-0.5 text-xs text-fg">
                       Disabled
                     </span>
                   ) : (
                     'Enabled'
                   )}
                 </td>
-                <td className="py-2">{account.activeKeys ?? 0}</td>
-                <td className="py-2">
+                <td className="px-3 py-2">{account.activeKeys ?? 0}</td>
+                <td className="px-3 py-2">
                   {account.lastUsedAt ? relativeTime(account.lastUsedAt) : 'Never'}
                 </td>
-                <td className="py-2">{formatDay(account.createdAt)}</td>
-                <td className="py-2 text-right">
+                <td className="px-3 py-2">{formatDay(account.createdAt)}</td>
+                <td className="px-3 py-2 text-right">
                   <DisableButton workspaceId={workspaceId} account={account} />
                 </td>
               </tr>
