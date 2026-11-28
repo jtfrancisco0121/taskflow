@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { FieldManagerDialog, type FieldsLocation } from './FieldManagerDialog'
-import { pick } from '../../test/ui'
+import { pick, fill } from '../../test/ui'
 
 type Field = Record<string, unknown>
 
@@ -145,10 +145,10 @@ describe('FieldManagerDialog', () => {
     open(space)
 
     await user.click(await screen.findByRole('button', { name: 'New field' }))
-    await user.type(screen.getByLabelText('Name'), 'Customer tier')
+    await fill(user, screen.getByLabelText('Name'), 'Customer tier')
     await pick(user, screen.getByLabelText('Field type'), 'Dropdown')
     await user.click(screen.getByRole('button', { name: 'Add option' }))
-    await user.type(screen.getByLabelText('Option 1 name'), 'Enterprise')
+    await fill(user, screen.getByLabelText('Option 1 name'), 'Enterprise')
     await user.click(screen.getByRole('button', { name: 'Create field' }))
 
     const row = (await screen.findByText('Customer tier')).closest('li')!
@@ -171,7 +171,7 @@ describe('FieldManagerDialog', () => {
     open(space)
 
     await user.click(await screen.findByRole('button', { name: 'New field' }))
-    await user.type(screen.getByLabelText('Name'), 'Customer tier')
+    await fill(user, screen.getByLabelText('Name'), 'Customer tier')
     await user.click(screen.getByRole('button', { name: 'Create field' }))
 
     expect(await screen.findByText("'Customer tier' is already used on this branch.")).toBeVisible()
