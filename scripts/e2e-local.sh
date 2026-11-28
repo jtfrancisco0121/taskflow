@@ -13,8 +13,6 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 api="${E2E_API_URL:-http://localhost:8080}"
-api_port="${api##*:}"
-api_port="${api_port%%/*}"
 backend_pid=""
 
 # shellcheck source=scripts/e2e-local-owner.sh
@@ -22,6 +20,7 @@ source "$root/scripts/e2e-local-owner.sh"
 owner_self_test
 node "$root/scripts/e2e-failed-attempts-reporter.mjs" --self-test
 [ "${1:-}" = "--self-test" ] && exit 0
+api_port="$(api_port_of "$api")" || exit 1
 
 # refuse <message>: stop before testing code that is not this checkout's.
 refuse() {
