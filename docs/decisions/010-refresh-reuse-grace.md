@@ -109,3 +109,18 @@ Okta's refresh-token rotation grace period and Auth0's reuse interval follow the
   statements (the live-successor check, the family revocation) could deadlock, and a sign-out racing a
   rotation could miss the new successor (`RefreshFamilyLockIT`).
 - A grace replay should be logged (family id, no token), so a pattern of replays is visible.
+
+## Accepted risks
+
+Decided by JT Francisco, 2026-11-28, on review of PR #33. Both are accepted as stated, not fixed.
+
+1. **Successors are derivable.** Each successor is the HMAC of the token before it, with a key from the HKDF of the
+   JWT secret (`AuthService.java:179`, `successors.of(rawToken)`). Whoever holds the JWT secret and one token of a
+   family can compute every later token in that chain offline. Accepted because a holder of the JWT secret can
+   already sign access tokens for any user, so this adds no capability. Mitigation: treat the JWT secret as the root
+   credential and rotate it on suspicion (which signs users out, see Consequences).
+2. **Unlimited replays in the grace window.** Inside the grace window a spent token can be replayed any number of
+   times (`AuthService.java:189`). Each replay returns the same successor and a new access token, nothing is
+   revoked, and the only trace is one INFO log line per replay (family id). Accepted because a holder of A inside
+   the window could equally have taken B, so replays add no capability; this is the trade-off option (b) makes. A
+   louder signal (WARN or a metric) and the related hardening are tracked in ClickUp 14yq6g334r6.
