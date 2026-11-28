@@ -129,6 +129,29 @@ describe('a failed background refresh keeps the view (14yq6g334fe)', () => {
     expect(notice()).toBeNull()
   })
 
+  // 14yq6g334bn part 2 (PR #47 review): useViewTasks' items follow shownData, so a Board column whose refresh fails
+  // with 404 shows only its error, not the old cards under it; a 500 keeps them (the test above).
+  it('a Board column whose refresh fails with 404 shows only the error, no cards', async () => {
+    const state = { fail: false }
+    installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': (_r: Request, body: unknown) =>
+        state.fail && (body as { groupValue?: string }).groupValue != null
+          ? problem(404, 'location.not_found', 'Gone')
+          : rows(),
+    } as never)
+    const { queryClient } = renderWithProviders(
+      <BoardRenderer scope={scope} config={{ v: 1, group: 'status' }} />,
+      { route: '/w/w1/l/l1' },
+    )
+    expect((await screen.findAllByText('Task 1'))[0]).toBeVisible()
+
+    await failRefresh(state, queryClient)
+    expect((await screen.findAllByRole('alert'))[0]).toHaveTextContent('Gone')
+    expect(screen.queryAllByText('Task 1')).toHaveLength(0)
+    expect(notice()).toBeNull()
+  })
+
   it('a failed first load still shows the error state with Retry, and no refresh notice', async () => {
     serve({ fail: true })
     renderWithProviders(<ListRenderer scope={scope} config={{ v: 1 }} />, { route: '/w/w1/l/l1' })

@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
+import { shownData } from '../../api/queryState'
 
 /** Every member of a Workspace (all pages are fetched: pickers need the whole list). */
 export function useMembers(workspaceId: string | undefined) {
@@ -22,6 +23,6 @@ export function useMembers(workspaceId: string | undefined) {
   useEffect(() => {
     if (hasNextPage && !isFetchingNextPage) void fetchNextPage()
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
-  const members = query.data?.pages.flatMap((page) => page.items ?? []) ?? []
+  const members = shownData(query)?.pages.flatMap((page) => page.items ?? []) ?? []
   return { members, isLoading: query.isLoading || query.hasNextPage }
 }

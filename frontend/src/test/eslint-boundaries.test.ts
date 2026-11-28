@@ -272,4 +272,13 @@ describe('a query with load state is not rendered from raw data (14yq6g334bn)', 
       ),
     ).toEqual([])
   })
+
+  it('rejects q.data in a hook that builds a list from its own query, and accepts shownData there', async () => {
+    const hook = (read: string) =>
+      `${head}import { useInfiniteQuery, useQuery } from '@tanstack/react-query'\nexport function useX() {\n  const query = useInfiniteQuery({} as never)\n  const one = useQuery({} as never)\n  return [${read}]\n}\n`
+    expect(await raw(hook('query.data, one.data'), 'src/features/views/useX.ts')).toHaveLength(2)
+    expect(
+      await raw(hook('shownData(query), shownData(one)'), 'src/features/views/useX.ts'),
+    ).toEqual([])
+  })
 })

@@ -8,6 +8,7 @@
 
 const HELPERS = new Set(['loadFailed', 'refreshFailed', 'hasData', 'shownData'])
 const GUARDS = new Set(['hasData', 'refreshFailed'])
+const QUERY_HOOKS = new Set(['useQuery', 'useInfiniteQuery'])
 
 function helperArg(node, names) {
   return node?.type === 'CallExpression' &&
@@ -87,6 +88,18 @@ export default {
       CallExpression(node) {
         const name = helperArg(node, HELPERS)
         if (name) tracked.add(name)
+      },
+      // A hook that builds a list from its own query (`const query = useInfiniteQuery(...)`, then `query.data`) hands
+      // the stale items to every screen that uses it, and those screens never see `.data` (PR #47 review: useViewTasks).
+      VariableDeclarator(node) {
+        if (
+          node.id.type === 'Identifier' &&
+          node.init?.type === 'CallExpression' &&
+          node.init.callee.type === 'Identifier' &&
+          QUERY_HOOKS.has(node.init.callee.name)
+        ) {
+          tracked.add(node.id.name)
+        }
       },
       MemberExpression(node) {
         if (
