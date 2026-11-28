@@ -3,6 +3,7 @@ package com.taskflow.automation.internal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.taskflow.identity.internal.McpTestBase;
+import com.taskflow.notification.internal.WorkersIntegrationTest;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -10,11 +11,9 @@ import java.util.UUID;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.context.TestPropertySource;
 
 @DisplayName("CAP-14 MCP tools for automations and the owner's inbox")
-@TestPropertySource(
-    properties = {"taskflow.workers.enabled=true", "taskflow.outbox.amqp.enabled=true"})
+@WorkersIntegrationTest
 class AutomationNotificationMcpIT extends McpTestBase {
 
   private Map<String, Object> ruleArgs(UUID location, String name, String key) {

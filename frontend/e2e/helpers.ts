@@ -69,8 +69,19 @@ export async function apiSignUp(request: APIRequestContext, displayName: string)
   })
   expect(response.status()).toBe(201)
   const body = await response.json()
+  const cookie = response
+    .headersArray()
+    .find((h) => h.name.toLowerCase() === 'set-cookie' && h.value.startsWith('refresh_token='))
+  if (cookie) {
+    const [pair, ...attributes] = cookie.value.split(';').map((part) => part.trim())
+    const path = attributes.find((a) => a.toLowerCase().startsWith('path='))?.slice(5) ?? '/'
+    signUpSessions.set(body.user.id, { value: pair.slice('refresh_token='.length), path })
+  }
   return { token: body.accessToken, id: body.user.id, email, displayName }
 }
+
+/** The refresh cookie each apiSignUp received, until signInAs hands it to a browser (used once). */
+const signUpSessions = new Map<string, { value: string; path: string }>()
 
 export async function api<T = Record<string, unknown>>(
   request: APIRequestContext,
@@ -110,7 +121,32 @@ export async function inviteTokenFor(request: APIRequestContext, email: string):
   throw new Error(`no invite mail for ${email}`)
 }
 
-export async function signInThroughTheUi(page: Page, user: ApiUser) {
+/**
+ * Starts the app signed in as `user` (epic 14yq6g334tf). The sign-in form counts against the per-IP limit of
+ * 20 a minute, and repeat runs from 127.0.0.1 tripped it ("Too many attempts"). So the browser gets the refresh
+ * cookie apiSignUp already received and the app signs in through /auth/refresh, with no /auth/signin request.
+ * A refresh cookie is used once (the app rotates it): signing the same user in on a second page uses the form.
+ * Guarded by e2e/sign-in-budget.spec.ts.
+ */
+export async function signInAs(page: Page, user: ApiUser) {
+  const session = signUpSessions.get(user.id)
+  if (session) {
+    signUpSessions.delete(user.id)
+    await page.context().addCookies([
+      {
+        name: 'refresh_token',
+        value: session.value,
+        domain: 'localhost',
+        path: session.path,
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Strict',
+      },
+    ])
+    await page.goto('/')
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible()
+    return
+  }
   await page.goto('/signin')
   await page.getByLabel('Email').fill(user.email)
   await page.getByLabel('Password').fill(PASSWORD)
@@ -154,6 +190,41 @@ export async function createView(page: Page, name: string, type: string) {
   await pick(form.getByLabel('Type'), type)
   await form.getByRole('button', { name: 'Create view' }).click()
   await expect(page.getByRole('tab', { name })).toBeVisible()
+}
+
+/** What only each renderer draws once it has data: the old view is gone when the new one's landmark shows. */
+const VIEW_LANDMARK = {
+  Table: (page: Page) => page.getByRole('table', { name: 'Tasks table', exact: true }),
+  List: (page: Page) => page.getByRole('table', { name: 'Tasks', exact: true }),
+  Board: (page: Page) => page.locator('[aria-label="Board"]'),
+} as const
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * Opens the "Columns" picker of the view in tab `tab` (a `kind` view) and returns it, open
+ * (ClickUp 14yq6g334rp). Right after a tab switch the old view can still be mounted: a click then opens the old
+ * view's picker, and the new view mounts its own closed one (ColumnsPicker is an uncontrolled <details>). So this
+ * waits for the tab to be selected and for the new renderer, then (re)opens the one picker until it stays open.
+ * Specs never click "Columns" themselves (an ESLint rule in eslint.config.js).
+ */
+export async function openColumns(page: Page, tab: string, kind: keyof typeof VIEW_LANDMARK) {
+  // A view tab's name can carry a visibility mark after the view name (ViewTabs.tsx).
+  const name = new RegExp(`^${escapeRegExp(tab)}( |$)`)
+  await expect(page.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'true')
+  await expect(VIEW_LANDMARK[kind](page)).toBeVisible()
+  for (const [other, landmark] of Object.entries(VIEW_LANDMARK)) {
+    if (other !== kind) await expect(landmark(page)).toHaveCount(0)
+  }
+  const picker = page.locator('details', { has: page.locator('summary', { hasText: /^Columns$/ }) })
+  await expect(async () => {
+    await expect(picker).toHaveCount(1, { timeout: 1_000 })
+    if (!(await picker.evaluate((el) => (el as HTMLDetailsElement).open))) {
+      await picker.locator('summary').click({ timeout: 1_000 })
+    }
+    await expect(picker).toHaveJSProperty('open', true, { timeout: 1_000 })
+  }).toPass()
+  return picker
 }
 
 /** The open task detail, in either frame: the modal dialog or the docked complementary panel (AD-1). */

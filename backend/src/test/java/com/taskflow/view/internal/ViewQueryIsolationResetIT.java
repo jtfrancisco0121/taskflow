@@ -20,7 +20,6 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 /**
  * 14yq6g334tg: the view query runs in a REPEATABLE READ transaction. The pooled connection it ran
@@ -30,7 +29,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 @DisplayName("VIEW-4 the view query's connection returns to the pool at READ COMMITTED")
 class ViewQueryIsolationResetIT extends ViewTestBase {
 
-  @MockitoSpyBean TaskReader tasks;
+  /** The spy from {@link com.taskflow.IntegrationTest}. */
+  @Autowired TaskReader tasks;
+
   @Autowired DataSource dataSource;
 
   @Test

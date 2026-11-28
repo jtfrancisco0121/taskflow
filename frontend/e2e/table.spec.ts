@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
-import { api, apiSignUp, createView, row, signInThroughTheUi } from './helpers'
+import { api, apiSignUp, createView, openColumns, row, signInAs } from './helpers'
 import { pick } from './ui'
 
 // Slice 7: the Table. A scene is set through the API, then the UI is driven like a user.
@@ -23,7 +23,7 @@ async function openTable(page: Page, request: APIRequestContext, count: number) 
   for (let i = 1; i <= count; i++) {
     await api<Id>(request, user, 'POST', `/lists/${list.id}/tasks`, { title: `Task ${i}` })
   }
-  await signInThroughTheUi(page, user)
+  await signInAs(page, user)
   await page.goto(`/w/${workspace.id}/l/${list.id}`)
   await createView(page, 'Grid', 'Table')
   await expect(page.getByRole('table', { name: 'Tasks table' })).toBeVisible()
@@ -96,7 +96,7 @@ test('TABLE-1: Pickers edit a row, keyboard width and order survive a reload, an
   await openTable(page, request, 2)
 
   // Add the Start column (it is not a default one), then edit through the Pickers.
-  await page.getByText('Columns', { exact: true }).click()
+  await openColumns(page, 'Grid', 'Table')
   await page.getByRole('checkbox', { name: 'Start date' }).click()
   await page.keyboard.press('Escape')
   const alpha = row(page, 'Task 1')

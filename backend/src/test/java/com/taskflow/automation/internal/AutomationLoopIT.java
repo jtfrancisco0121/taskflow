@@ -2,16 +2,15 @@ package com.taskflow.automation.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.taskflow.notification.internal.WorkersIntegrationTest;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.context.TestPropertySource;
 
 @DisplayName("CAP-6 loop protection")
-@TestPropertySource(
-    properties = {"taskflow.workers.enabled=true", "taskflow.outbox.amqp.enabled=true"})
+@WorkersIntegrationTest
 class AutomationLoopIT extends EngineSupport {
 
   private long skips(UUID rule, String reason) {

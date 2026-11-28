@@ -5,24 +5,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.taskflow.TestcontainersConfiguration;
+import com.taskflow.IntegrationTest;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.context.annotation.Import;
 
 /**
  * The committed docs/api/openapi.json is the only contract the frontend generates from. Run with
  * -Dopenapi.update=true to rewrite it instead of failing.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(TestcontainersConfiguration.class)
-class OpenApiContractIT {
+class OpenApiContractIT extends IntegrationTest {
 
   /** Every path of the contract. Add new endpoints here, then regenerate the spec. */
   private static final java.util.List<String> EXPECTED_PATHS =
@@ -97,8 +91,6 @@ class OpenApiContractIT {
           "/api/v1/workspaces/{workspaceId}/service-accounts/{id}/activity");
 
   private static final Path SPEC = Path.of("..", "docs", "api", "openapi.json");
-
-  @Autowired TestRestTemplate rest;
 
   @Test
   void committedSpecMatchesGeneratedSpec() throws IOException {

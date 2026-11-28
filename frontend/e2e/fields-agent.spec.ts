@@ -4,6 +4,7 @@ import {
   createList,
   createSpace,
   createView,
+  openColumns,
   openFields,
   row,
   signUpAndCreateWorkspace,
@@ -73,7 +74,7 @@ test('UJ-3: an agent files a task with Customer tier by name; the Table shows it
   // The UI shows the value in a Table and the entry in the Activity tab.
   await page.goto(`/w/${page.url().match(/\/w\/([0-9a-f-]+)/)![1]}/l/${listId}`)
   await createView(page, 'Triage', 'Table')
-  await page.getByText('Columns', { exact: true }).click()
+  await openColumns(page, 'Triage', 'Table')
   await page.getByRole('checkbox', { name: /Customer tier/ }).click()
   await expect(
     row(page, 'Agent ticket').getByRole('button', { name: 'Customer tier: Enterprise' }),

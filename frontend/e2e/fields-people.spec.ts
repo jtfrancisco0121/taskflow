@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { api, apiSignUp, createView, inviteTokenFor, row, signInThroughTheUi } from './helpers'
+import { api, apiSignUp, createView, inviteTokenFor, openColumns, row, signInAs } from './helpers'
 import { pick } from './ui'
 import { snap } from './screenshots'
 
@@ -37,10 +37,10 @@ test('People: pick two members in a Table cell, filter by Me, group by the field
     await api(request, alice, 'POST', `/lists/${list.id}/tasks`, { title })
   }
 
-  await signInThroughTheUi(page, alice)
+  await signInAs(page, alice)
   await page.goto(`/w/${workspace.id}/l/${list.id}`)
   await createView(page, 'Review', 'Table')
-  await page.getByText('Columns', { exact: true }).click()
+  await openColumns(page, 'Review', 'Table')
   await page.getByRole('checkbox', { name: /Reviewer/ }).click()
   await expect(page.getByRole('columnheader', { name: /Reviewer/ })).toBeVisible()
 

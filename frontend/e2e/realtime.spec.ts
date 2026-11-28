@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { api, apiSignUp, inviteTokenFor, signInThroughTheUi, taskDetail } from './helpers'
+import { api, apiSignUp, inviteTokenFor, signInAs, taskDetail } from './helpers'
 import { expectValue } from './ui'
 import { snap } from './screenshots'
 
@@ -38,8 +38,8 @@ test('RT-1 / RT-2 / FR-20: a change and a viewer show up in a second browser wit
   const contextB = await browser.newContext()
   const pageA = await contextA.newPage()
   const pageB = await contextB.newPage()
-  await signInThroughTheUi(pageA, a)
-  await signInThroughTheUi(pageB, b)
+  await signInAs(pageA, a)
+  await signInAs(pageB, b)
   const board = `/w/${workspace.id}/l/${space.id}/v/default-board`
   await pageA.goto(board)
   await pageB.goto(board)
@@ -114,7 +114,7 @@ test('FIELD live (3A S6): a value change and a new field show in a second browse
 
   const contextB = await browser.newContext()
   const pageB = await contextB.newPage()
-  await signInThroughTheUi(pageB, b)
+  await signInAs(pageB, b)
   await pageB.goto(`/t/${task.id}`)
   const panel = taskDetail(pageB)
   await expect(panel.getByLabel(/^Customer tier for /)).toBeVisible()

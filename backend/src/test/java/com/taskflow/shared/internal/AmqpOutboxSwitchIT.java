@@ -11,11 +11,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.support.TransactionTemplate;
 
+/**
+ * The switch is off by default in tests (src/test/resources/application.properties), so this runs
+ * in the shared context instead of its own (ClickUp 14yq6g334t6); the first assertion pins that
+ * default.
+ */
 @DisplayName("AD-17 the AMQP relay switch")
-@TestPropertySource(properties = "taskflow.outbox.amqp.enabled=false")
 class AmqpOutboxSwitchIT extends IntegrationTest {
 
   @Autowired EventRecorder events;
@@ -24,6 +27,8 @@ class AmqpOutboxSwitchIT extends IntegrationTest {
 
   @Test
   void withTheSwitchOffNothingIsPublishedOrMarked() throws Exception {
+    assertThat(context.getEnvironment().getProperty("taskflow.outbox.amqp.enabled"))
+        .isEqualTo("false");
     UUID entity = UUID.randomUUID();
     tx.executeWithoutResult(s ->
         events.record(

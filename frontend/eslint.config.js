@@ -135,6 +135,35 @@ export default tseslint.config(
           selector: 'TemplateElement[value.raw=/option:checked/]',
           message: 'Use valueOf() or expectValue() from e2e/ui.ts.',
         },
+        {
+          // ClickUp 14yq6g334rp: right after a view switch, "Columns" can hit the old view's picker, and the
+          // new view then mounts a closed one. openColumns() waits for the view and checks the picker is open.
+          selector:
+            'Literal[value=/^\\s*columns\\s*$/i], Literal[regex.pattern=/columns/i], TemplateElement[value.raw=/^\\s*columns\\s*$/i]',
+          message:
+            'Use openColumns() from e2e/helpers.ts: it waits for the view and checks the picker opened.',
+        },
+      ],
+    },
+  },
+  {
+    // The one place that may locate the Columns picker by its text (keeps the e2e/ui.ts rules above).
+    files: ['e2e/helpers.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.property.name='selectOption']",
+          message: 'Use pick() from e2e/ui.ts: it picks by visible label.',
+        },
+        {
+          selector: 'Literal[value=/option:checked/]',
+          message: 'Use valueOf() or expectValue() from e2e/ui.ts.',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/option:checked/]',
+          message: 'Use valueOf() or expectValue() from e2e/ui.ts.',
+        },
       ],
     },
   },

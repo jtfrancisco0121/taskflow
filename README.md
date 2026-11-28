@@ -74,6 +74,8 @@ Notes:
 
 - `scripts/e2e-local.sh` starts Compose and the backend if they are not running, then stops what it started. It needs
   the default Compose ports free. Pass a spec path to run one file, for example `bash scripts/e2e-local.sh e2e/list.spec.ts`.
+  It reuses a backend on `:8080` (or a Vite on `:5173`) only when that process runs from this checkout (the backend on the
+  `dev` profile), and fails otherwise; `E2E_API_URL=http://localhost:8081` runs this checkout's backend on another port.
 - `bash scripts/secret-scan.sh` uses a `gitleaks` binary on your `PATH`, otherwise a pinned Docker image.
 - The load test (`k6 run -e API_URL=http://localhost:8080 load/k6/list-5000.js`) needs the seeded demo data and k6.
 

@@ -2,20 +2,12 @@ package com.taskflow.shared.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.taskflow.TestcontainersConfiguration;
+import com.taskflow.IntegrationTest;
 import com.taskflow.shared.AppMeta;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.ResponseEntity;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(TestcontainersConfiguration.class)
-class MetaControllerIT {
-
-  @Autowired TestRestTemplate rest;
+class MetaControllerIT extends IntegrationTest {
 
   @Test
   void returnsNameAndVersion() {
