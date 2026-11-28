@@ -2,6 +2,7 @@ package com.taskflow;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import java.io.DataInputStream;
 import java.net.InetAddress;
@@ -35,16 +36,30 @@ class PostgresConnectionWaitTest {
 
   /** Accepts every connection, reads the client's first message, then closes without answering. */
   private int closingServer() throws Exception {
+    return server(false);
+  }
+
+  /** Accepts every connection, reads the client's first message, then never answers nor closes. */
+  private int silentServer() throws Exception {
+    return server(true);
+  }
+
+  private final java.util.List<Socket> held = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+  private int server(boolean silent) throws Exception {
     server = new ServerSocket(0, 50, InetAddress.getLoopbackAddress());
     acceptor =
         new Thread(() -> {
           while (!server.isClosed()) {
-            try (Socket s = server.accept()) {
+            try {
+              Socket s = server.accept();
+              held.add(s);
               accepted.incrementAndGet();
               s.setSoTimeout(2000);
               DataInputStream in = new DataInputStream(s.getInputStream());
               in.readInt(); // length
               firstCodes.add(in.readInt());
+              if (!silent) s.close();
             } catch (Exception e) {
               // closed by the test, or the client gave up: keep accepting
             }
@@ -58,6 +73,7 @@ class PostgresConnectionWaitTest {
   @AfterEach
   void stop() throws Exception {
     if (server != null) server.close();
+    for (Socket s : held) s.close();
     if (acceptor != null) acceptor.join(2000);
   }
 
@@ -72,8 +88,13 @@ class PostgresConnectionWaitTest {
         }
       };
 
+  /** The URL the container's own getJdbcUrl() would build, pointed at the fake server. */
   private PostgresConnectionWait waitFor(int port) {
-    String url = "jdbc:postgresql://127.0.0.1:" + port + "/test?sslmode=disable&connectTimeout=1";
+    String url =
+        "jdbc:postgresql://127.0.0.1:"
+            + port
+            + "/test"
+            + new TaskflowPostgresContainer("postgres:18").urlQuery();
     return (PostgresConnectionWait)
         new PostgresConnectionWait(LOG_READY, () -> url, () -> "test", () -> "test")
             .withStartupTimeout(Duration.ofSeconds(2));
@@ -94,7 +115,52 @@ class PostgresConnectionWaitTest {
   }
 
   @Test
-  void theProbeStartsWithoutTlsNegotiation() throws Exception {
+  void aPortThatAcceptsAndNeverAnswersStillEndsAtTheDeadline() throws Exception {
+    int port = silentServer();
+    long start = System.nanoTime();
+
+    assertTimeoutPreemptively(
+        Duration.ofSeconds(20),
+        () ->
+            assertThatThrownBy(() -> waitFor(port).waitUntilReady((WaitStrategyTarget) null))
+                .isInstanceOf(ContainerLaunchException.class)
+                .hasCauseInstanceOf(java.sql.SQLException.class));
+
+    assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(10));
+  }
+
+  @Test
+  void aSlowLogWaitStillLeavesTheJdbcPhaseAnAttempt() throws Exception {
+    int port = closingServer();
+    WaitStrategy slowLog =
+        new WaitStrategy() {
+          @Override
+          public void waitUntilReady(WaitStrategyTarget target) {
+            try {
+              Thread.sleep(2100); // longer than the 2 s startup timeout
+            } catch (InterruptedException e) {
+              Thread.currentThread().interrupt();
+            }
+          }
+
+          @Override
+          public WaitStrategy withStartupTimeout(Duration startupTimeout) {
+            return this;
+          }
+        };
+    String url = "jdbc:postgresql://127.0.0.1:" + port + "/test?sslmode=disable";
+    WaitStrategy wait =
+        new PostgresConnectionWait(slowLog, () -> url, () -> "test", () -> "test")
+            .withStartupTimeout(Duration.ofSeconds(2));
+
+    assertThatThrownBy(() -> wait.waitUntilReady((WaitStrategyTarget) null))
+        .isInstanceOf(ContainerLaunchException.class)
+        .hasCauseInstanceOf(java.sql.SQLException.class);
+    assertThat(accepted.get()).isGreaterThanOrEqualTo(1);
+  }
+
+  @Test
+  void theContainersUrlStartsWithoutTlsNegotiation() throws Exception {
     int port = closingServer();
 
     assertThatThrownBy(() -> waitFor(port).waitUntilReady((WaitStrategyTarget) null))

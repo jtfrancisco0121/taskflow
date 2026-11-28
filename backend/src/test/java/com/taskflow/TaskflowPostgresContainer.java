@@ -30,6 +30,11 @@ public class TaskflowPostgresContainer extends PostgreSQLContainer<TaskflowPostg
     return Map.copyOf(urlParameters);
   }
 
+  /** The query string every JDBC URL of this container ends with, as getJdbcUrl() builds it. */
+  String urlQuery() {
+    return constructUrlParameters("?", "&");
+  }
+
   /** The wait run at start (read by the guard test). */
   WaitStrategy waitStrategy() {
     return getWaitStrategy();
