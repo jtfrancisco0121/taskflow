@@ -216,8 +216,8 @@ Follow-ups from the PR #33 reviews, after the decision was implemented. All in `
   one keeps it, at most until the third failed refresh in a row)
   (`frontend/src/api/session.ts`, `session.test.ts`, `client.ts`).
 - **Lock contention classification.** `DependencyService` uses the shared `LockContention` (40P01, 40001,
-  55P03). It still answers 409 `dependency.busy` where the global mapping answers 503 `request.busy`; which
-  status the API should use is open, for JT Francisco.
+  55P03) and, since ClickUp 14yq6g334u1 (JT Francisco 2026-11-28, "Unify on 503 later"), its shared answer
+  `LockContention.busy()`: 503 `request.busy` with `Retry-After: 1`, the same as the global mapping.
 
 ## Hardening (ClickUp 14yq6g3353g): sign-out from an idle tab
 

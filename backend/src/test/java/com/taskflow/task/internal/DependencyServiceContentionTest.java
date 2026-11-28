@@ -11,9 +11,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.UncategorizedSQLException;
 
 /**
- * ClickUp 14yq6g334r6 slice 2: DependencyService classifies lock contention with the shared
- * LockContention (40P01, 40001, 55P03), like the 503 mapping and sign-out. Its answer stays 409
- * dependency.busy: moving it to 503 request.busy is an API change left to the owner.
+ * DependencyService classifies lock contention with the shared LockContention (40P01, 40001, 55P03)
+ * and answers it like the global mapping: 503 request.busy with Retry-After (ClickUp 14yq6g334u1,
+ * JT Francisco 2026-11-28 "Unify on 503 later").
  */
 @DisplayName("TASK dependency lock contention")
 class DependencyServiceContentionTest {
@@ -23,7 +23,7 @@ class DependencyServiceContentionTest {
   }
 
   @Test
-  void everyLockContentionStateIs409DependencyBusy() {
+  void everyLockContentionStateIs503RequestBusyWithRetryAfter() {
     for (String state : new String[] {"55P03", "40P01", "40001"}) {
       RuntimeException mapped = DependencyService.contention(sqlState(state));
 
@@ -32,8 +32,9 @@ class DependencyServiceContentionTest {
           .isInstanceOfSatisfying(
               TaskflowException.class,
               e -> {
-                assertThat(e.status()).isEqualTo(HttpStatus.CONFLICT);
-                assertThat(e.code()).isEqualTo("dependency.busy");
+                assertThat(e.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                assertThat(e.code()).isEqualTo("request.busy");
+                assertThat(e.headers()).containsEntry("Retry-After", "1");
               });
     }
   }

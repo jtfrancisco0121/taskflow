@@ -38,7 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
  * both task rows {@code FOR UPDATE} in id order, the {@code If-Match} comparison, the cycle check,
  * the limit, the insert or delete, the version bump of both tasks and the events on both ends
  * (AD-2, AD-6). It never retries inside the transaction (the idempotency layer owns it and a
- * deadlock aborts it): a lock wait or deadlock is answered {@code 409 dependency.busy}.
+ * deadlock aborts it): a lock wait or deadlock is answered like any lock contention, {@code 503
+ * request.busy} with Retry-After ({@link LockContention#busy()}).
  */
 @Service
 class DependencyService {
@@ -467,16 +468,10 @@ class DependencyService {
 
   /**
    * Lock contention, as the shared {@link LockContention} classifies it (40P01, 40001, 55P03), is
-   * 409 dependency.busy; any other data access failure is returned unchanged. The global mapping
-   * answers the same contention with 503 request.busy: unifying the status is an open API decision
-   * (ClickUp 14yq6g334r6), so this one keeps 409.
+   * the shared answer, 503 request.busy with Retry-After, the same as the global mapping (ClickUp
+   * 14yq6g334u1); any other data access failure is returned unchanged.
    */
   static RuntimeException contention(DataAccessException e) {
-    return LockContention.isContention(e) ? busy() : e;
-  }
-
-  private static TaskflowException busy() {
-    return TaskflowException.conflict(
-        "dependency.busy", "The tasks are being changed right now; retry the request");
+    return LockContention.isContention(e) ? LockContention.busy() : e;
   }
 }
