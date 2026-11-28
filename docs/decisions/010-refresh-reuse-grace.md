@@ -147,25 +147,82 @@ Follow-ups from the PR #33 reviews, after the decision was implemented. All in `
   presents after expiry; if the replay reads the row before that commit, it sees an expired, unrotated token and
   gets 401 without revoking the family. That loses a reuse signal; it does
   not let the replay through.
-- **Bounded lock wait.** Refresh and sign-out run `SET LOCAL lock_timeout = '2s'`. On refresh, a wait past it
-  (55P03), a deadlock (40P01) or a serialization failure (40001) answers 503 with `Retry-After: 1` and code
-  `request.busy` instead of a 500 (sign-out retries first, see below) (`ProblemDetailsIT`, `RefreshLockContentionIT`).
+- **Bounded lock wait.** Refresh and sign-out set a 2 s transaction lock timeout (`LockTimeout.set`, the one
+  helper for `SET LOCAL lock_timeout`, slice 2). On refresh, a wait past it (55P03), a deadlock (40P01) or a
+  serialization failure (40001) answers 503 with `Retry-After: 1` and code `request.busy` instead of a 500
+  (`ProblemDetailsIT`, `RefreshLockContentionIT`). Sign-out does not answer 503 for contention (see slice 2).
 - **Sign-out always clears the cookie**, also when revoking the family fails (`AuthControllerSignOutTest`).
-- **Sign-out retries the revoke on the server**, because the browser has no cookie left to retry with. A dead
-  token (revoked, or expired and never rotated) has nothing live in its family and returns 204 without the
-  family lock. Otherwise the locked revoke runs up to 3 times, each a fresh transaction with its own 2 s
-  `lock_timeout` (about 6 s in all), retrying on any lock contention (55P03, 40P01, 40001: one predicate,
-  `LockContention`, shared with the 503 mapping). If every attempt meets contention, the answer is 503
-  `request.busy` without `Retry-After` (nothing the client can retry). Any other failure (a database error, a
-  pool timeout) is not retried and ends in a 500. Either way the cookie is still cleared and an ERROR log names
-  the family id (never the token) (`RefreshLockContentionIT`, `AuthServiceSignOutTest`, `LockContentionTest`).
-  Remaining gap: after any sign-out failure the family stays live server-side until its tokens expire (up to
-  30 days), so a copy of the token taken before sign-out keeps working; the ERROR line is the only trace.
-  Before this branch sign-out waited for the lock without a limit and always revoked. Accepted by JT Francisco,
-  2026-11-28, until slice 2 of ClickUp 14yq6g334r6, which closes it with a pending-revocation row written by
-  sign-out without the family lock and checked by refresh under it.
+- **Sign-out revokes the family on the server**, because the browser has no cookie left to retry with. Slice 1
+  retried the locked revoke three times and, if all failed, left the family live until it expired (up to 30
+  days), a gap JT Francisco accepted on 2026-11-28 until slice 2. Slice 2 replaces the retry with a
+  pending-revocation row; see below.
 - **The user is checked before rotation**, so a refused token is never left rotated with no successor
   (`RefreshReuseGuardIT`).
 - **Expiry on the database clock.** `expires_at` is set from the database's `now()` and judged against it, the
   same clock as the grace window, so a JVM/database clock skew cannot split the two decisions
   (`RefreshReuseGuardIT`).
+
+## Hardening (ClickUp 14yq6g334r6, slice 2): sign-out always ends the family
+
+- **Pending-revocation row.** Table `refresh_pending_revocation` (`family_id` primary key, `created_at`;
+  `V202612040900__identity_refresh_pending_revocation.sql`). Sign-out looks up the token's family; a revoked token
+  has nothing live in its family and returns 204 at once. An expired, never-rotated token does not skip: a
+  refresh that read it as live just before expiry may still be committing a rotation, so its sign-out ends
+  the family like any other (PR #36 review r2; `RefreshLockContentionIT`). Refresh keeps that skip. Otherwise
+  sign-out first writes the row with `INSERT ... ON CONFLICT DO NOTHING`, without the family lock (it cannot
+  be blocked by the lock), then makes **one** locked revoke attempt with the 2 s lock timeout. Every refresh
+  checks the row under the family lock, before any rotation or grace replay; if it is there, the refresh
+  revokes the family and answers 401. So sign-out answers 204 whether or not its locked attempt got the lock,
+  and the family ends either at sign-out or at the next refresh of any of its tokens, the predecessor in its
+  grace window included. Worst case: one access token already issued stays valid until it expires (up to
+  `access-ttl`, PT15M); access tokens are not checked against the database. The 3 x 2 s retry, and the
+  request thread and pool connection it held for about 6 s, are gone (`RefreshLockContentionIT`,
+  `AuthServiceSignOutTest`).
+- **Ordering.** A refresh that holds the lock while sign-out writes the row may still rotate (it checked before
+  the row existed); its successor is in the family, so sign-out's locked attempt revokes it, or, if that attempt
+  times out, the successor's next refresh sees the row. The row is committed before sign-out's locked attempt,
+  so every refresh that takes the lock after that attempt sees it.
+- **The deliberate flood.** The PR #34 review found that a holder of a stolen live refresh token could keep the
+  family lock busy by flooding `POST /auth/refresh`, so that the victim's sign-out failed all its retries and
+  the family, the thief's copy included, stayed live for up to 30 days. The row closes this: the flood cannot
+  stop the unlocked insert, and the flood's own next refresh that gets the lock sees the row and revokes the
+  family (`RefreshLockContentionIT.aRefreshStormDuringSignOutStillEndsWithTheFamilyRevoked`). The thief keeps
+  at most the access tokens already issued (up to 15 minutes each).
+- **Cleanup: the row is deleted when the family is revoked**, in the same transaction, under the lock (every
+  revocation goes through one method). Revocation is final: a revoked token is refused before the lock and no
+  token is ever added to a revoked family, so the row guards nothing after that. Chosen over keeping rows until
+  the family expires because it needs no sweeper job and keeps the table at the families whose revocation is
+  still pending. A row stays only when the locked attempt failed and no token of the family is presented again;
+  such a family can never refresh, and its row is harmless. A sweep (`created_at` older than `refresh-ttl` plus
+  a margin) can be added if those rows ever matter. `family_id` is not a foreign key (there is no family
+  table), and no code path deletes users or tokens today.
+- **Failures and logging.** Only one case leaves a family live: neither the row nor the locked revoke could be
+  written (the database is down). That, and a failure of the family lookup itself, logs one ERROR line naming
+  the family id, or a 12-character prefix of the token hash when the family is not known yet, plus the
+  exception class, and answers 503 `request.busy` without `Retry-After`. The line never carries the raw token
+  and no stack: the 503 is a handled error, so the container does not log the exception a second time (stacks
+  at DEBUG). A locked attempt that fails after the row was written logs one WARN with the family id: the row
+  will end the family. The cookie is cleared in every case, also on an unhandled 500 through the container's
+  `/error` dispatch (`SignOutErrorDispatchIT`, `AuthServiceSignOutTest`). This corrects slice 1's wording
+  ("any failure logs the family id"): the lookup ran before the logged path, so a lookup failure logged
+  nothing.
+- **Expiry boundary.** A token whose `expires_at` equals `now()` is expired everywhere: when presented, in the
+  dead-token check before the lock, and in the grace check's "the successor is live" (`RefreshExpiryBoundaryIT`).
+- **The client keeps the session through a transient failure, never through a dead one** (PR #36 review).
+  A refresh answered 5xx, 408, 429 or not at all (the network) is retried once after `Retry-After` (at most
+  5 s, 1 s if missing); the session is kept until 3 refreshes in a row end that way, then cleared. A
+  definitive answer (401, any other 4xx, a 2xx without an access token) clears the session at once and the
+  app goes to sign-in, so a definitive failure never leaves the rejected access token in place (a transient
+  one keeps it, at most until the third failed refresh in a row)
+  (`frontend/src/api/session.ts`, `session.test.ts`, `client.ts`).
+- **Lock contention classification.** `DependencyService` uses the shared `LockContention` (40P01, 40001,
+  55P03). It still answers 409 `dependency.busy` where the global mapping answers 503 `request.busy`; which
+  status the API should use is open, for JT Francisco.
+
+## Upgrade note: `TASKFLOW_REFRESH_REUSE_GRACE` units
+
+`JwtProperties.refreshReuseGrace` carries `@DurationUnit(SECONDS)` since slice 1. A bare number now means
+seconds: `TASKFLOW_REFRESH_REUSE_GRACE=30` was 30 ms before and is 30 s now. Values with a unit (`PT30S`,
+`30s`, `500ms`) bind as before. An environment that set a bare number meaning milliseconds must add `ms`
+(`500` becomes `500ms`); a bare number above 300 now fails at startup (the `PT5M` cap). The default and the
+README use `PT30S` and are unaffected.

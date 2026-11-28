@@ -1,7 +1,6 @@
 package com.taskflow.identity.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
@@ -9,9 +8,10 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.taskflow.shared.TaskflowException;
 import java.sql.SQLException;
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
@@ -29,8 +30,10 @@ import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
 /**
- * ClickUp 14yq6g334r6 slice 1, review round 2: every sign-out failure logs the family at ERROR
- * (never the token), and the locked revoke retries on any lock contention, not only 55P03.
+ * ClickUp 14yq6g334r6 slice 2: sign-out records a pending revocation before its one locked attempt,
+ * so a busy or failing family lock still signs out (the next refresh revokes the family). Every
+ * failure that can leave the family live logs once at ERROR, with the family id or a token-hash
+ * prefix, never the raw token and never a stack (the container would log it again).
  */
 @DisplayName("AUTH-2 sign-out failure paths")
 class AuthServiceSignOutTest {
@@ -56,11 +59,11 @@ class AuthServiceSignOutTest {
   }
 
   private static UncategorizedSQLException sqlState(String state) {
-    return new UncategorizedSQLException("revoke", "SELECT 1", new SQLException("x", state));
+    return new UncategorizedSQLException("lock", "SELECT 1", new SQLException("x", state));
   }
 
-  private List<ILoggingEvent> errors() {
-    return logs.list.stream().filter(e -> e.getLevel() == Level.ERROR).toList();
+  private List<ILoggingEvent> at(Level level) {
+    return logs.list.stream().filter(e -> e.getLevel() == level).toList();
   }
 
   private void assertNoTokenLogged() {
@@ -72,100 +75,227 @@ class AuthServiceSignOutTest {
     }
   }
 
-  @Test
-  void aDatabaseFailureIsLoggedWithTheFamilyAndRethrown() {
-    var down = new DataAccessResourceFailureException("connection lost");
-    jdbc.failures.add(down);
-
-    assertThatThrownBy(() -> auth.signOut(RAW)).isSameAs(down);
-
-    assertThat(jdbc.attempts).isEqualTo(1);
-    assertThat(jdbc.revokes).isZero();
-    assertThat(errors())
-        .singleElement()
-        .satisfies(e -> {
-          assertThat(e.getFormattedMessage()).contains(family.toString());
-        });
-    assertNoTokenLogged();
+  private static void assertBusy(Throwable e) {
+    assertThat(e)
+        .isInstanceOfSatisfying(
+            TaskflowException.class,
+            t -> {
+              assertThat(t.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+              assertThat(t.code()).isEqualTo("request.busy");
+              assertThat(t.headers()).doesNotContainKey("Retry-After");
+            });
   }
 
   @Test
-  void deadlockAndSerializationFailuresAreRetriedUntilTheRevokeSucceeds() {
-    jdbc.failures.add(sqlState("40P01"));
-    jdbc.failures.add(sqlState("40001"));
+  void aFreeFamilyIsRevokedAfterThePendingRowIsWritten() {
+    auth.signOut(RAW);
+
+    assertThat(jdbc.steps)
+        .containsExactly(Step.LOOKUP, Step.PENDING, Step.LOCK, Step.REVOKE, Step.CLEAR_PENDING);
+    assertThat(logs.list).isEmpty();
+  }
+
+  @Test
+  void lockContentionIsOneAttemptThenANormalAnswerBecauseTheRowIsPending() {
+    for (String state : List.of("55P03", "40P01", "40001")) {
+      jdbc.steps.clear();
+      logs.list.clear();
+      jdbc.failures.put(Step.LOCK, sqlState(state));
+
+      auth.signOut(RAW);
+
+      assertThat(jdbc.steps).as(state).containsExactly(Step.LOOKUP, Step.PENDING, Step.LOCK);
+      assertThat(at(Level.ERROR)).as(state).isEmpty();
+      assertThat(at(Level.WARN))
+          .as(state)
+          .singleElement()
+          .satisfies(e -> {
+            assertThat(e.getFormattedMessage()).contains(family.toString());
+            assertThat(e.getThrowableProxy()).isNull();
+          });
+      assertNoTokenLogged();
+    }
+  }
+
+  /**
+   * PR #36 review: in autocommit the server default lock_timeout (0, wait forever) applied, so the
+   * insert could wait without limit on a revoking transaction that holds the same row.
+   */
+  @Test
+  void thePendingRowIsWrittenInATransactionBoundedByTheLockTimeout() {
+    auth.signOut(RAW);
+
+    assertThat(jdbc.pendingBounded).isTrue();
+  }
+
+  /**
+   * A lock timeout (or other contention) on the pending row means another transaction holds that
+   * family's row: a revocation deleting it (commit revokes, rollback leaves the row) or a sign-out
+   * writing it. The family ends either way, so with the locked attempt also busy this is a WARN and
+   * a normal answer, not the 503 kept for a family that stays live.
+   */
+  @Test
+  void contentionOnBothThePendingRowAndTheLockStillAnswersNormally() {
+    for (String state : List.of("55P03", "40P01", "40001")) {
+      jdbc.steps.clear();
+      logs.list.clear();
+      jdbc.failures.put(Step.PENDING, sqlState(state));
+      jdbc.failures.put(Step.LOCK, sqlState("55P03"));
+
+      auth.signOut(RAW);
+
+      assertThat(jdbc.steps).as(state).containsExactly(Step.LOOKUP, Step.PENDING, Step.LOCK);
+      assertThat(at(Level.ERROR)).as(state).isEmpty();
+      assertThat(at(Level.WARN))
+          .as(state)
+          .isNotEmpty()
+          .allSatisfy(e -> {
+            assertThat(e.getFormattedMessage()).contains(family.toString());
+            assertThat(e.getThrowableProxy()).isNull();
+          });
+      assertNoTokenLogged();
+    }
+  }
+
+  @Test
+  void aDatabaseErrorOnTheLockedAttemptIsAlsoDeferredToThePendingRow() {
+    jdbc.failures.put(Step.LOCK, new DataAccessResourceFailureException("connection lost"));
 
     auth.signOut(RAW);
 
-    assertThat(jdbc.attempts).isEqualTo(3);
-    assertThat(jdbc.revokes).isEqualTo(1);
-    assertThat(errors()).isEmpty();
+    assertThat(jdbc.steps).containsExactly(Step.LOOKUP, Step.PENDING, Step.LOCK);
+    assertThat(at(Level.ERROR)).isEmpty();
+    assertThat(at(Level.WARN)).singleElement();
+    assertNoTokenLogged();
   }
 
   @Test
-  void contentionOnEveryAttemptIs503WithoutRetryAfterAndLogsTheFamily() {
-    jdbc.failures.add(sqlState("55P03"));
-    jdbc.failures.add(sqlState("40001"));
-    jdbc.failures.add(sqlState("40P01"));
+  void aFailedFamilyLookupLogsOneErrorWithAHashPrefixAndNoToken() {
+    jdbc.failures.put(Step.LOOKUP, new CannotGetJdbcConnectionException("pool timeout"));
 
-    assertThatThrownBy(() -> auth.signOut(RAW))
-        .isInstanceOfSatisfying(
-            TaskflowException.class,
-            e -> {
-              assertThat(e.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-              assertThat(e.code()).isEqualTo("request.busy");
-              assertThat(e.headers()).doesNotContainKey("Retry-After");
-            });
+    Throwable thrown = org.assertj.core.api.Assertions.catchThrowable(() -> auth.signOut(RAW));
 
-    assertThat(jdbc.attempts).isEqualTo(AuthService.SIGN_OUT_ATTEMPTS);
-    assertThat(jdbc.revokes).isZero();
-    assertThat(errors())
+    assertBusy(thrown);
+    assertThat(jdbc.steps).containsExactly(Step.LOOKUP);
+    assertThat(logs.list)
         .singleElement()
         .satisfies(e -> {
-          assertThat(e.getFormattedMessage()).contains(family.toString());
+          assertThat(e.getLevel()).isEqualTo(Level.ERROR);
+          assertThat(e.getFormattedMessage())
+              .contains(AuthService.sha256(RAW).substring(0, 12))
+              .contains("CannotGetJdbcConnectionException")
+              .doesNotContain(AuthService.sha256(RAW));
+          assertThat(e.getThrowableProxy()).isNull();
         });
     assertNoTokenLogged();
   }
 
-  /** The token's family is live; each attempt's first statement throws the next queued failure. */
+  @Test
+  void aFailedPendingRowWriteStillTriesTheLockedRevoke() {
+    jdbc.failures.put(Step.PENDING, new DataAccessResourceFailureException("connection lost"));
+
+    auth.signOut(RAW);
+
+    assertThat(jdbc.steps)
+        .containsExactly(Step.LOOKUP, Step.PENDING, Step.LOCK, Step.REVOKE, Step.CLEAR_PENDING);
+    assertThat(at(Level.ERROR)).isEmpty();
+    assertNoTokenLogged();
+  }
+
+  @Test
+  void whenNeitherThePendingRowNorTheRevokeLandsItLogsOneErrorWithTheFamily() {
+    jdbc.failures.put(Step.PENDING, new DataAccessResourceFailureException("connection lost"));
+    jdbc.failures.put(Step.LOCK, sqlState("55P03"));
+
+    Throwable thrown = org.assertj.core.api.Assertions.catchThrowable(() -> auth.signOut(RAW));
+
+    assertBusy(thrown);
+    assertThat(jdbc.steps).containsExactly(Step.LOOKUP, Step.PENDING, Step.LOCK);
+    assertThat(logs.list)
+        .singleElement()
+        .satisfies(e -> {
+          assertThat(e.getLevel()).isEqualTo(Level.ERROR);
+          assertThat(e.getFormattedMessage()).contains(family.toString());
+          assertThat(e.getThrowableProxy()).isNull();
+        });
+    assertNoTokenLogged();
+  }
+
+  enum Step {
+    LOOKUP,
+    PENDING,
+    LOCK,
+    REVOKE,
+    CLEAR_PENDING
+  }
+
+  /** The token's family is live; each step records itself and throws its queued failure. */
   private final class StubJdbc extends JdbcTemplate {
-    final Deque<RuntimeException> failures = new ArrayDeque<>();
-    int attempts;
-    int revokes;
+    final Map<Step, RuntimeException> failures = new EnumMap<>(Step.class);
+    final List<Step> steps = new ArrayList<>();
+    boolean inTransaction;
+    boolean lockTimeoutSet;
+    Boolean pendingBounded;
 
-    @Override
-    public <T> List<T> queryForList(String sql, Class<T> type, Object... args) {
-      return List.of(type.cast(family));
-    }
-
-    @Override
-    public void execute(String sql) {
-      attempts++;
-      RuntimeException failure = failures.poll();
+    private void step(Step step) {
+      steps.add(step);
+      RuntimeException failure = failures.get(step);
       if (failure != null) {
         throw failure;
       }
     }
 
     @Override
-    public void query(String sql, RowCallbackHandler rch, Object... args) {}
+    public <T> List<T> queryForList(String sql, Class<T> type, Object... args) {
+      step(Step.LOOKUP);
+      return List.of(type.cast(family));
+    }
+
+    @Override
+    public void execute(String sql) {
+      if (sql.startsWith("SET LOCAL lock_timeout") && inTransaction) {
+        lockTimeoutSet = true;
+      }
+    }
+
+    @Override
+    public void query(String sql, RowCallbackHandler rch, Object... args) {
+      step(Step.LOCK);
+    }
 
     @Override
     public int update(String sql, Object... args) {
-      revokes++;
+      if (sql.startsWith("INSERT INTO refresh_pending_revocation")) {
+        pendingBounded = inTransaction && lockTimeoutSet;
+        step(Step.PENDING);
+      } else if (sql.startsWith("UPDATE refresh_token SET revoked_at")) {
+        step(Step.REVOKE);
+      } else if (sql.startsWith("DELETE FROM refresh_pending_revocation")) {
+        step(Step.CLEAR_PENDING);
+      } else {
+        throw new AssertionError("unexpected update: " + sql);
+      }
       return 1;
     }
   }
 
-  private static final class NoOpTransactions implements PlatformTransactionManager {
+  /** Tells the stub when a transaction is open, so it can see what runs bounded by its timeout. */
+  private final class NoOpTransactions implements PlatformTransactionManager {
     @Override
     public TransactionStatus getTransaction(TransactionDefinition definition) {
+      jdbc.inTransaction = true;
+      jdbc.lockTimeoutSet = false;
       return new SimpleTransactionStatus();
     }
 
     @Override
-    public void commit(TransactionStatus status) {}
+    public void commit(TransactionStatus status) {
+      jdbc.inTransaction = false;
+    }
 
     @Override
-    public void rollback(TransactionStatus status) {}
+    public void rollback(TransactionStatus status) {
+      jdbc.inTransaction = false;
+    }
   }
 }

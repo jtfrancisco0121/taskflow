@@ -3,6 +3,7 @@ package com.taskflow.identity.internal;
 import com.taskflow.identity.UserInfo;
 import com.taskflow.shared.Ids;
 import com.taskflow.shared.LockContention;
+import com.taskflow.shared.LockTimeout;
 import com.taskflow.shared.RateLimiter;
 import com.taskflow.shared.TaskflowException;
 import java.nio.charset.StandardCharsets;
@@ -39,10 +40,7 @@ class AuthService {
    * How long a refresh or sign-out waits for its family lock before giving up with 503 (mapped by
    * ProblemDetailsHandler from 55P03), so a busy family cannot hold pool connections indefinitely.
    */
-  static final String LOCK_TIMEOUT = "SET LOCAL lock_timeout = '2s'";
-
-  /** Locked revoke attempts a sign-out makes before giving up (about 6 s in all). */
-  static final int SIGN_OUT_ATTEMPTS = 3;
+  static final Duration LOCK_WAIT = Duration.ofSeconds(2);
 
   /** An issued session: the access token plus the raw refresh token for the cookie. */
   record Session(UserInfo user, String accessToken, long expiresIn, String refreshToken) {}
@@ -152,21 +150,30 @@ class AuthService {
     enum Outcome {
       OK,
       REUSED,
+      SIGNED_OUT,
       INVALID
     }
     record Result(Outcome outcome, Session session) {}
     long graceMillis = properties.refreshReuseGrace().toMillis();
     Result result =
         tx.execute(status -> {
-          jdbc.execute(LOCK_TIMEOUT);
-          if (!lockLiveFamilyOf(hash)) {
+          LockTimeout.set(jdbc, LOCK_WAIT);
+          Optional<UUID> family = lockLiveFamilyOf(hash);
+          if (family.isEmpty()) {
             return new Result(Outcome.INVALID, null);
+          }
+          // A sign-out that could not take the lock left this row (decision 010): end the family
+          // now, before any rotation or grace replay can hand out a token.
+          if (pendingRevocation(family.get())) {
+            revokeFamily(family.get());
+            log.info("Refresh refused: family {} was signed out; revoked now", family.get());
+            return new Result(Outcome.SIGNED_OUT, null);
           }
           // The family lock already orders every request on this family; FOR UPDATE stays as a
           // second guard on the row itself.
           List<StoredRefresh> found =
               jdbc.query(
-                  "SELECT id, user_id, family_id, expires_at < now() AS expired, revoked_at IS NOT"
+                  "SELECT id, user_id, family_id, expires_at <= now() AS expired, revoked_at IS NOT"
                       + " NULL AS revoked,"
                       + " rotated_at IS NOT NULL AS rotated, rotated_at > now() - (? * interval '1"
                       + " millisecond') AS in_grace FROM refresh_token WHERE token_hash = ? FOR"
@@ -244,57 +251,121 @@ class AuthService {
   }
 
   /**
-   * Revokes the token's family. A token that can never be honoured again (revoked, or expired and
-   * never rotated) has nothing live in its family, so it returns without the family lock. Otherwise
-   * the locked revoke is tried {@link #SIGN_OUT_ATTEMPTS} times on lock contention ({@link
-   * LockContention}), each a fresh transaction with its own lock timeout, because the controller
-   * clears the cookie whatever happens and the browser cannot retry: giving up leaves the family
-   * live until it expires (decision 010, Hardening).
+   * Revokes the token's family. A revoked token has nothing live in its family, so it returns
+   * without the family lock (an expired, never-rotated one does not: a rotation of it may still be
+   * committing, PR #36 review r2). Otherwise it first records a pending revocation for the family,
+   * without the family lock but bounded by the lock timeout (decision 010; a row held by a revoking
+   * transaction ends the family anyway), then makes one locked revoke attempt. If that attempt
+   * fails (lock contention or any other error), the pending row stands and the next refresh of any
+   * token in the family revokes it, so sign-out still answers normally. Only when neither the row
+   * nor the revoke lands can the family stay live: that is logged at ERROR with the family id and
+   * answers 503.
+   *
+   * <p>Every log line names the family (or, before it is known, a prefix of the token hash), never
+   * the raw token, and carries no stack: the exception is replaced by a handled 503, so the
+   * container logs nothing more.
    */
   void signOut(String rawToken) {
     if (rawToken == null || rawToken.isBlank()) {
       return;
     }
-    Optional<UUID> family = liveFamilyOf(sha256(rawToken));
-    if (family.isEmpty()) {
+    String hash = sha256(rawToken);
+    Optional<UUID> found;
+    try {
+      found = unrevokedFamilyOf(hash);
+    } catch (RuntimeException e) {
+      log.error(
+          "Sign-out could not look up the family of token hash {}... ({}); it stays live until it"
+              + " expires",
+          hash.substring(0, HASH_PREFIX),
+          describe(e));
+      log.debug("Sign-out family lookup failure", e);
+      throw signOutIncomplete();
+    }
+    if (found.isEmpty()) {
       return;
     }
-    for (int attempt = 1; ; attempt++) {
-      try {
-        tx.executeWithoutResult(status -> {
-          jdbc.execute(LOCK_TIMEOUT);
-          lockFamily(family.get());
-          revokeFamily(family.get());
-        });
-        return;
-      } catch (RuntimeException e) {
-        boolean contention = LockContention.isContention(e);
-        if (contention && attempt < SIGN_OUT_ATTEMPTS) {
-          continue;
-        }
-        // Whatever the cause, the controller still clears the cookie and the family stays live
-        // until it expires (decision 010), so name the family for an operator. Never the token.
-        log.error(
-            "Sign-out could not revoke family {} (attempt {} of {}, {}); it stays live until it"
-                + " expires",
-            family.get(),
-            attempt,
-            SIGN_OUT_ATTEMPTS,
-            e.getClass().getSimpleName(),
-            e);
-        if (!contention) {
-          throw e;
-        }
-        throw new TaskflowException(
-            HttpStatus.SERVICE_UNAVAILABLE,
-            "request.busy",
-            "Signed out on this device, but the session could not be ended everywhere");
+    UUID family = found.get();
+    RuntimeException pendingFailure = null;
+    try {
+      // Its own short transaction, so the lock timeout bounds it: the insert waits on a
+      // transaction that holds this family's row (a revocation deleting it), never forever.
+      tx.executeWithoutResult(status -> {
+        LockTimeout.set(jdbc, LOCK_WAIT);
+        jdbc.update(
+            "INSERT INTO refresh_pending_revocation (family_id) VALUES (?) ON CONFLICT DO NOTHING",
+            family);
+      });
+    } catch (RuntimeException e) {
+      if (LockContention.isContention(e)) {
+        // Another transaction holds this family's row: a revocation deleting it (its commit
+        // revokes the family, its rollback puts the row back) or a sign-out writing it. The
+        // family ends either way, so this is not a failure to record the revocation.
+        log.warn(
+            "Sign-out found the pending revocation of family {} held by another transaction ({});"
+                + " that transaction ends the family",
+            family,
+            describe(e));
+      } else {
+        pendingFailure = e;
       }
+    }
+    try {
+      tx.executeWithoutResult(status -> {
+        LockTimeout.set(jdbc, LOCK_WAIT);
+        lockFamily(family);
+        revokeFamily(family);
+      });
+    } catch (RuntimeException e) {
+      if (pendingFailure == null) {
+        log.warn(
+            "Sign-out could not revoke family {} now ({}); its pending revocation ends it on the"
+                + " next refresh",
+            family,
+            describe(e));
+        log.debug("Sign-out locked revoke failure", e);
+        return;
+      }
+      log.error(
+          "Sign-out could not revoke family {} (pending row: {}; revoke: {}); it stays live until"
+              + " it expires",
+          family,
+          describe(pendingFailure),
+          describe(e));
+      log.debug("Sign-out pending row failure", pendingFailure);
+      log.debug("Sign-out locked revoke failure", e);
+      throw signOutIncomplete();
+    }
+    if (pendingFailure != null) {
+      log.warn(
+          "Sign-out revoked family {} but could not record its pending revocation ({})",
+          family,
+          describe(pendingFailure));
     }
   }
 
+  /** Hex characters of the token hash a log line may carry before the family is known. */
+  static final int HASH_PREFIX = 12;
+
+  private static String describe(RuntimeException e) {
+    return e.getClass().getSimpleName();
+  }
+
+  private static TaskflowException signOutIncomplete() {
+    return new TaskflowException(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        "request.busy",
+        "Signed out on this device, but the session could not be ended everywhere");
+  }
+
+  private boolean pendingRevocation(UUID familyId) {
+    return !jdbc.queryForList(
+            "SELECT 1 FROM refresh_pending_revocation WHERE family_id = ?", Integer.class, familyId)
+        .isEmpty();
+  }
+
   /**
-   * Takes the family lock of the token with {@code hash}; false, without locking, when no such
+   * Takes the family lock of the token with {@code hash}; empty, without locking, when no such
    * token exists or it can never be honoured again. Every refresh and sign-out takes this lock
    * first, before any refresh_token row lock, so requests on one family run one after another: no
    * lock-order deadlock between the token row and the family-wide statements, and a sign-out never
@@ -308,10 +379,10 @@ class AuthService {
    * expired, never-rotated token is its family's newest, so nothing after it can be live. An
    * expired token that was rotated still takes the lock and revokes its family as reuse.
    */
-  private boolean lockLiveFamilyOf(String hash) {
+  private Optional<UUID> lockLiveFamilyOf(String hash) {
     Optional<UUID> family = liveFamilyOf(hash);
     family.ifPresent(this::lockFamily);
-    return family.isPresent();
+    return family;
   }
 
   /** The token's family, unless the token is revoked or expired and never rotated. */
@@ -319,7 +390,23 @@ class AuthService {
     return jdbc
         .queryForList(
             "SELECT family_id FROM refresh_token WHERE token_hash = ? AND revoked_at IS NULL"
-                + " AND NOT (rotated_at IS NULL AND expires_at < now())",
+                + " AND NOT (rotated_at IS NULL AND expires_at <= now())",
+            UUID.class,
+            hash)
+        .stream()
+        .findFirst();
+  }
+
+  /**
+   * Sign-out's family lookup: the token's family unless the token is revoked (PR #36 review r2).
+   * Only revocation is final here. "Expired and never rotated" is not: a refresh that read the
+   * token as live just before its expiry may still be committing a rotation, and its successor must
+   * end with the family. Such a token therefore takes the pending row and the locked revoke too.
+   */
+  private Optional<UUID> unrevokedFamilyOf(String hash) {
+    return jdbc
+        .queryForList(
+            "SELECT family_id FROM refresh_token WHERE token_hash = ? AND revoked_at IS NULL",
             UUID.class,
             hash)
         .stream()
@@ -336,10 +423,16 @@ class AuthService {
 
   private record UserRow(UserInfo info, String hash) {}
 
+  /**
+   * Revokes every token of the family and drops its pending revocation, if any: revocation is final
+   * (a revoked token is refused before the lock and no token is ever added to a revoked family), so
+   * the row has nothing left to guard. Call under the family lock.
+   */
   private void revokeFamily(UUID familyId) {
     jdbc.update(
         "UPDATE refresh_token SET revoked_at = now() WHERE family_id = ? AND revoked_at IS NULL",
         familyId);
+    jdbc.update("DELETE FROM refresh_pending_revocation WHERE family_id = ?", familyId);
   }
 
   private Session startSession(UserInfo user, UUID familyId) {

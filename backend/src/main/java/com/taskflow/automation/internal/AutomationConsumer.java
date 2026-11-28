@@ -9,12 +9,14 @@ import com.taskflow.automation.internal.RuleDocs.Condition;
 import com.taskflow.automation.internal.RuleDocs.Trigger;
 import com.taskflow.shared.EventQueues;
 import com.taskflow.shared.Ids;
+import com.taskflow.shared.LockTimeout;
 import com.taskflow.shared.TaskflowException;
 import com.taskflow.shared.TransientFailures;
 import com.taskflow.shared.TransientMessageException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -160,7 +162,7 @@ class AutomationConsumer {
     String text = String.valueOf(e.getMessage());
     String error = text.length() > 500 ? text.substring(0, 499) + "…" : text;
     failureTx.executeWithoutResult(status -> {
-      jdbc.execute("SET LOCAL lock_timeout = '2s'");
+      LockTimeout.set(jdbc, Duration.ofSeconds(2));
       jdbc.update(
           "INSERT INTO automation_run (id, workspace_id, rule_id, task_id, event_id, status,"
               + " error, retryable, attempt, depth) VALUES (?, ?, ?, ?, ?, 'FAILED', ?, ?, 1,"

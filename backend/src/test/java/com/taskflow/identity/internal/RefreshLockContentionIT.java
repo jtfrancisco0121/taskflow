@@ -11,22 +11,20 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.system.CapturedOutput;
-import org.springframework.boot.test.system.OutputCaptureExtension;
 
 /**
  * ClickUp 14yq6g334r6 item 1: a dead token never queues on its family lock, and a request that
  * waits too long for a busy family gives up with 503 instead of holding a pool connection.
  */
 @DisplayName("AUTH-2 refresh family lock contention")
-@ExtendWith(OutputCaptureExtension.class)
 class RefreshLockContentionIT extends IntegrationTest {
 
   @Autowired private DataSource dataSource;
@@ -197,50 +195,174 @@ class RefreshLockContentionIT extends IntegrationTest {
     assertThat(refresh(a).status()).isEqualTo(200);
   }
 
+  /** A response and whether the test's holder still had the family lock when it arrived. */
+  private record Answered(Resp resp, boolean whileLockHeld) {}
+
+  private int pendingRevocationsOf(UUID family) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM refresh_pending_revocation WHERE family_id = ?",
+        Integer.class,
+        family);
+  }
+
+  /**
+   * Slice 2 of 14yq6g334r6: a sign-out that cannot get its family lock still answers 204 after one
+   * locked attempt; the pending-revocation row it wrote first makes the next refresh of any token
+   * in the family revoke the family and answer 401.
+   */
   @Test
-  void aSignOutWhoseFamilyIsFreedWithinItsRetriesRevokesTheFamily() throws Exception {
+  void aSignOutAgainstABusyFamilyAnswers204AndTheNextRefreshRevokesTheFamily() throws Exception {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    Resp rotated = refresh(a);
+    assertThat(rotated.status()).isEqualTo(200);
+    String b = AuthIT.refreshCookie(rotated);
+    UUID family = familyOf(a);
+
+    Connection holder = holdFamilyLock(family);
+    AtomicBoolean lockHeld = new AtomicBoolean(true);
+    Future<Answered> request =
+        pool.submit(() -> {
+          Resp r = signOut(b);
+          return new Answered(r, lockHeld.get());
+        });
+    try {
+      // The holder lets go only once the sign-out has answered, or after a bound far above its one
+      // 2 s lock wait. A sign-out that queues on the family lock until it is free answers only
+      // after this release, so the ordering, not the wall clock, is what the test checks.
+      request.get(15, TimeUnit.SECONDS);
+    } catch (TimeoutException stillWaiting) {
+      // Asserted below, after the release lets the sign-out finish.
+    } finally {
+      lockHeld.set(false);
+      release(holder);
+    }
+    Answered answered = request.get(30, TimeUnit.SECONDS);
+    Resp answer = answered.resp();
+
+    assertThat(answered.whileLockHeld())
+        .as("sign-out answered while the family lock was still held")
+        .isTrue();
+    assertThat(answer.status()).isEqualTo(204);
+    assertThat(answer.headers().getFirst("Set-Cookie")).contains("Max-Age=0");
+    assertThat(pendingRevocationsOf(family)).isEqualTo(1);
+    assertThat(liveTokensIn(family)).isEqualTo(2);
+
+    // The old (rotated, within the grace) token and its successor are both refused.
+    assertThat(refresh(a).status()).isEqualTo(401);
+    assertThat(refresh(b).status()).isEqualTo(401);
+    assertThat(liveTokensIn(family)).isZero();
+    // Cleanup: the row goes once the family is revoked.
+    assertThat(pendingRevocationsOf(family)).isZero();
+  }
+
+  @Test
+  void aSignOutThatGetsItsFamilyLockRevokesAtOnceAndLeavesNoPendingRow() {
     Resp up = signup();
     String a = AuthIT.refreshCookie(up);
     UUID family = familyOf(a);
 
-    Connection holder = holdFamilyLock(family);
-    Future<Resp> request;
-    try {
-      request = pool.submit(() -> signOut(a));
-      awaitWaiterOn(family, pidOf(holder));
-      // Counted from the first attempt's wait: past its 2 s lock_timeout, so only a retry can
-      // revoke, and well inside the second attempt's wait.
-      Thread.sleep(2_500);
-    } finally {
-      release(holder);
-    }
+    assertThat(signOut(a).status()).isEqualTo(204);
 
-    assertThat(request.get(15, TimeUnit.SECONDS).status()).isEqualTo(204);
     assertThat(liveTokensIn(family)).isZero();
+    assertThat(pendingRevocationsOf(family)).isZero();
   }
 
+  /**
+   * PR #36 review: a revoking transaction (a refresh that found the row, or another sign-out) holds
+   * the family lock and has deleted the family's pending row but not committed. Sign-out's insert
+   * of the same row waits on that tuple; it must give up after the lock timeout like the locked
+   * attempt does, so sign-out answers 204 in bounded time while the holder still holds everything.
+   * Whether the holder commits (family revoked) or rolls back (row back), the family ends.
+   */
   @Test
-  void aSignOutWhoseFamilyStaysBusyGets503WithoutRetryAfterAndLogsTheFamily(CapturedOutput output)
+  void aSignOutWhosePendingRowIsHeldByARevokingTransactionStillAnswers204InBoundedTime()
       throws Exception {
     Resp up = signup();
     String a = AuthIT.refreshCookie(up);
     UUID family = familyOf(a);
+    jdbc.update("INSERT INTO refresh_pending_revocation (family_id) VALUES (?)", family);
 
     Connection holder = holdFamilyLock(family);
-    Resp answer;
+    try (PreparedStatement s =
+        holder.prepareStatement("DELETE FROM refresh_pending_revocation WHERE family_id = ?")) {
+      s.setObject(1, family);
+      s.executeUpdate();
+    }
+    AtomicBoolean lockHeld = new AtomicBoolean(true);
+    long started = System.nanoTime();
+    Future<Answered> request =
+        pool.submit(() -> {
+          Resp r = signOut(a);
+          return new Answered(r, lockHeld.get());
+        });
     try {
-      answer = pool.submit(() -> signOut(a)).get(30, TimeUnit.SECONDS);
+      // Two 2 s lock waits (the row, then the family) is the bound; 15 s is far above it. A
+      // sign-out that waits on the row until the holder ends answers only after this release.
+      request.get(15, TimeUnit.SECONDS);
+    } catch (TimeoutException stillWaiting) {
+      // Asserted below, after the release lets the sign-out finish.
     } finally {
+      lockHeld.set(false);
       release(holder);
     }
+    Answered answered = request.get(30, TimeUnit.SECONDS);
+    long tookMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
 
-    assertThat(answer.status()).isEqualTo(503);
-    assertThat(answer.headers().getFirst("Retry-After")).isNull();
-    assertThat(answer.headers().getFirst("Set-Cookie")).contains("Max-Age=0");
-    assertThat(liveTokensIn(family)).isEqualTo(1);
-    assertThat(output.getAll())
-        .containsPattern("ERROR.*AuthService.*" + family)
-        .doesNotContain(a.substring("refresh_token=".length()));
+    assertThat(answered.whileLockHeld())
+        .as("sign-out answered while the pending row and family lock were still held")
+        .isTrue();
+    assertThat(tookMillis).isLessThan(2 * AuthService.LOCK_WAIT.toMillis() + 3_000);
+    assertThat(answered.resp().status()).isEqualTo(204);
+    assertThat(answered.resp().headers().getFirst("Set-Cookie")).contains("Max-Age=0");
+    // The holder rolled back, so the row is back and the next refresh ends the family.
+    assertThat(pendingRevocationsOf(family)).isEqualTo(1);
+    assertThat(refresh(a).status()).isEqualTo(401);
+    assertThat(liveTokensIn(family)).isZero();
+  }
+
+  /**
+   * The deliberate flood (PR #34 review): a holder of a live token keeps the family busy with
+   * refreshes while the victim signs out. The sign-out still answers 204 and the family still ends
+   * revoked, whoever wins the lock.
+   */
+  @Test
+  void aRefreshStormDuringSignOutStillEndsWithTheFamilyRevoked() throws Exception {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    UUID family = familyOf(a);
+    ExecutorService storm = Executors.newFixedThreadPool(4);
+    java.util.concurrent.atomic.AtomicBoolean flooding =
+        new java.util.concurrent.atomic.AtomicBoolean(true);
+    try {
+      Connection holder = holdFamilyLock(family);
+      Resp answer;
+      try {
+        for (int i = 0; i < 4; i++) {
+          storm.submit(() -> {
+            while (flooding.get()) {
+              refresh(a);
+            }
+            return null;
+          });
+        }
+        awaitWaiterOn(family, pidOf(holder));
+        answer = pool.submit(() -> signOut(a)).get(30, TimeUnit.SECONDS);
+      } finally {
+        release(holder);
+      }
+      assertThat(answer.status()).isEqualTo(204);
+      // Let the storm run on the freed family for a moment.
+      Thread.sleep(1_000);
+    } finally {
+      flooding.set(false);
+      storm.shutdown();
+      assertThat(storm.awaitTermination(30, TimeUnit.SECONDS)).isTrue();
+    }
+
+    assertThat(liveTokensIn(family)).isZero();
+    assertThat(refresh(a).status()).isEqualTo(401);
+    assertThat(pendingRevocationsOf(family)).isZero();
   }
 
   @Test
@@ -262,8 +384,65 @@ class RefreshLockContentionIT extends IntegrationTest {
     }
   }
 
+  /**
+   * PR #36 review r2, M1: "expired and never rotated" is not final for sign-out. A refresh that
+   * read the token as live just before expiry may still be committing its rotation; sign-out after
+   * the expiry sees the committed, unrotated, expired row. It must still end the family, so the
+   * successor the refresh commits is refused.
+   */
   @Test
-  void anExpiredUnrotatedTokensSignOutTakesNoFamilyLock() throws Exception {
+  void aSignOutAfterExpiryStillEndsARotationThatWasUncommittedAcrossTheExpiry() throws Exception {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    UUID family = familyOf(a);
+    UUID user =
+        jdbc.queryForObject(
+            "SELECT user_id FROM refresh_token WHERE token_hash = ?", UUID.class, hashOf(a));
+    jdbc.update(
+        "UPDATE refresh_token SET expires_at = now() + interval '1 second' WHERE token_hash = ?",
+        hashOf(a));
+
+    // The refresh: family lock, token rotated, successor inserted, not committed.
+    String successorRaw = "successor-" + UUID.randomUUID();
+    Connection rotation = holdFamilyLock(family);
+    try (PreparedStatement rotate =
+            rotation.prepareStatement(
+                "UPDATE refresh_token SET rotated_at = now() WHERE token_hash = ?");
+        PreparedStatement insert =
+            rotation.prepareStatement(
+                "INSERT INTO refresh_token (id, user_id, family_id, token_hash, expires_at)"
+                    + " VALUES (?, ?, ?, ?, now() + interval '30 days')")) {
+      rotate.setString(1, hashOf(a));
+      rotate.executeUpdate();
+      insert.setObject(1, UUID.randomUUID());
+      insert.setObject(2, user);
+      insert.setObject(3, family);
+      insert.setString(4, AuthService.sha256(successorRaw));
+      insert.executeUpdate();
+    }
+    Resp answer;
+    try {
+      // The token's committed row is now expired and reads as never rotated.
+      while (jdbc.queryForObject(
+          "SELECT expires_at > now() FROM refresh_token WHERE token_hash = ?",
+          Boolean.class,
+          hashOf(a))) {
+        Thread.sleep(50);
+      }
+      answer = pool.submit(() -> signOut(a)).get(15, TimeUnit.SECONDS);
+      rotation.commit();
+    } finally {
+      release(rotation);
+    }
+
+    assertThat(answer.status()).isEqualTo(204);
+    assertThat(refresh("refresh_token=" + successorRaw).status()).isEqualTo(401);
+    assertThat(liveTokensIn(family)).isZero();
+  }
+
+  /** The anti-flood skip stays for a revoked token only: that state is final. */
+  @Test
+  void anExpiredUnrotatedTokensSignOutStillEndsItsFamily() {
     Resp up = signup();
     String a = AuthIT.refreshCookie(up);
     jdbc.update(
@@ -271,15 +450,9 @@ class RefreshLockContentionIT extends IntegrationTest {
         hashOf(a));
     UUID family = familyOf(a);
 
-    Connection holder = holdFamilyLock(family);
-    try {
-      Future<Resp> request = pool.submit(() -> signOut(a));
-      int waiters = maxWaitersWhile(request, family, pidOf(holder));
+    assertThat(signOut(a).status()).isEqualTo(204);
 
-      assertThat(waiters).isZero();
-      assertThat(request.get(5, TimeUnit.SECONDS).status()).isEqualTo(204);
-    } finally {
-      release(holder);
-    }
+    assertThat(liveTokensIn(family)).isZero();
+    assertThat(pendingRevocationsOf(family)).isZero();
   }
 }

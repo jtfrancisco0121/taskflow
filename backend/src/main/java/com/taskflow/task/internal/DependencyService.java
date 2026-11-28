@@ -3,6 +3,8 @@ package com.taskflow.task.internal;
 import com.taskflow.shared.CurrentActor;
 import com.taskflow.shared.EventRecorder;
 import com.taskflow.shared.Ids;
+import com.taskflow.shared.LockContention;
+import com.taskflow.shared.LockTimeout;
 import com.taskflow.shared.TaskflowException;
 import com.taskflow.task.TaskView;
 import com.taskflow.workspace.Action;
@@ -10,6 +12,7 @@ import com.taskflow.workspace.LocationAccess;
 import com.taskflow.workspace.Permissions;
 import com.taskflow.workspace.Role;
 import com.taskflow.workspace.WorkspaceQuery;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,7 +26,6 @@ import java.util.Set;
 import java.util.UUID;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -42,7 +44,7 @@ import org.springframework.transaction.annotation.Transactional;
 class DependencyService {
 
   static final int MAX_PER_TASK = 100;
-  private static final String LOCK_TIMEOUT = "SET LOCAL lock_timeout = '5s'";
+  private static final Duration LOCK_WAIT = Duration.ofSeconds(5);
 
   /** What the acting task is, from its own side. {@code BLOCKED_BY} is an alias of WAITING_ON. */
   enum Relation {
@@ -351,7 +353,7 @@ class DependencyService {
    * either task cannot slip between the version check and the bump).
    */
   private void lockForWrite(UUID workspaceId, UUID a, UUID b) {
-    jdbc.execute(LOCK_TIMEOUT);
+    LockTimeout.set(jdbc, LOCK_WAIT);
     lock.lock(workspaceId);
     jdbc.query("SELECT id FROM task WHERE id IN (?, ?) ORDER BY id FOR UPDATE", rs -> {}, a, b);
   }
@@ -464,21 +466,13 @@ class DependencyService {
   }
 
   /**
-   * A lock wait (55P03) or deadlock (40P01) is 409 busy. Spring maps a deadlock to {@link
-   * PessimisticLockingFailureException} but leaves a lock timeout uncategorized, so the SQLSTATE is
-   * read too; any other data access failure is rethrown unchanged.
+   * Lock contention, as the shared {@link LockContention} classifies it (40P01, 40001, 55P03), is
+   * 409 dependency.busy; any other data access failure is returned unchanged. The global mapping
+   * answers the same contention with 503 request.busy: unifying the status is an open API decision
+   * (ClickUp 14yq6g334r6), so this one keeps 409.
    */
-  private static RuntimeException contention(DataAccessException e) {
-    if (e instanceof PessimisticLockingFailureException) {
-      return busy();
-    }
-    for (Throwable t = e; t != null; t = t.getCause()) {
-      if (t instanceof java.sql.SQLException sql
-          && ("55P03".equals(sql.getSQLState()) || "40P01".equals(sql.getSQLState()))) {
-        return busy();
-      }
-    }
-    return e;
+  static RuntimeException contention(DataAccessException e) {
+    return LockContention.isContention(e) ? busy() : e;
   }
 
   private static TaskflowException busy() {
