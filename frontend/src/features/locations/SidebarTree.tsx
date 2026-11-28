@@ -7,7 +7,7 @@ import { InlineNameField } from './InlineNameField'
 import { TreeItem } from './TreeItem'
 import { useCreateLocation } from './useLocationMutations'
 import { useTreeChildren, type TreeNode } from './useTreeChildren'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 /** FR-8 to FR-10: lazy ARIA tree of the Workspace's Spaces, Folders and Lists. */
 export function SidebarTree({ workspaceId }: { workspaceId: string }) {
@@ -21,7 +21,7 @@ export function SidebarTree({ workspaceId }: { workspaceId: string }) {
   const createSpace = useCreateLocation(workspaceId)
   const fetching = useIsFetching({ queryKey: queryKeys.treeAll(workspaceId) })
   const [focusedState, setFocused] = useState<string | null>(null)
-  const items = root.data ?? []
+  const items = shownData(root) ?? []
   const focusedId = focusedState ?? items[0]?.id ?? null
 
   useEffect(() => {

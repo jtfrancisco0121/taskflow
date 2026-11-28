@@ -8,7 +8,7 @@ import { Skeleton } from '../../shared/ui/Skeleton'
 import { resolveRemap } from './buildRemap'
 import { useLocationStatuses } from './useLocationStatuses'
 import { useResetStatuses } from './useStatusMutations'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
 
 type ResetPanelProps = {
@@ -33,7 +33,7 @@ export function ResetPanel({
   const inherited = useLocationStatuses(workspaceId, parentId)
   const reset = useResetStatuses(workspaceId, locationId)
   const [choices, setChoices] = useState<Record<string, string>>({})
-  const targets = (inherited.data?.statuses ?? []).map((status) => ({
+  const targets = (shownData(inherited)?.statuses ?? []).map((status) => ({
     key: status.id ?? '',
     name: status.name ?? '',
   }))

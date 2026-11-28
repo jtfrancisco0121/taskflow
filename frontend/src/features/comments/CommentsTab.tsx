@@ -10,7 +10,7 @@ import { useSession } from '../auth'
 import { useMembers } from '../workspace'
 import { useComments, useCreateComment, useDeleteComment, useEditComment } from './useComments'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 /** FR-19, FR-20: comments oldest first with a composer; the author can edit and delete. */
 export function CommentsTab({ task }: { task: TaskView }) {
@@ -21,7 +21,7 @@ export function CommentsTab({ task }: { task: TaskView }) {
   const me = useSession().user?.id
   const items = [
     ...new Map(
-      (comments.data?.pages.flatMap((page) => page.items ?? []) ?? []).map((c) => [c.id, c]),
+      (shownData(comments)?.pages.flatMap((page) => page.items ?? []) ?? []).map((c) => [c.id, c]),
     ).values(),
   ]
 

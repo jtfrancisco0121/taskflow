@@ -39,3 +39,14 @@ export function hasData<T extends QueryLike>(
 ): query is T & { data: Exclude<T['data'], undefined> } {
   return query.data !== undefined && !(query.status === 'error' && terminal(query.error))
 }
+
+/**
+ * The data to render, or `undefined` when there is none to show (still loading, the first load failed, or a 401, 403
+ * or 404 took it away). A list reads its items through this (`shownData(query)?.items ?? []`), so the error screen
+ * never sits over stale rows (ClickUp 14yq6g334bn).
+ */
+export function shownData<T extends QueryLike>(
+  query: T,
+): Exclude<T['data'], undefined> | undefined {
+  return hasData(query) ? query.data : undefined
+}

@@ -224,4 +224,44 @@ describe('FR-9 relationship picker', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('These tasks are already related.')
     expect(stub.count('POST', /dependencies$/)).toBe(1)
   })
+
+  // 14yq6g334bn part 2 (PR E review): closing the task while a busy add waits out Retry-After calls the retry off.
+  it('unmounting during the busy wait sends no retry', async () => {
+    const user = userEvent.setup()
+    const { stub, unmount } = setup({
+      'POST /api/v1/tasks/:id/dependencies': () => busy('1'),
+    } as never)
+    await user.type(screen.getByRole('combobox', { name: 'Find a task' }), 'login')
+    await user.click(await screen.findByRole('option', { name: /ACME-7/ }))
+    await waitFor(() => expect(stub.count('POST', /dependencies$/)).toBe(1))
+    unmount()
+    await new Promise((resolve) => setTimeout(resolve, 1_300))
+    expect(stub.count('POST', /dependencies$/)).toBe(1)
+  })
+
+  // 14yq6g334bn part 2 (PR H review): the keyboard path is held like the pointer path while a write is in flight.
+  it('Enter while an add is in flight sends nothing, and Enter works again once it settled', async () => {
+    const user = userEvent.setup()
+    let answer: (r: Response) => void = () => {}
+    const { stub } = setup({
+      'POST /api/v1/tasks/:id/dependencies': () =>
+        new Promise<Response>((resolve) => {
+          answer = resolve
+        }),
+    } as never)
+    const posts = () => stub.count('POST', /dependencies$/)
+    await user.type(screen.getByRole('combobox', { name: 'Find a task' }), 'login')
+    await screen.findByRole('option', { name: /ACME-7/ })
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(posts()).toBe(1))
+    await user.keyboard('{ArrowDown}{Enter}{Enter}')
+    expect(posts()).toBe(1)
+    answer(problem(409, 'dependency.exists', 'x'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('These tasks are already related.')
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(posts()).toBe(2))
+    expect(stub.calls.filter((c) => c.method === 'POST').at(-1)!.body).toMatchObject({
+      otherTaskId: 'b8',
+    })
+  })
 })

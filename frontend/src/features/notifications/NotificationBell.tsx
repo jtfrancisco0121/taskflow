@@ -17,7 +17,7 @@ import {
 } from './useNotifications'
 import { messageOf } from '../../api/errors'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 /** The bell in the header: unread count (hidden at 0, "99+"), a popover of the 20 newest (CAP-11). */
 export function NotificationBell({ workspaceId }: { workspaceId: string }) {
@@ -94,7 +94,7 @@ function NotificationList({ workspaceId, onClose }: { workspaceId: string; onClo
   const setRead = useSetRead(workspaceId)
   const markAll = useMarkAllRead(workspaceId)
   const navigate = useNavigate()
-  const items = inbox.data?.pages[0]?.items ?? []
+  const items = shownData(inbox)?.pages[0]?.items ?? []
 
   return (
     <div className="w-96">

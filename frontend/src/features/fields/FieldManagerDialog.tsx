@@ -11,7 +11,7 @@ import { OptionChip } from './OptionChip'
 import { useHideField, useRetireField, useUpdateField } from './useFieldMutations'
 import { useLocationFields } from './useLocationFields'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 export type FieldsLocation = {
   id: string
@@ -57,10 +57,10 @@ export function FieldManagerDialog({
   const [announce, setAnnounce] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
 
-  const all = fields.data?.fields ?? []
+  const all = shownData(fields)?.fields ?? []
   const own = all.filter((f) => !f.inherited)
   const inherited = all.filter((f) => f.inherited)
-  const canEdit = fields.data?.canEdit === true
+  const canEdit = shownData(fields)?.canEdit === true
   const atLimit = own.length >= MAX_OWN_FIELDS
 
   function fail(error: unknown) {

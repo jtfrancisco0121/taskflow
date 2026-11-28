@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes, useParams } from 'react-router'
 import { describe, expect, it } from 'vitest'
-import { renderWithProviders, installFetch } from '../../test/api'
+import { renderWithProviders, installFetch, problem } from '../../test/api'
 import { writeLastWorkspace } from './lastWorkspace'
 import { WorkspaceRedirect } from './WorkspaceRedirect'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
@@ -101,5 +101,21 @@ describe('WorkspaceSwitcher', () => {
     renderApp('/')
 
     expect(await screen.findByText('Current w1')).toBeVisible()
+  })
+
+  // 14yq6g334bn part 2: the redirect waits for every page; a later page that fails leaves the list incomplete, so it
+  // shows the error instead of guessing from page 1 (this is what `|| refreshFailed(all)` in WorkspaceRedirect reads).
+  it('FR-7: / shows the error when a later page fails, and does not redirect', async () => {
+    installFetch({
+      'GET /api/v1/workspaces': (request) =>
+        new URL(request.url).searchParams.get('cursor') === 'c2'
+          ? problem(500, 'boom', 'Server broke')
+          : Response.json({ items: [acme], nextCursor: 'c2' }),
+    })
+    writeLastWorkspace('w2')
+    renderApp('/')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Server broke')
+    expect(screen.queryByText(/^Current/)).toBeNull()
   })
 })

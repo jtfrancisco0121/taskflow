@@ -5,6 +5,7 @@ import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
 import type { SearchHit } from '../../api/types'
+import { shownData } from '../../api/queryState'
 
 const DEBOUNCE_MS = 250
 
@@ -31,7 +32,8 @@ export function useTaskSearch(workspaceId: string | undefined, text: string) {
       ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   })
-  const hits: SearchHit[] = query.data?.pages.flatMap((p) => p.items ?? []) ?? []
+  // 14yq6g334bn: no stale hits under the error after a 401/403/404 refresh.
+  const hits: SearchHit[] = shownData(query)?.pages.flatMap((p) => p.items ?? []) ?? []
   return { q, query, hits }
 }
 

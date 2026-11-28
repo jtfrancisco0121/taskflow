@@ -23,14 +23,30 @@ export function isBusy(response: Response, body: unknown): boolean {
   )
 }
 
-/** Sends once, and once more after the capped Retry-After when the answer is busy. */
+/**
+ * Sends once, and once more after the capped Retry-After when the answer is busy. An abort of `signal` during the wait
+ * (the screen that asked went away, ClickUp 14yq6g334bn) sends nothing more and answers with the busy result.
+ */
 export async function onceMoreIfBusy<R extends { response: Response; error?: unknown }>(
   send: () => Promise<R>,
+  signal?: AbortSignal,
 ): Promise<R> {
   const first = await send()
-  if (!isBusy(first.response, first.error)) return first
-  await sleep(retryWaitMs(first.response))
-  return send()
+  if (!isBusy(first.response, first.error) || signal?.aborted) return first
+  await sleep(retryWaitMs(first.response), signal)
+  return signal?.aborted ? first : send()
 }
 
-export const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+/** Waits `ms`, or less: an abort of `signal` ends the wait at once and clears its timer. Never rejects. */
+export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (signal?.aborted) return resolve()
+    const done = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', done)
+      resolve()
+    }
+    const timer = setTimeout(done, ms)
+    signal?.addEventListener('abort', done, { once: true })
+  })
+}

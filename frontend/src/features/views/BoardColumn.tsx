@@ -9,7 +9,7 @@ import { Skeleton } from '../../shared/ui/Skeleton'
 import { BoardCard } from './BoardCard'
 import type { ViewScope } from './scope'
 import { useViewTasks } from './useViewTasks'
-import { hasData, loadFailed } from '../../api/queryState'
+import { hasData, loadFailed, shownData } from '../../api/queryState'
 
 export type Column = { key: string; label: string; count?: number }
 
@@ -41,7 +41,9 @@ export function BoardColumn({
   // and cannot disagree (also when a refetch failed and the cards shown are the last ones read). Only a column with
   // more pages (or still on its first load) shows the lead query's server count.
   const count =
-    query.data !== undefined && !query.hasNextPage ? tasks.length : (column.count ?? tasks.length)
+    shownData(query) !== undefined && !query.hasNextPage
+      ? tasks.length
+      : (column.count ?? tasks.length)
   return (
     <section
       ref={setNodeRef}

@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { api } from '../../api/client'
 import { unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
+import { shownData } from '../../api/queryState'
 import type { ViewConfig } from '../../api/types'
 import { scopeId, type ViewScope } from './scope'
 import { configHash } from './urlState'
@@ -40,8 +41,10 @@ export function useViewTasks(
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   })
   // A task is shown once per group; across a page boundary the same (task, group) never repeats.
-  // Memoized on the data, so consumers get a stable array between fetches.
-  const pages = query.data?.pages
+  // Memoized on the data, so consumers get a stable array between fetches. Read through shownData (14yq6g334bn): no
+  // items after a 401/403/404 refresh, so no renderer draws stale cards under its error; a 500 keeps them.
+  const shown = shownData(query)
+  const pages = shown?.pages
   const items = useMemo(() => {
     const seen = new Set<string>()
     return (pages?.flatMap((page) => page.items ?? []) ?? []).filter((item) => {
@@ -51,7 +54,7 @@ export function useViewTasks(
       return true
     })
   }, [pages])
-  const groups = query.data?.pages[0]?.groups
-  const droppedFields = query.data?.pages[0]?.droppedFields ?? []
+  const groups = shown?.pages[0]?.groups
+  const droppedFields = shown?.pages[0]?.droppedFields ?? []
   return { ...query, items, groups, droppedFields }
 }

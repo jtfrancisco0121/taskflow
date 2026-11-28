@@ -10,7 +10,7 @@ import { Skeleton } from '../../shared/ui/Skeleton'
 import { changeSentence, linkedTaskId, trashedVersion } from './changeSentence'
 import { allPages, useAccountActivity, useAudit, useRestoreTask } from './hooks'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 function RestoreButton({ workspaceId, entry }: { workspaceId: string; entry: AccountActivity }) {
   const restore = useRestoreTask(workspaceId)
@@ -43,7 +43,7 @@ function RestoreButton({ workspaceId, entry }: { workspaceId: string; entry: Acc
 
 function RecentChanges({ workspaceId, accountId }: { workspaceId: string; accountId: string }) {
   const activity = useAccountActivity(workspaceId, accountId)
-  const entries = allPages(activity.data)
+  const entries = allPages(shownData(activity))
   return (
     <section aria-labelledby="recent-changes">
       <h2 id="recent-changes" className="mb-2 text-base font-semibold">
@@ -118,7 +118,7 @@ function RecentChanges({ workspaceId, accountId }: { workspaceId: string; accoun
 /** KEY-6: calls per day for 30 days, the keys' last use, and what the account changed. */
 export function AuditTab({ workspaceId, accountId }: { workspaceId: string; accountId: string }) {
   const audit = useAudit(workspaceId, accountId)
-  const days = [...(audit.data?.days ?? [])].reverse()
+  const days = [...(shownData(audit)?.days ?? [])].reverse()
   const max = Math.max(1, ...days.map((day) => day.calls ?? 0))
   return (
     <div className="flex flex-col gap-6">

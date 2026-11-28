@@ -1,6 +1,7 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
+import { queryKeys } from '../../api/queryKeys'
 import { setSession } from '../../api/session'
 import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { ChecklistsSection } from './ChecklistsSection'
@@ -24,8 +25,8 @@ function renderSection(
     'GET /api/v1/workspaces/:id/members': members(role),
     ...routes,
   } as never)
-  renderWithProviders(<ChecklistsSection taskId="t1" workspaceId="w1" />)
-  return stub
+  const { queryClient } = renderWithProviders(<ChecklistsSection taskId="t1" workspaceId="w1" />)
+  return Object.assign(stub, { queryClient })
 }
 
 describe('ChecklistsSection', () => {
@@ -131,5 +132,41 @@ describe('ChecklistsSection', () => {
     expect(edit).toHaveValue('One')
     expect(within(document.body).getByRole('region', { name: 'Checklist Release' })).toBeVisible()
     expect(escapes).toBe(0)
+  })
+})
+
+// 14yq6g334bn part 2: after a refresh that fails with 403 or 404 the checklists are gone or hidden, so only the error
+// shows; a 500 keeps the last checklists under the Retry notice.
+describe('ChecklistsSection after a failed refresh (14yq6g334bn)', () => {
+  function failing(code: number) {
+    let fail = false
+    const stub = renderSection([], {
+      'GET /api/v1/tasks/:id/checklists': () =>
+        fail ? problem(code, 'x', 'No') : json([view([item('i1', 'Write notes')])]),
+    })
+    return {
+      ...stub,
+      fail: () => {
+        fail = true
+        return act(() => stub.queryClient.refetchQueries({ queryKey: queryKeys.checklists('t1') }))
+      },
+    }
+  }
+
+  it.each([403, 404])('a %i refresh shows the error and no stale checklist', async (code) => {
+    const { fail } = failing(code)
+    expect(await screen.findByRole('checkbox', { name: 'Write notes' })).toBeVisible()
+    await fail()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t load the checklists')
+    expect(screen.queryByRole('checkbox', { name: 'Write notes' })).toBeNull()
+    expect(screen.queryByRole('status', { name: 'Couldn’t refresh' })).toBeNull()
+  })
+
+  it('a 500 refresh keeps the checklist under the Retry notice', async () => {
+    const { fail } = failing(500)
+    expect(await screen.findByRole('checkbox', { name: 'Write notes' })).toBeVisible()
+    await fail()
+    expect(await screen.findByRole('status', { name: 'Couldn’t refresh' })).toBeVisible()
+    expect(screen.getByRole('checkbox', { name: 'Write notes' })).toBeVisible()
   })
 })

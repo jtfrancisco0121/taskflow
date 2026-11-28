@@ -1,8 +1,9 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes, useLocation } from 'react-router'
 import { describe, expect, it } from 'vitest'
-import { installFetch, json, renderWithProviders } from '../../test/api'
+import { queryKeys } from '../../api/queryKeys'
+import { installFetch, json, problem, renderWithProviders } from '../../test/api'
 import { SearchBox } from './SearchBox'
 
 function Where() {
@@ -118,5 +119,44 @@ describe('SEARCH-1 search box', () => {
     await user.click(await screen.findByRole('button', { name: 'Load more' }))
     await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(3))
     expect(stub.calls.at(-1)!.url.searchParams.get('cursor')).toBe('next')
+  })
+})
+
+// 14yq6g334bn part 2: the search box reads a failed refresh like every other list: a 500 keeps the hits it holds under
+// a Retry notice, a 403/404 shows only the error.
+describe('SEARCH-1 search box after a failed refresh (14yq6g334bn)', () => {
+  async function failing(code: number) {
+    let fail = false
+    installFetch({
+      'GET /api/v1/workspaces/:id/search': () =>
+        fail ? problem(code, 'x', 'Search broke') : json({ items: [hit(1), hit(2)] }),
+    })
+    const user = userEvent.setup()
+    const { queryClient } = render()
+    await user.type(screen.getByRole('combobox', { name: 'Search tasks' }), 'zeppelin')
+    expect(await screen.findAllByRole('option')).toHaveLength(2)
+    fail = true
+    await act(() => queryClient.refetchQueries({ queryKey: queryKeys.search('w1', 'zeppelin') }))
+    return { user, recover: () => (fail = false) }
+  }
+
+  it('a 500 keeps the hits under a Retry notice, and Retry clears it', async () => {
+    const { user, recover } = await failing(500)
+    const notice = await screen.findByRole('status', { name: 'Couldn’t refresh' })
+    expect(screen.getAllByRole('option')).toHaveLength(2)
+    expect(screen.queryByRole('alert')).toBeNull()
+    recover()
+    await user.click(within(notice).getByRole('button', { name: 'Retry' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('status', { name: 'Couldn’t refresh' })).toBeNull(),
+    )
+    expect(screen.getAllByRole('option')).toHaveLength(2)
+  })
+
+  it.each([403, 404])('a %i shows the error and no stale hits', async (code) => {
+    await failing(code)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Search broke')
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
+    expect(screen.queryByRole('status', { name: 'Couldn’t refresh' })).toBeNull()
   })
 })

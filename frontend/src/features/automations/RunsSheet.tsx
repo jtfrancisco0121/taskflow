@@ -9,7 +9,7 @@ import { ErrorState } from '../../shared/ui/ErrorState'
 import { Skeleton } from '../../shared/ui/Skeleton'
 import { useAutomationRuns } from './useAutomations'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
+import { hasData, loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 const PILL: Record<string, string> = {
   SUCCEEDED: 'bg-ok-soft text-fg',
@@ -42,7 +42,7 @@ export function RunsSheet({
   restoreFocus?: () => HTMLElement | null
 }) {
   const runs = useAutomationRuns(rule.id)
-  const items = runs.data?.pages.flatMap((p) => p.items ?? []) ?? []
+  const items = shownData(runs)?.pages.flatMap((p) => p.items ?? []) ?? []
   return (
     <Dialog title={`Run history: ${rule.name}`} onClose={onClose} restoreFocus={restoreFocus} wide>
       {runs.isPending && (

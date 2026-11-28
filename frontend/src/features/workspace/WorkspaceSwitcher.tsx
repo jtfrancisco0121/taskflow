@@ -4,7 +4,7 @@ import { Button } from '../../shared/ui/Button'
 import { DropdownMenu, type MenuItem } from '../../shared/ui/DropdownMenu'
 import { NEW_WORKSPACE_PATH, workspacePath } from './routes'
 import { useWorkspaces } from './useWorkspaces'
-import { loadFailed } from '../../api/queryState'
+import { loadFailed, shownData } from '../../api/queryState'
 
 const roleLabel = (role?: string) => (role ? role.charAt(0) + role.slice(1).toLowerCase() : '')
 
@@ -12,7 +12,7 @@ const roleLabel = (role?: string) => (role ? role.charAt(0) + role.slice(1).toLo
 export function WorkspaceSwitcher({ currentId }: { currentId: string | undefined }) {
   const navigate = useNavigate()
   const query = useWorkspaces()
-  const workspaces = query.data?.pages.flatMap((page) => page.items ?? []) ?? []
+  const workspaces = shownData(query)?.pages.flatMap((page) => page.items ?? []) ?? []
   const current = workspaces.find((w) => w.id === currentId)
 
   const items: MenuItem[] = workspaces.map((workspace) => ({

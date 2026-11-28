@@ -8,7 +8,7 @@ import { useMembers } from '../workspace'
 import { DependencyPicker } from './DependencyPicker'
 import { useDependencies, useDependencyWrites } from './useDependencies'
 import { RefreshNotice } from '../../shared/ui/RefreshNotice'
-import { loadFailed, refreshFailed } from '../../api/queryState'
+import { loadFailed, refreshFailed, shownData } from '../../api/queryState'
 
 type Group = { key: 'waitingOn' | 'blocking' | 'linked'; label: string }
 
@@ -47,7 +47,7 @@ export function DependenciesSection({ task }: { task: TaskView }) {
   const { members } = useMembers(task.workspaceId)
   const role = members.find((m) => m.userId === me)?.role
   const canEdit = role !== 'GUEST'
-  const data: DependencyList | undefined = query.data
+  const data: DependencyList | undefined = shownData(query)
   const total = data
     ? (data.waitingOn?.length ?? 0) +
       (data.blocking?.length ?? 0) +
