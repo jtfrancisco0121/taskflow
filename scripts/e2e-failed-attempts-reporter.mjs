@@ -10,7 +10,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { copyAll, failedAttempts, runErrors } from './e2e-failures.mjs'
+import { copyAll, failedAttempts, nearBudget, runErrors } from './e2e-failures.mjs'
 
 const BAD = new Set(['failed', 'timedOut', 'interrupted'])
 const KEPT = new Set(['trace', 'screenshot'])
@@ -22,6 +22,8 @@ export default class FailedAttemptsReporter {
     this.failed = new Map()
     /** errors outside any test (global setup, a crashed worker): first line of each */
     this.errors = []
+    /** passed tests that used more than half their time budget */
+    this.slow = []
   }
 
   /** A relative outputFile is relative to the config file's folder, wherever Playwright was started from. */
@@ -39,6 +41,9 @@ export default class FailedAttemptsReporter {
   }
 
   onTestEnd(test, result) {
+    if (result.status === 'passed' && test.timeout > 0 && result.duration > test.timeout / 2) {
+      this.slow.push({ title: test.titlePath().slice(3).join(' > '), duration: result.duration, timeout: test.timeout })
+    }
     if (!BAD.has(result.status)) return
     const attempts = this.failed.get(test) ?? []
     attempts.push({
@@ -65,7 +70,7 @@ export default class FailedAttemptsReporter {
         tests: [{ status, results }],
       })
     }
-    return { suites: [{ title: '', specs }], errors: this.errors }
+    return { suites: [{ title: '', specs }], errors: this.errors, slow: this.slow }
   }
 
   onEnd() {
@@ -125,6 +130,12 @@ function selfTest() {
         attachments: [{ name: 'trace', path: traces[n] }],
       })
     }
+    // A test that passed but used more than half its time budget is named, so it is fixed before load tips it
+    // over (dependencies.spec.ts:70 passed in 9-11 s idle and timed out at 30 s on a busy machine).
+    const near = { ...fakeTest('near budget', 'expected'), timeout: 30_000 }
+    reporter.onTestEnd(near, { status: 'passed', retry: 0, duration: 16_000, attachments: [] })
+    const roomy = { ...fakeTest('roomy', 'expected'), timeout: 30_000 }
+    reporter.onTestEnd(roomy, { status: 'passed', retry: 0, duration: 14_000, attachments: [] })
     const flaky = fakeTest('flaky one', 'flaky')
     reporter.onTestEnd(flaky, { status: 'timedOut', retry: 0, attachments: [{ name: 'trace', path: '/f.zip' }] })
     reporter.onTestEnd(flaky, { status: 'passed', retry: 1, attachments: [] })
@@ -142,6 +153,10 @@ function selfTest() {
     const errors = JSON.parse(readFileSync(nested, 'utf8')).errors ?? []
     check(errors.length === 1 && errors[0] === 'warm-up: the backend did not answer', `run errors kept (${JSON.stringify(errors)})`)
     check(runErrors({ errors }).length === 1 && runErrors({}).length === 0, 'runErrors reads the kept errors')
+
+    const slow = nearBudget(JSON.parse(readFileSync(out, 'utf8')))
+    check(slow.length === 1 && slow[0].title === 'near budget' && slow[0].duration === 16_000 && slow[0].timeout === 30_000,
+      `tests past half their budget are listed (${JSON.stringify(slow)})`)
 
     check(statSync(out).size < 4096, `the report holds only the failed attempts (${statSync(out).size} bytes)`)
     const found = failedAttempts(JSON.parse(readFileSync(out, 'utf8')))

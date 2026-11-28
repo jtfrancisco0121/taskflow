@@ -64,6 +64,11 @@ export function runErrors(report) {
   return Array.isArray(report.errors) ? report.errors : []
 }
 
+/** Tests that passed but used more than half their time budget: { title, duration, timeout } (ms). */
+export function nearBudget(report) {
+  return Array.isArray(report.slow) ? report.slow : []
+}
+
 const sanitize = (title) => title.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'test'
 
 export function copyAll(attempts, outDir) {
@@ -100,6 +105,10 @@ function main(resultsPath, outDir) {
     return
   }
   for (const error of runErrors(report)) console.log(`e2e-local: run error: ${error}`)
+  for (const t of nearBudget(report)) {
+    const s = (ms) => `${(ms / 1000).toFixed(1)} s`
+    console.log(`e2e-local: near its time budget (passed, but a busier machine may time it out): ${t.title} took ${s(t.duration)} of ${s(t.timeout)}`)
+  }
   const attempts = failedAttempts(report)
   if (attempts.length === 0) {
     console.log('e2e-local: No failed attempts.')
