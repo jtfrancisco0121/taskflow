@@ -37,9 +37,10 @@ export function BoardColumn({
     (overId.startsWith('col:') ? overId.slice(4) : overId.split('|')[0]) === column.key
   const tasks = query.items.flatMap((i) => (i.task ? [i.task] : []))
   // 14yq6g334tg: a column that has all its cards shows their number, so the count and the cards come from one read
-  // and cannot disagree. Only a column with more pages (or still loading) shows the lead query's server count.
+  // and cannot disagree (also when a refetch failed and the cards shown are the last ones read). Only a column with
+  // more pages (or still on its first load) shows the lead query's server count.
   const count =
-    query.isSuccess && !query.hasNextPage ? tasks.length : (column.count ?? tasks.length)
+    query.data !== undefined && !query.hasNextPage ? tasks.length : (column.count ?? tasks.length)
   return (
     <section
       ref={setNodeRef}

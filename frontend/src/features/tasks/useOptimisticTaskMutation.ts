@@ -12,6 +12,7 @@ import {
   refreshAfterTaskWrite,
   regroups,
   taskFirstLoadFilters,
+  viewFetchesOf,
   writeTaskToCaches,
 } from './taskCaches'
 
@@ -126,6 +127,7 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
   }
   const { response } = result
   const firstLoads = firstLoadsOf(queryClient, ...taskFirstLoadFilters(workspaceId, id))
+  const viewFetches = viewFetchesOf(queryClient, workspaceId)
   if (response.status === 409) {
     const current = (result.error as { current?: TaskView } | undefined)?.current
     if (current) {
@@ -156,12 +158,13 @@ async function execute(queryClient: QueryClient, job: TaskJob): Promise<TaskOutc
   writeTaskToCaches(queryClient, result.data)
   // An activity still on its first load read before this write: restart it, not just invalidate.
   inBackground(cancelThenInvalidate(queryClient, activity))
-  // A task that changed group is read again in every view (14yq6g334tg); otherwise only first loads restart.
+  // A task that changed group is read again in every view (14yq6g334tg); a view read in flight is read again anyway.
   inBackground(
     refreshAfterTaskWrite(
       queryClient,
       workspaceId,
       firstLoads,
+      viewFetches,
       regroups(groupedBefore, result.data),
     ),
   )

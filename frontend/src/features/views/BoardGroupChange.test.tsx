@@ -1,9 +1,11 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { TaskView } from '../../api/types'
 import { useToastStore } from '../../shared/toast-store'
-import { installFetch, json, renderWithProviders } from '../../test/api'
+import { queryKeys } from '../../api/queryKeys'
+import { installFetch, json, problem, renderWithProviders } from '../../test/api'
+import { runLimited } from './bulk'
 import { BoardRenderer } from './BoardRenderer'
 import { baseRoutes, expectColumnCountsMatchCards, scope, task } from './testSupport'
 import { useTaskActions } from './useTaskActions'
@@ -64,6 +66,38 @@ function StatusPick({ row }: { row: Row }) {
     </button>
   )
 }
+
+/** A non-regrouping save (a title) through the same write path. */
+function TitlePick({ row, title }: { row: Row; title: string }) {
+  const actions = useTaskActions()
+  return (
+    <button onClick={() => void actions.patch(row as unknown as TaskView, { title })}>
+      Rename {row.title}
+    </button>
+  )
+}
+
+/** Bulk fan-out like BulkBar: silent per-task saves, at most 6 in flight. */
+function BulkStatus({ rows }: { rows: Row[] }) {
+  const actions = useTaskActions()
+  return (
+    <button
+      onClick={() =>
+        void runLimited(
+          rows,
+          (r) => actions.patch(r as unknown as TaskView, { statusId: 'st-doing' }, true),
+          6,
+        )
+      }
+    >
+      Bulk in progress
+    </button>
+  )
+}
+
+const settle = (ms = 300) => act(() => new Promise((resolve) => setTimeout(resolve, ms)))
+const viewReads = (stub: { count: (m: string, p: RegExp) => number }) =>
+  stub.count('POST', /\/views\/query$/)
 
 const config = { v: 1, group: 'status', sort: [{ key: 'manual', dir: 'asc' }] }
 const alpha = task(1, { title: 'Alpha' })
@@ -189,6 +223,137 @@ describe('14yq6g334tg Board counts and cards after a status change', () => {
     renderWithProviders(<BoardRenderer scope={scope} config={config} />)
     await screen.findByRole('button', { name: 'Load more' })
     await waitFor(() => expect(headerCount('To do')).toBe('120'))
+    expect(cardsIn('To do')).toHaveLength(3)
+  })
+  it('AC6 (M1): a regroup refetch in flight does not overwrite a later save of another task', async () => {
+    const { gates, stub } = server([alpha, beta])
+    renderWithProviders(
+      <>
+        <StatusPick row={beta} />
+        <TitlePick row={alpha} title="Alpha renamed" />
+        <BoardRenderer scope={scope} config={config} />
+      </>,
+    )
+    await waitFor(() => expect(cardsIn('To do')).toHaveLength(2))
+    const before = viewReads(stub)
+    // X: the regrouping save; its column refetches read now (Alpha's old title) and are held.
+    const column = deferred()
+    gates.column = column.promise
+    await userEvent.click(screen.getByRole('button', { name: 'Set in progress' }))
+    await waitFor(() => expect(viewReads(stub)).toBeGreaterThan(before + 1))
+    // Y: a non-regrouping save commits while X's column reads are in flight.
+    await userEvent.click(screen.getByRole('button', { name: 'Rename Alpha' }))
+    await waitFor(() => expect(stub.count('PATCH', /\/tasks\//)).toBe(2))
+    await settle(20)
+    // X's responses, read before Y's commit, are released last.
+    gates.column = undefined
+    column.open()
+    await settle()
+
+    await waitFor(() => {
+      expect(cardsIn('To do').some((c) => c.includes('Alpha renamed'))).toBe(true)
+      expect(cardsIn('To do').some((c) => c.includes('Alpha') && !c.includes('renamed'))).toBe(
+        false,
+      )
+    })
+    await expectBetaInProgress()
+  })
+
+  it('AC7 (M2): five regrouping saves at once read the Board at most twice (2 x (N+1) view queries)', async () => {
+    const rows = [1, 2, 3, 4, 5].map((n) => task(n, { title: `Bulk ${n}` }))
+    const { stub } = server(rows)
+    renderWithProviders(
+      <>
+        <BulkStatus rows={rows} />
+        <BoardRenderer scope={scope} config={config} />
+      </>,
+    )
+    await waitFor(() => expect(cardsIn('To do')).toHaveLength(5))
+    await settle(150)
+    const before = viewReads(stub)
+    // N + 1 view queries per read of the Board: the lead and one per column (to do, in progress after the moves).
+    const perRead = 3
+
+    await userEvent.click(screen.getByRole('button', { name: 'Bulk in progress' }))
+    await waitFor(() => expect(stub.count('PATCH', /\/tasks\//)).toBe(5))
+    await settle()
+
+    await waitFor(() => expect(cardsIn('In progress')).toHaveLength(5))
+    expectColumnCountsMatchCards()
+    expect(viewReads(stub) - before).toBeGreaterThan(0)
+    expect(viewReads(stub) - before).toBeLessThanOrEqual(2 * perRead)
+  })
+
+  it('AC8 (minor): a column whose refetch fails shows the number of its cards, not the lead count', async () => {
+    let failColumns = false
+    let leadToDo = 2
+    installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': (_r: Request, body: unknown) => {
+        const { groupValue } = body as { groupValue?: string }
+        if (groupValue && failColumns) return problem(500, 'server.error', 'Boom')
+        if (groupValue === 'to do')
+          return json({ items: [alpha, beta].map((x) => ({ group: 'to do', task: x })) })
+        if (groupValue) return json({ items: [] })
+        return json({ items: [], groups: [{ key: 'to do', label: 'to do', count: leadToDo }] })
+      },
+    } as never)
+    const { queryClient } = renderWithProviders(<BoardRenderer scope={scope} config={config} />)
+    await waitFor(() => expect(cardsIn('To do')).toHaveLength(2))
+    await waitFor(() => expect(headerCount('To do')).toBe('2'))
+    // The lead now counts 3; the column's refetch fails and keeps its two cards.
+    failColumns = true
+    leadToDo = 3
+    await act(() => queryClient.invalidateQueries({ queryKey: queryKeys.viewsAll('w1') }))
+    await settle(50)
+
+    expect(cardsIn('To do')).toHaveLength(2)
+    expect(headerCount('To do')).toBe('2')
+    expectColumnCountsMatchCards()
+  })
+
+  it('AC9 (minor): a regroup refresh keeps a Load more in flight; its page is shown', async () => {
+    const first = [1, 2].map((n) => task(n, { title: `First ${n}` }))
+    const more = task(3, { title: 'Page two' })
+    const loadMore = deferred()
+    const rowsInToDo = [...first, more]
+    const other = task(9, { title: 'Elsewhere', statusId: 'st-done' })
+    const stub = installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': async (_r: Request, body: unknown) => {
+        const { groupValue, cursor } = body as { groupValue?: string; cursor?: string }
+        if (groupValue === 'to do') {
+          const page = cursor ? rowsInToDo.slice(2) : rowsInToDo.slice(0, 2)
+          const items = page.map((x) => ({ group: 'to do', task: x }))
+          if (cursor) {
+            await loadMore.promise
+            return json({ items })
+          }
+          return json({ items, nextCursor: rowsInToDo.length > 2 ? 'c2' : undefined })
+        }
+        if (groupValue) return json({ items: [] })
+        return json({ items: [], groups: [{ key: 'to do', label: 'to do', count: 3 }] })
+      },
+      'PATCH /api/v1/tasks/:id': (_r: Request, body: unknown) =>
+        json({ ...other, ...(body as object), version: 2 }),
+    } as never)
+    renderWithProviders(
+      <>
+        <StatusPick row={other} />
+        <BoardRenderer scope={scope} config={config} />
+      </>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: 'Load more' }))
+    await waitFor(() =>
+      expect(stub.calls.some((c) => (c.body as { cursor?: string })?.cursor)).toBe(true),
+    )
+    // A regrouping save elsewhere refreshes the views while the Load more is in flight.
+    await userEvent.click(screen.getByRole('button', { name: 'Set in progress' }))
+    await waitFor(() => expect(stub.count('PATCH', /\/tasks\//)).toBe(1))
+    await settle(150)
+    loadMore.open()
+
+    await waitFor(() => expect(cardsIn('To do').some((c) => c.includes('Page two'))).toBe(true))
     expect(cardsIn('To do')).toHaveLength(3)
   })
 })

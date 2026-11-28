@@ -68,6 +68,9 @@ export function ListRenderer({
   const grouped = !!config.group && config.group !== 'none'
 
   const rows: Row[] = []
+  // 14yq6g334tg: a task's row keeps its key when a refetch moves it to another group, so an open editor in it is not
+  // remounted. Only a second row of the same task (a task with several assignees) needs the group in its key.
+  const keyed = new Set<string>()
   let current: string | undefined
   for (const item of query.items) {
     if (!item.task) continue
@@ -82,7 +85,11 @@ export function ListRenderer({
       })
     }
     if (grouped && collapsed[`h:${item.group}`]) continue
-    rows.push({ kind: 'task', key: `${item.group ?? ''}:${item.task.id}`, task: item.task })
+    const key = keyed.has(item.task.id!)
+      ? `${item.group ?? ''}:${item.task.id}`
+      : `t:${item.task.id}`
+    keyed.add(item.task.id!)
+    rows.push({ kind: 'task', key, task: item.task })
   }
 
   const scrollRef = useRef<HTMLDivElement>(null)

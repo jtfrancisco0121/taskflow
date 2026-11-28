@@ -78,4 +78,24 @@ describe('useViewTasks (AD-5, AD-6)', () => {
     rerender()
     expect(result.current.items).toBe(first)
   })
+  it('14yq6g334tg M2: a cancelled view query aborts its HTTP request', async () => {
+    const signals: AbortSignal[] = []
+    installFetch({
+      'POST /api/v1/views/query': (request: Request) => {
+        signals.push(request.signal)
+        return new Promise<Response>(() => undefined)
+      },
+    })
+    const queryClient = newQueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    renderHook(() => useViewTasks(scope, { v: 1 }), { wrapper })
+    await waitFor(() => expect(signals).toHaveLength(1))
+    expect(signals[0].aborted).toBe(false)
+
+    await act(() => queryClient.cancelQueries())
+
+    expect(signals[0].aborted).toBe(true)
+  })
 })

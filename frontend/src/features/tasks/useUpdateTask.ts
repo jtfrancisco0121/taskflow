@@ -15,6 +15,7 @@ import {
   refreshAfterTaskWrite,
   regroups,
   taskFirstLoadFilters,
+  viewFetchesOf,
   writeTaskToCaches,
 } from './taskCaches'
 
@@ -60,10 +61,17 @@ export function useUpdateTask(taskId: string) {
   const refreshActivity = () =>
     inBackground(cancelThenInvalidate(queryClient, { queryKey: queryKeys.activity(taskId) }))
 
-  // 14yq6g334tg: a task that changed group is read again in every view; otherwise only first loads restart.
-  const refreshAfter = (task: TaskView, firstLoads: Set<string>, regrouped: boolean) =>
+  // 14yq6g334tg: a task that changed group is read again in every view; a view read in flight is read again anyway.
+  const viewFetchesAt = (task: TaskView) =>
+    task.workspaceId ? viewFetchesOf(queryClient, task.workspaceId) : new Set<string>()
+  const refreshAfter = (
+    task: TaskView,
+    firstLoads: Set<string>,
+    viewFetches: Set<string>,
+    regrouped: boolean,
+  ) =>
     task.workspaceId
-      ? refreshAfterTaskWrite(queryClient, task.workspaceId, firstLoads, regrouped)
+      ? refreshAfterTaskWrite(queryClient, task.workspaceId, firstLoads, viewFetches, regrouped)
       : restartQueries(queryClient, firstLoads)
 
   const send = async (patch: TaskPatch): Promise<UpdateResult> => {
@@ -86,20 +94,22 @@ export function useUpdateTask(taskId: string) {
       const current = (result.error as { current?: TaskView } | undefined)?.current
       if (current) {
         const firstLoads = firstLoadsAt(queryClient, current)
+        const viewFetches = viewFetchesAt(current)
         const regrouped = regroups(cached, current)
         writeTaskToCaches(queryClient, current)
         replaceInLists(queryClient, current)
-        inBackground(refreshAfter(current, firstLoads, regrouped))
+        inBackground(refreshAfter(current, firstLoads, viewFetches, regrouped))
         refreshActivity()
         return { kind: 'conflict', current, attempted: patch }
       }
     }
     if (!response.ok || !result.data) throw toApiError(response, result.error)
     const firstLoads = firstLoadsAt(queryClient, result.data)
+    const viewFetches = viewFetchesAt(result.data)
     const regrouped = regroups(cached, result.data)
     writeTaskToCaches(queryClient, result.data)
     replaceInLists(queryClient, result.data)
-    inBackground(refreshAfter(result.data, firstLoads, regrouped))
+    inBackground(refreshAfter(result.data, firstLoads, viewFetches, regrouped))
     refreshActivity()
     return { kind: 'saved', task: result.data }
   }

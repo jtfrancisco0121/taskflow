@@ -2,10 +2,11 @@ import {
   matchQuery,
   type InfiniteData,
   type InvalidateQueryFilters,
+  type Query,
   type QueryClient,
 } from '@tanstack/react-query'
 import { queryKeys } from '../../api/queryKeys'
-import { cancelThenInvalidate, restartQueries } from '../../api/refresh'
+import { inBackground, restartQueries } from '../../api/refresh'
 import type { TaskView, ViewItem, ViewQueryResponse } from '../../api/types'
 
 type ViewPages = InfiniteData<ViewQueryResponse>
@@ -136,23 +137,101 @@ export function regroups(before: TaskView | undefined, after: TaskView): boolean
   )
 }
 
+/** A view query whose fetch in flight is a Load more (fetchNextPage): cancelling it would drop the page asked for. */
+function loadingMore(query: Query) {
+  const meta = query.state.fetchMeta as { fetchMore?: unknown } | null
+  return query.state.fetchStatus === 'fetching' && !!meta?.fetchMore
+}
+
 /**
- * After a saved write (written to the caches already): restart what was on its first load (`firstLoads`, from
- * firstLoadsOf before the write). When the task changed group, every view of the Workspace is read again too, loaded
- * or not, so each Board column and its count (the lead query) follow the task to its new group from one read after
- * the commit; first loads are cancelled first, so a read from before the commit cannot land last.
+ * 14yq6g334tg: the view queries of the Workspace with a fetch in flight (a first load, a refetch, a Load more). Their
+ * answers may have been read before a write commits; snapshot this before the write's response is cached.
+ */
+export function viewFetchesOf(queryClient: QueryClient, workspaceId: string): Set<string> {
+  const hashes = new Set<string>()
+  for (const query of queryClient
+    .getQueryCache()
+    .findAll({ queryKey: queryKeys.viewsAll(workspaceId), fetchStatus: 'fetching' }))
+    hashes.add(query.queryHash)
+  return hashes
+}
+
+/** How long view refreshes after saves are gathered into one read (a Bulk change saves up to 6 at once). */
+export const VIEW_REFRESH_MS = 100
+
+type ScheduledViews = {
+  /** Workspaces whose views are all read again (a save changed a task's group). */
+  all: Set<string>
+  /** Single view queries read again (their fetch was in flight at a save). */
+  hashes: Set<string>
+  timer?: ReturnType<typeof setTimeout>
+}
+const scheduledViews = new WeakMap<QueryClient, ScheduledViews>()
+
+/**
+ * Reads the scheduled views again, once. Every view fetch in flight at a save was cancelled then, so a fetch in flight
+ * now started after the saves and is left to finish. A Load more is not cancelled: its query is read after it lands.
+ */
+function flushViews(queryClient: QueryClient) {
+  const scheduled = scheduledViews.get(queryClient)
+  if (!scheduled) return
+  scheduledViews.delete(queryClient)
+  const targets = queryClient.getQueryCache().findAll({
+    predicate: (query) =>
+      scheduled.hashes.has(query.queryHash) ||
+      [...scheduled.all].some((ws) => matchQuery({ queryKey: queryKeys.viewsAll(ws) }, query)),
+  })
+  const refetch = new Set<Query>()
+  for (const query of targets) {
+    const load = query.promise
+    if (loadingMore(query) && load) {
+      const after = () => {
+        // eslint-disable-next-line no-restricted-syntax -- first-load safe: the query has data (a Load more ran)
+        void queryClient.invalidateQueries({ predicate: (q) => q === query })
+      }
+      load.then(after, after)
+    } else if (query.state.fetchStatus !== 'fetching') refetch.add(query)
+  }
+  if (refetch.size > 0)
+    // eslint-disable-next-line no-restricted-syntax -- first-load safe: none of these has a fetch in flight
+    inBackground(queryClient.invalidateQueries({ predicate: (query) => refetch.has(query) }))
+}
+
+/**
+ * After a saved write (written to the caches already). `firstLoads` (firstLoadsOf before the write) outside the views
+ * restart now. In the views, every fetch that was in flight at the save (`viewFetches`, viewFetchesOf before the
+ * write) read before the commit and could land last, over this write or a later one: it is cancelled now (its request
+ * is aborted, unless it is a Load more) and read again. When the task changed group, every view of the Workspace is
+ * read again too, loaded or not, so each Board column and its count follow the task to its new group. The view reads
+ * of saves within VIEW_REFRESH_MS are gathered into one, so a Bulk change reads each view about once, not once a task.
  */
 export function refreshAfterTaskWrite(
   queryClient: QueryClient,
   workspaceId: string,
   firstLoads: Set<string>,
+  viewFetches: Set<string>,
   regrouped: boolean,
 ) {
-  if (!regrouped) return restartQueries(queryClient, firstLoads)
   const views = { queryKey: queryKeys.viewsAll(workspaceId) }
-  return cancelThenInvalidate(queryClient, views, {
-    predicate: (query) => firstLoads.has(query.queryHash) && !matchQuery(views, query),
-  })
+  const cache = queryClient.getQueryCache()
+  const stale = cache.findAll({ predicate: (query) => viewFetches.has(query.queryHash) })
+  const cancel = new Set(stale.filter((query) => !loadingMore(query)))
+  if (cancel.size > 0) void queryClient.cancelQueries({ predicate: (query) => cancel.has(query) })
+  if (regrouped || viewFetches.size > 0) {
+    let scheduled = scheduledViews.get(queryClient)
+    if (!scheduled)
+      scheduledViews.set(queryClient, (scheduled = { all: new Set(), hashes: new Set() }))
+    if (regrouped) scheduled.all.add(workspaceId)
+    viewFetches.forEach((hash) => scheduled.hashes.add(hash))
+    scheduled.timer ??= setTimeout(() => flushViews(queryClient), VIEW_REFRESH_MS)
+  }
+  const others = new Set(
+    [...firstLoads].filter((hash) => {
+      const query = cache.get(hash)
+      return !query || !matchQuery(views, query)
+    }),
+  )
+  return restartQueries(queryClient, others)
 }
 
 /**
