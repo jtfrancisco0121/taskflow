@@ -126,6 +126,23 @@ describe('List row keys (CAP-7)', () => {
     }
   })
 
+  it('the key right after an editor closes is a row key again, before any deferred focus return runs', async () => {
+    serve()
+    // delay: null sends every key in one go, with no timer between them: Radix gives focus back to the trigger
+    // only in a setTimeout after the popover unmounts, and a key pressed in that gap must not fall on the body.
+    const user = userEvent.setup({ delay: null })
+    await renderList()
+    rowOf(1).focus()
+    await user.keyboard('a')
+    expect(useViewStore.getState().openEditor).toEqual({ taskId: 't1', field: 'assignee' })
+    await user.keyboard('{Escape}d')
+    expect(useViewStore.getState().openEditor).toEqual({ taskId: 't1', field: 'due' })
+    await user.keyboard('{Escape}s')
+    expect(useViewStore.getState().openEditor).toEqual({ taskId: 't1', field: 'status' })
+    await user.keyboard('{Enter}p')
+    expect(useViewStore.getState().openEditor).toEqual({ taskId: 't1', field: 'priority' })
+  })
+
   it('Backspace trashes the focused row, focuses the next row and offers Undo', async () => {
     const stub = serve()
     const user = userEvent.setup()
