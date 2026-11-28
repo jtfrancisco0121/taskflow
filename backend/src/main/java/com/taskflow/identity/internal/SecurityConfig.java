@@ -4,6 +4,7 @@ import com.taskflow.shared.Actor;
 import com.taskflow.shared.ProblemResponseWriter;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
@@ -26,6 +27,9 @@ import org.springframework.security.oauth2.server.resource.web.BearerTokenResolv
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /** Stateless JWT resource server (AD-4, AD-5). Roles resolve per request, not from the token. */
 @Configuration
@@ -45,12 +49,7 @@ class SecurityConfig {
     http.csrf(AbstractHttpConfigurer::disable)
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(a ->
-            a.requestMatchers(
-                    HttpMethod.POST,
-                    "/api/v1/auth/signup",
-                    "/api/v1/auth/signin",
-                    "/api/v1/auth/refresh",
-                    "/api/v1/auth/signout")
+            a.requestMatchers(TOKENLESS_AUTH)
                 .permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/invites/*")
                 .permitAll()
@@ -95,12 +94,34 @@ class SecurityConfig {
   }
 
   /**
+   * The auth routes that never use an access token: they work from the request body or the refresh
+   * cookie. One matcher for both the permitAll rule and the bearer resolver, so the two cannot
+   * drift apart.
+   */
+  private static final RequestMatcher TOKENLESS_AUTH =
+      new OrRequestMatcher(
+          Stream.of(
+                  "/api/v1/auth/signup",
+                  "/api/v1/auth/signin",
+                  "/api/v1/auth/refresh",
+                  "/api/v1/auth/signout")
+              .map(path -> PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, path))
+              .map(RequestMatcher.class::cast)
+              .toList());
+
+  /**
    * The default resolver, except that an API key is not a JWT: leave it to the key filter instead
-   * of failing it in the JWT decoder.
+   * of failing it in the JWT decoder. On the token-less auth routes no bearer is read at all, so an
+   * expired access token from an idle tab cannot answer 401 before sign-out runs (ClickUp
+   * 14yq6g3353g): the bearer filter rejects an invalid token before authorization, permitAll or
+   * not.
    */
   private static BearerTokenResolver keyAwareBearerTokenResolver() {
     DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
     return request -> {
+      if (TOKENLESS_AUTH.matches(request)) {
+        return null;
+      }
       String token = delegate.resolve(request);
       return token != null && token.startsWith(ApiKeyAuthenticator.PREFIX) ? null : token;
     };
