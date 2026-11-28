@@ -5,6 +5,7 @@ import com.taskflow.identity.UserInfo;
 import com.taskflow.shared.CurrentActor;
 import com.taskflow.shared.TaskflowException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -73,12 +74,20 @@ class AuthController {
     return respond(HttpStatus.OK, auth.refresh(refreshToken));
   }
 
+  /**
+   * The clearing cookie is set on the servlet response in a finally, so it survives into the error
+   * response when revoking the family fails: the browser drops the token either way.
+   */
   @PostMapping("/auth/signout")
-  ResponseEntity<Void> signOut(@CookieValue(name = COOKIE, required = false) String refreshToken) {
-    auth.signOut(refreshToken);
-    return ResponseEntity.noContent()
-        .header(HttpHeaders.SET_COOKIE, cookie("", Duration.ZERO).toString())
-        .build();
+  ResponseEntity<Void> signOut(
+      @CookieValue(name = COOKIE, required = false) String refreshToken,
+      HttpServletResponse response) {
+    try {
+      auth.signOut(refreshToken);
+    } finally {
+      response.addHeader(HttpHeaders.SET_COOKIE, cookie("", Duration.ZERO).toString());
+    }
+    return ResponseEntity.noContent().build();
   }
 
   @GetMapping("/me")
