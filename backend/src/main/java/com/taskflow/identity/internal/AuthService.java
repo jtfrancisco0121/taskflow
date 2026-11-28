@@ -9,7 +9,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
@@ -42,7 +41,7 @@ class AuthService {
       UUID id,
       UUID userId,
       UUID familyId,
-      Instant expiresAt,
+      boolean expired,
       boolean revoked,
       boolean rotated,
       boolean inGrace) {}
@@ -156,7 +155,8 @@ class AuthService {
           // second guard on the row itself.
           List<StoredRefresh> found =
               jdbc.query(
-                  "SELECT id, user_id, family_id, expires_at, revoked_at IS NOT NULL AS revoked,"
+                  "SELECT id, user_id, family_id, expires_at < now() AS expired, revoked_at IS NOT"
+                      + " NULL AS revoked,"
                       + " rotated_at IS NOT NULL AS rotated, rotated_at > now() - (? * interval '1"
                       + " millisecond') AS in_grace FROM refresh_token WHERE token_hash = ? FOR"
                       + " UPDATE",
@@ -165,7 +165,7 @@ class AuthService {
                           rs.getObject("id", UUID.class),
                           rs.getObject("user_id", UUID.class),
                           rs.getObject("family_id", UUID.class),
-                          rs.getTimestamp("expires_at").toInstant(),
+                          rs.getBoolean("expired"),
                           rs.getBoolean("revoked"),
                           rs.getBoolean("rotated"),
                           rs.getBoolean("in_grace")),
@@ -175,7 +175,8 @@ class AuthService {
             return new Result(Outcome.INVALID, null);
           }
           StoredRefresh stored = found.get(0);
-          boolean live = !stored.revoked() && !stored.expiresAt().isBefore(Instant.now());
+          // Expiry is judged on the database clock, like the grace window (decision 010).
+          boolean live = !stored.revoked() && !stored.expired();
           String successor = successors.of(rawToken);
           if (live && !stored.rotated()) {
             // The user is checked first, so a refused token is never left rotated with no
@@ -290,14 +291,15 @@ class AuthService {
   }
 
   private void insertRefresh(UUID userId, UUID familyId, String raw) {
+    // Expiry from the database clock, the one that later judges it.
     jdbc.update(
         "INSERT INTO refresh_token (id, user_id, family_id, token_hash, expires_at) VALUES (?, ?,"
-            + " ?, ?, ?)",
+            + " ?, ?, now() + (? * interval '1 millisecond'))",
         Ids.newId(),
         userId,
         familyId,
         sha256(raw),
-        java.sql.Timestamp.from(Instant.now().plus(properties.refreshTtl())));
+        properties.refreshTtl().toMillis());
   }
 
   private Session session(UserInfo user, String rawRefresh) {

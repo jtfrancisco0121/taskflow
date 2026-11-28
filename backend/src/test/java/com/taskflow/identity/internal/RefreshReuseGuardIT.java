@@ -3,9 +3,11 @@ package com.taskflow.identity.internal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.taskflow.IntegrationTest;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * Refresh-token reuse detection that any fix for the reload race (ClickUp 14yq6g334jy) must keep: a
@@ -16,6 +18,8 @@ import org.junit.jupiter.api.Test;
 class RefreshReuseGuardIT extends IntegrationTest {
 
   private static final String REFRESH = "/api/v1/auth/refresh";
+
+  @Autowired private JwtProperties properties;
 
   private Resp signup() {
     return post(
@@ -160,6 +164,28 @@ class RefreshReuseGuardIT extends IntegrationTest {
                 hashOf(a)))
         .isTrue();
     assertThat(liveTokens(up)).isEqualTo(1);
+  }
+
+  /**
+   * ClickUp 14yq6g334r6 item 7: expiry is set and judged on the database clock, the same clock that
+   * judges the grace window, so a JVM/database clock skew cannot split the two decisions.
+   * created_at defaults to the transaction's now(), so a database-clock expiry is exactly the TTL
+   * after it.
+   */
+  @Test
+  void refreshTokenExpiryIsSetFromTheDatabaseClock() {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    assertThat(refresh(a).status()).isEqualTo(200);
+
+    List<Double> lifetimes =
+        jdbc.queryForList(
+            "SELECT extract(epoch FROM r.expires_at - r.created_at)::float8 FROM refresh_token r"
+                + " JOIN app_user u ON u.id = r.user_id WHERE u.email = ?",
+            Double.class,
+            up.text("/user/email"));
+
+    assertThat(lifetimes).hasSize(2).containsOnly((double) properties.refreshTtl().toSeconds());
   }
 
   @Test
