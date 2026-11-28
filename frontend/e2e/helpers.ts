@@ -156,6 +156,41 @@ export async function createView(page: Page, name: string, type: string) {
   await expect(page.getByRole('tab', { name })).toBeVisible()
 }
 
+/** What only each renderer draws once it has data: the old view is gone when the new one's landmark shows. */
+const VIEW_LANDMARK = {
+  Table: (page: Page) => page.getByRole('table', { name: 'Tasks table', exact: true }),
+  List: (page: Page) => page.getByRole('table', { name: 'Tasks', exact: true }),
+  Board: (page: Page) => page.locator('[aria-label="Board"]'),
+} as const
+
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * Opens the "Columns" picker of the view in tab `tab` (a `kind` view) and returns it, open
+ * (ClickUp 14yq6g334rp). Right after a tab switch the old view can still be mounted: a click then opens the old
+ * view's picker, and the new view mounts its own closed one (ColumnsPicker is an uncontrolled <details>). So this
+ * waits for the tab to be selected and for the new renderer, then (re)opens the one picker until it stays open.
+ * Specs never click "Columns" themselves (an ESLint rule in eslint.config.js).
+ */
+export async function openColumns(page: Page, tab: string, kind: keyof typeof VIEW_LANDMARK) {
+  // A view tab's name can carry a visibility mark after the view name (ViewTabs.tsx).
+  const name = new RegExp(`^${escapeRegExp(tab)}( |$)`)
+  await expect(page.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'true')
+  await expect(VIEW_LANDMARK[kind](page)).toBeVisible()
+  for (const [other, landmark] of Object.entries(VIEW_LANDMARK)) {
+    if (other !== kind) await expect(landmark(page)).toHaveCount(0)
+  }
+  const picker = page.locator('details', { has: page.locator('summary', { hasText: /^Columns$/ }) })
+  await expect(async () => {
+    await expect(picker).toHaveCount(1, { timeout: 1_000 })
+    if (!(await picker.evaluate((el) => (el as HTMLDetailsElement).open))) {
+      await picker.locator('summary').click({ timeout: 1_000 })
+    }
+    await expect(picker).toHaveJSProperty('open', true, { timeout: 1_000 })
+  }).toPass()
+  return picker
+}
+
 /** The open task detail, in either frame: the modal dialog or the docked complementary panel (AD-1). */
 export const taskDetail = (page: Page): Locator =>
   page

@@ -5,6 +5,7 @@ import {
   createList,
   createSpace,
   createView,
+  openColumns,
   openFields,
   row,
   signUpAndCreateWorkspace,
@@ -31,7 +32,7 @@ test('UJ-2: a Customer tier column is edited inline in Table and List, and shows
 
   // Table: add the column, pick Enterprise in a cell, the value survives a reload.
   await createView(page, 'Triage', 'Table')
-  await page.getByText('Columns', { exact: true }).click()
+  await openColumns(page, 'Triage', 'Table')
   await page.getByRole('checkbox', { name: /Customer tier/ }).click()
   await expect(page.getByRole('columnheader', { name: /Customer tier/ })).toBeVisible()
   await page.getByRole('checkbox', { name: /Story points/ }).click()
@@ -53,7 +54,7 @@ test('UJ-2: a Customer tier column is edited inline in Table and List, and shows
 
   // List: the same column, edited inline on the other task.
   await page.getByRole('tab', { name: 'List' }).click()
-  await page.getByText('Columns', { exact: true }).click()
+  await openColumns(page, 'List', 'List')
   await page.getByRole('checkbox', { name: /Customer tier/ }).click()
   await expect(page.getByRole('columnheader', { name: /Customer tier/ })).toBeVisible()
   await row(page, 'Beta').getByRole('button', { name: 'Customer tier: empty' }).click()
@@ -70,7 +71,7 @@ test('UJ-2: a Customer tier column is edited inline in Table and List, and shows
 
   // Board: a chip per card that has a value.
   await page.getByRole('tab', { name: 'Board' }).click()
-  await page.getByText('Columns', { exact: true }).click()
+  await openColumns(page, 'Board', 'Board')
   await page.getByRole('checkbox', { name: /Customer tier/ }).click()
   await expect(page.getByLabel('Customer tier: Enterprise')).toBeVisible()
   await expect(page.getByLabel('Customer tier: Pro')).toBeVisible()

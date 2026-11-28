@@ -5,6 +5,7 @@ import {
   createList,
   createSpace,
   createView,
+  openColumns,
   openFields,
   row,
   signUpAndCreateWorkspace,
@@ -28,7 +29,7 @@ test('UJ-2: filter, sort and group by Customer tier and Story points; the URL re
 
   // A Table with both columns, values set in the cells.
   await createView(page, 'Triage', 'Table')
-  await page.getByText('Columns', { exact: true }).click()
+  await openColumns(page, 'Triage', 'Table')
   await page.getByRole('checkbox', { name: /Customer tier/ }).click()
   await expect(page.getByRole('columnheader', { name: /Customer tier/ })).toBeVisible()
   await page.getByRole('checkbox', { name: /Story points/ }).click()
