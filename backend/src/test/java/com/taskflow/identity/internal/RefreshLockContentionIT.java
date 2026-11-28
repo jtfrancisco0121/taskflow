@@ -16,13 +16,17 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 /**
  * ClickUp 14yq6g334r6 item 1: a dead token never queues on its family lock, and a request that
  * waits too long for a busy family gives up with 503 instead of holding a pool connection.
  */
 @DisplayName("AUTH-2 refresh family lock contention")
+@ExtendWith(OutputCaptureExtension.class)
 class RefreshLockContentionIT extends IntegrationTest {
 
   @Autowired private DataSource dataSource;
@@ -91,6 +95,13 @@ class RefreshLockContentionIT extends IntegrationTest {
         "refresh_family:" + family);
   }
 
+  private int liveTokensIn(UUID family) {
+    return jdbc.queryForObject(
+        "SELECT count(*) FROM refresh_token WHERE family_id = ? AND revoked_at IS NULL",
+        Integer.class,
+        family);
+  }
+
   private static int pidOf(Connection c) throws Exception {
     try (var rs = c.createStatement().executeQuery("SELECT pg_backend_pid()")) {
       rs.next();
@@ -122,7 +133,7 @@ class RefreshLockContentionIT extends IntegrationTest {
       int waiters = maxWaitersWhile(request, family, pidOf(holder));
 
       assertThat(waiters).isZero();
-      assertThat(request.get(1, TimeUnit.SECONDS).status()).isEqualTo(401);
+      assertThat(request.get(5, TimeUnit.SECONDS).status()).isEqualTo(401);
     } finally {
       release(holder);
     }
@@ -143,7 +154,7 @@ class RefreshLockContentionIT extends IntegrationTest {
       int waiters = maxWaitersWhile(request, family, pidOf(holder));
 
       assertThat(waiters).isZero();
-      assertThat(request.get(1, TimeUnit.SECONDS).status()).isEqualTo(401);
+      assertThat(request.get(5, TimeUnit.SECONDS).status()).isEqualTo(401);
     } finally {
       release(holder);
     }
@@ -178,7 +189,28 @@ class RefreshLockContentionIT extends IntegrationTest {
   }
 
   @Test
-  void aSignOutThatWaitsTooLongForItsFamilyGets503AndStillClearsTheCookie() throws Exception {
+  void aSignOutWhoseFamilyIsFreedWithinItsRetriesRevokesTheFamily() throws Exception {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    UUID family = familyOf(a);
+
+    Connection holder = holdFamilyLock(family);
+    Future<Resp> request;
+    try {
+      request = pool.submit(() -> signOut(a));
+      // Longer than one 2 s lock_timeout, shorter than the retries together.
+      Thread.sleep(3_000);
+    } finally {
+      release(holder);
+    }
+
+    assertThat(request.get(15, TimeUnit.SECONDS).status()).isEqualTo(204);
+    assertThat(liveTokensIn(family)).isZero();
+  }
+
+  @Test
+  void aSignOutWhoseFamilyStaysBusyGets503WithoutRetryAfterAndLogsTheFamily(CapturedOutput output)
+      throws Exception {
     Resp up = signup();
     String a = AuthIT.refreshCookie(up);
     UUID family = familyOf(a);
@@ -186,13 +218,57 @@ class RefreshLockContentionIT extends IntegrationTest {
     Connection holder = holdFamilyLock(family);
     Resp answer;
     try {
-      answer = pool.submit(() -> signOut(a)).get(15, TimeUnit.SECONDS);
+      answer = pool.submit(() -> signOut(a)).get(30, TimeUnit.SECONDS);
     } finally {
       release(holder);
     }
 
     assertThat(answer.status()).isEqualTo(503);
-    assertThat(answer.headers().getFirst("Retry-After")).isEqualTo("1");
+    assertThat(answer.headers().getFirst("Retry-After")).isNull();
     assertThat(answer.headers().getFirst("Set-Cookie")).contains("Max-Age=0");
+    assertThat(liveTokensIn(family)).isEqualTo(1);
+    assertThat(output.getAll())
+        .containsPattern("ERROR.*AuthService.*" + family)
+        .doesNotContain(a.substring("refresh_token=".length()));
+  }
+
+  @Test
+  void aRevokedTokensSignOutTakesNoFamilyLock() throws Exception {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    assertThat(signOut(a).status()).isEqualTo(204);
+    UUID family = familyOf(a);
+
+    Connection holder = holdFamilyLock(family);
+    try {
+      Future<Resp> request = pool.submit(() -> signOut(a));
+      int waiters = maxWaitersWhile(request, family, pidOf(holder));
+
+      assertThat(waiters).isZero();
+      assertThat(request.get(5, TimeUnit.SECONDS).status()).isEqualTo(204);
+    } finally {
+      release(holder);
+    }
+  }
+
+  @Test
+  void anExpiredUnrotatedTokensSignOutTakesNoFamilyLock() throws Exception {
+    Resp up = signup();
+    String a = AuthIT.refreshCookie(up);
+    jdbc.update(
+        "UPDATE refresh_token SET expires_at = now() - interval '1 second' WHERE token_hash = ?",
+        hashOf(a));
+    UUID family = familyOf(a);
+
+    Connection holder = holdFamilyLock(family);
+    try {
+      Future<Resp> request = pool.submit(() -> signOut(a));
+      int waiters = maxWaitersWhile(request, family, pidOf(holder));
+
+      assertThat(waiters).isZero();
+      assertThat(request.get(5, TimeUnit.SECONDS).status()).isEqualTo(204);
+    } finally {
+      release(holder);
+    }
   }
 }

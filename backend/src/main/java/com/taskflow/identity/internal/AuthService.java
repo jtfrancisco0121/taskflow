@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.sql.SQLException;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -16,6 +17,8 @@ import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -39,6 +42,9 @@ class AuthService {
    * ProblemDetailsHandler from 55P03), so a busy family cannot hold pool connections indefinitely.
    */
   static final String LOCK_TIMEOUT = "SET LOCAL lock_timeout = '2s'";
+
+  /** Locked revoke attempts a sign-out makes before giving up (about 6 s in all). */
+  static final int SIGN_OUT_ATTEMPTS = 3;
 
   /** An issued session: the access token plus the raw refresh token for the cookie. */
   record Session(UserInfo user, String accessToken, long expiresIn, String refreshToken) {}
@@ -239,19 +245,59 @@ class AuthService {
         .findFirst();
   }
 
+  /**
+   * Revokes the token's family. A token that can never be honoured again (revoked, or expired and
+   * never rotated) has nothing live in its family, so it returns without the family lock. Otherwise
+   * the locked revoke is tried {@link #SIGN_OUT_ATTEMPTS} times, each a fresh transaction with its
+   * own lock timeout, because the controller clears the cookie whatever happens and the browser
+   * cannot retry: giving up leaves the family live until it expires (decision 010, Hardening).
+   */
   void signOut(String rawToken) {
     if (rawToken == null || rawToken.isBlank()) {
       return;
     }
-    String hash = sha256(rawToken);
-    tx.executeWithoutResult(status -> {
-      jdbc.execute(LOCK_TIMEOUT);
-      Optional<UUID> family = familyOf(hash);
-      if (family.isPresent()) {
-        lockFamily(family.get());
-        revokeFamily(family.get());
+    Optional<UUID> family = liveFamilyOf(sha256(rawToken));
+    if (family.isEmpty()) {
+      return;
+    }
+    for (int attempt = 1; ; attempt++) {
+      try {
+        tx.executeWithoutResult(status -> {
+          jdbc.execute(LOCK_TIMEOUT);
+          lockFamily(family.get());
+          revokeFamily(family.get());
+        });
+        return;
+      } catch (DataAccessException e) {
+        if (!isLockTimeout(e)) {
+          throw e;
+        }
+        if (attempt == SIGN_OUT_ATTEMPTS) {
+          log.error(
+              "Sign-out could not revoke family {} after {} lock waits; it stays live until it"
+                  + " expires",
+              family.get(),
+              SIGN_OUT_ATTEMPTS);
+          throw new TaskflowException(
+              HttpStatus.SERVICE_UNAVAILABLE,
+              "request.busy",
+              "Signed out on this device, but the session could not be ended everywhere");
+        }
       }
-    });
+    }
+  }
+
+  /** A lock wait past {@link #LOCK_TIMEOUT}, however Spring translated SQLSTATE 55P03. */
+  private static boolean isLockTimeout(DataAccessException e) {
+    if (e instanceof CannotAcquireLockException) {
+      return true;
+    }
+    for (Throwable t = e; t != null; t = t.getCause()) {
+      if (t instanceof SQLException sql && "55P03".equals(sql.getSQLState())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -270,22 +316,19 @@ class AuthService {
    * expired token that was rotated still takes the lock and revokes its family as reuse.
    */
   private boolean lockLiveFamilyOf(String hash) {
-    Optional<UUID> family =
-        jdbc
-            .queryForList(
-                "SELECT family_id FROM refresh_token WHERE token_hash = ? AND revoked_at IS NULL"
-                    + " AND NOT (rotated_at IS NULL AND expires_at < now())",
-                UUID.class,
-                hash)
-            .stream()
-            .findFirst();
+    Optional<UUID> family = liveFamilyOf(hash);
     family.ifPresent(this::lockFamily);
     return family.isPresent();
   }
 
-  private Optional<UUID> familyOf(String hash) {
+  /** The token's family, unless the token is revoked or expired and never rotated. */
+  private Optional<UUID> liveFamilyOf(String hash) {
     return jdbc
-        .queryForList("SELECT family_id FROM refresh_token WHERE token_hash = ?", UUID.class, hash)
+        .queryForList(
+            "SELECT family_id FROM refresh_token WHERE token_hash = ? AND revoked_at IS NULL"
+                + " AND NOT (rotated_at IS NULL AND expires_at < now())",
+            UUID.class,
+            hash)
         .stream()
         .findFirst();
   }

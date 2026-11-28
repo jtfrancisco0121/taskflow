@@ -108,6 +108,8 @@ class RefreshReuseGuardIT extends IntegrationTest {
         hashOf(a));
 
     assertThat(refresh(a).status()).isEqualTo(401);
+    // Presenting a spent token is reuse even after expiry: the family, B included, is revoked.
+    assertThat(liveTokens(up)).isZero();
   }
 
   /*
