@@ -32,12 +32,7 @@ class AuthService {
 
   static final int EMAIL_FAILURE_LIMIT = 5;
   static final Duration EMAIL_WINDOW = Duration.ofMinutes(15);
-
-  /**
-   * The production limit per IP per minute; only the dev profile changes it ({@link SignInLimits}).
-   */
   static final int IP_ATTEMPT_LIMIT = 20;
-
   static final Duration IP_WINDOW = Duration.ofMinutes(1);
 
   /**
@@ -69,7 +64,6 @@ class AuthService {
   private final JwtProperties properties;
   private final RateLimiter limiter;
   private final RefreshSuccessor successors;
-  private final SignInLimits signInLimits;
   private final PasswordEncoder encoder = new BCryptPasswordEncoder();
   private final SecureRandom random = new SecureRandom();
   private final String dummyHash = encoder.encode("not-a-real-password");
@@ -80,15 +74,13 @@ class AuthService {
       JwtService jwt,
       JwtProperties properties,
       RateLimiter limiter,
-      RefreshSuccessor successors,
-      SignInLimits signInLimits) {
+      RefreshSuccessor successors) {
     this.jdbc = jdbc;
     this.tx = new TransactionTemplate(transactionManager);
     this.jwt = jwt;
     this.properties = properties;
     this.limiter = limiter;
     this.successors = successors;
-    this.signInLimits = signInLimits;
   }
 
   Session signUp(String email, String password, String displayName) {
@@ -112,8 +104,7 @@ class AuthService {
   Session signIn(String email, String password, String ip) {
     String normalized = normalize(email);
     String emailKey = "signin:email:" + normalized;
-    RateLimiter.Decision byIp =
-        limiter.hit("signin:ip:" + ip, signInLimits.ipAttemptLimit(), IP_WINDOW);
+    RateLimiter.Decision byIp = limiter.hit("signin:ip:" + ip, IP_ATTEMPT_LIMIT, IP_WINDOW);
     if (!byIp.allowed()) {
       throw rateLimited(byIp.retryAfterSeconds());
     }

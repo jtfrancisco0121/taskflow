@@ -40,7 +40,7 @@ class AuthServiceSignOutTest {
   private final UUID family = UUID.randomUUID();
   private final StubJdbc jdbc = new StubJdbc();
   private final AuthService auth =
-      new AuthService(jdbc, new NoOpTransactions(), null, null, null, null, null);
+      new AuthService(jdbc, new NoOpTransactions(), null, null, null, null);
   private final ListAppender<ILoggingEvent> logs = new ListAppender<>();
   private final Logger logger = (Logger) LoggerFactory.getLogger(AuthService.class);
 
