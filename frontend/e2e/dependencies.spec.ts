@@ -6,6 +6,12 @@ import { snap } from './screenshots'
 // DEP-1..DEP-6: relationships between tasks (UJ-1), the complete-anyway warning (UJ-2), the
 // "is blocked" filter and live updates in a second browser.
 
+// UJ-1/UJ-2 is a whole journey (five screens, a drag, some twenty API calls): 9-11 s on an idle machine, a third
+// of the default 30 s, and it timed out at 32.6 s on a busy one (epic 14yq6g334tf). A cold backend is not the
+// cause: as the first test of a fresh stack it took 9.1 s, the warm repeat 9.3 s. The run's report names any test
+// that passes past half its budget (scripts/e2e-failed-attempts-reporter.mjs).
+test.describe.configure({ timeout: 90_000 })
+
 /** dnd-kit's pointer sensor needs real movement: press, move in steps, release. */
 async function dragTo(page: Page, from: Locator, to: Locator) {
   const a = (await from.boundingBox())!

@@ -24,6 +24,8 @@ export function collectTests(report) {
         tests.push({
           title: [...titles, spec.title].join(' > '),
           file: spec.file,
+          // --repeat-each index (0 without it): repeats share the title, so they need it to keep separate folders.
+          repeat: spec.repeat ?? 0,
           status: test.status,
           results: test.results ?? [],
         })
@@ -35,7 +37,7 @@ export function collectTests(report) {
   return tests
 }
 
-/** The failed attempts of the tests that failed or were flaky: { title, final, attempt, files[] }. */
+/** The failed attempts of the tests that failed or were flaky: { title, final, attempt, repeat, files[] }. */
 export function failedAttempts(report) {
   const out = []
   for (const test of collectTests(report)) {
@@ -49,6 +51,7 @@ export function failedAttempts(report) {
         title: test.title,
         final: test.status === 'flaky' ? 'flaky (passed on retry)' : 'failed',
         attempt: result.retry ?? index,
+        repeat: test.repeat,
         files,
       })
     })
@@ -56,13 +59,26 @@ export function failedAttempts(report) {
   return out
 }
 
+/** Errors the run had outside any test (kept by scripts/e2e-failed-attempts-reporter.mjs). */
+export function runErrors(report) {
+  return Array.isArray(report.errors) ? report.errors : []
+}
+
+/** Tests that passed but used more than half their time budget: { title, duration, timeout } (ms). */
+export function nearBudget(report) {
+  return Array.isArray(report.slow) ? report.slow : []
+}
+
 const sanitize = (title) => title.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'test'
 
-function copyAll(attempts, outDir) {
+export function copyAll(attempts, outDir) {
   for (const attempt of attempts) {
-    const dir = join(outDir, `${sanitize(attempt.title)}-attempt${attempt.attempt}`)
+    // A normal run keeps <title>-attempt<n>; a --repeat-each repeat adds its index, so repeats never overwrite.
+    const repeat = attempt.repeat ? `-repeat${attempt.repeat}` : ''
+    const dir = join(outDir, `${sanitize(attempt.title)}${repeat}-attempt${attempt.attempt}`)
     mkdirSync(dir, { recursive: true })
-    console.log(`e2e-local: ${attempt.final}: ${attempt.title} (attempt ${attempt.attempt})`)
+    const which = attempt.repeat ? `repeat ${attempt.repeat}, ` : ''
+    console.log(`e2e-local: ${attempt.final}: ${attempt.title} (${which}attempt ${attempt.attempt})`)
     for (const file of attempt.files) {
       if (!existsSync(file.path)) {
         console.log(`  ${file.name}: missing at ${file.path}`)
@@ -87,6 +103,11 @@ function main(resultsPath, outDir) {
   } catch (error) {
     console.log(`e2e-local: The results file is not readable (${error.message}): failed attempts not listed.`)
     return
+  }
+  for (const error of runErrors(report)) console.log(`e2e-local: run error: ${error}`)
+  for (const t of nearBudget(report)) {
+    const s = (ms) => `${(ms / 1000).toFixed(1)} s`
+    console.log(`e2e-local: near its time budget (passed, but a busier machine may time it out): ${t.title} took ${s(t.duration)} of ${s(t.timeout)}`)
   }
   const attempts = failedAttempts(report)
   if (attempts.length === 0) {

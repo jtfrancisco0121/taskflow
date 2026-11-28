@@ -43,6 +43,35 @@ owner_env() {
   fi
 }
 
+# The port named in URL $1 (http://host:port[/path]); fails when the URL names none: the script starts the backend
+# on that port, so it must be explicit.
+api_port_of() {
+  local rest="${1#*://}"
+  rest="${rest%%/*}"
+  local port="${rest##*:}"
+  case "$rest" in *:*) ;; *) port="" ;; esac
+  case "$port" in
+    '' | *[!0-9]*)
+      echo "E2E_API_URL must name its port, for example http://localhost:8081 (got $1)" >&2
+      return 1
+      ;;
+  esac
+  echo "$port"
+}
+
+# The Spring profiles PID's command line and environment ($1, as owner_env prints it) make active: the strongest
+# source set wins, as in Spring (--spring.profiles.active, then -Dspring.profiles.active, then the environment).
+effective_profiles() {
+  local source value
+  for source in '--spring\.profiles\.active=' '-Dspring\.profiles\.active=' 'SPRING_PROFILES_ACTIVE='; do
+    value="$(grep -E "^${source}" <<<"$1" | tail -n 1 | sed -E "s/^${source}//")" || true
+    if [ -n "$value" ]; then
+      echo "$value"
+      return 0
+    fi
+  done
+}
+
 # owner_check <port> <checkout root> <backend|vite> [expected proxy target, vite only]
 # Prints why it refuses; exit 0 = ours, 1 = not ours (another checkout, wrong profile or wrong proxy),
 # 2 = cannot tell who it is.
@@ -65,17 +94,27 @@ owner_check() {
       return 1
       ;;
   esac
+  # A checkout nested inside this one (a worktree in a subfolder) shares the path prefix but is other code.
+  local top
+  top="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" || top=""
+  if [ -n "$top" ] && [ "$(cd "$top" && pwd -P)" != "$root" ]; then
+    echo "PID $pid on :$port runs from $cwd, in the checkout $top, not this one ($root)"
+    return 1
+  fi
   env="$(owner_env "$pid")"
   if [ "$kind" = backend ]; then
-    if ! grep -Eq '^(SPRING_PROFILES_ACTIVE=|--spring\.profiles\.active=|-Dspring\.profiles\.active=)([A-Za-z0-9_-]+,)*dev(,[A-Za-z0-9_-]+)*$' <<<"$env"; then
-      echo "PID $pid on :$port is this checkout's backend but not on the dev profile"
+    local profiles
+    profiles="$(effective_profiles "$env")"
+    if [[ ",$profiles," != *,dev,* || ",$profiles," == *,prod,* ]]; then
+      echo "PID $pid on :$port is this checkout's backend but its active profiles (${profiles:-none}) are not dev without prod"
       return 1
     fi
   else
     local proxy
     proxy="$(sed -n 's/^VITE_API_PROXY_TARGET=//p' <<<"$env" | head -n 1)" || true
-    if [ "${proxy:-http://localhost:8080}" != "$target" ]; then
-      echo "PID $pid on :$port is this checkout's Vite but proxies to ${proxy:-http://localhost:8080}, not $target"
+    proxy="${proxy:-http://localhost:8080}"
+    if [ "${proxy%/}" != "${target%/}" ]; then
+      echo "PID $pid on :$port is this checkout's Vite but proxies to $proxy, not $target"
       return 1
     fi
   fi
@@ -83,7 +122,7 @@ owner_check() {
 }
 
 # A fake server on a free port of host $FAKE_HOST (default 127.0.0.1), started in directory $1 with only the
-# variables "$@" set; prints "<pid> <port>".
+# variables "$@" set and the words of $FAKE_ARGS on its command line; prints "<pid> <port>".
 fake_listener() {
   local dir="$1" out pid host="${FAKE_HOST:-127.0.0.1}"
   shift
@@ -91,7 +130,7 @@ fake_listener() {
   (cd "$dir" && exec env -i PATH="$PATH" "$@" node -e '
     const s = require("http").createServer((q, r) => r.end("{}"))
     s.listen(0, process.argv[2], () => require("fs").writeFileSync(process.argv[1], String(s.address().port)))
-  ' "$out" "$host") &
+  ' "$out" "$host" ${FAKE_ARGS:-}) &
   pid=$!
   for _ in $(seq 1 50); do
     [ -s "$out" ] && break
@@ -173,6 +212,45 @@ owner_self_test() {
   expect 1 "this checkout's Vite proxying elsewhere" "$root/frontend" vite "http://localhost:8081"
   expect 0 "this checkout's Vite proxying to the target" "$root/frontend" vite "http://localhost:8081" \
     VITE_API_PROXY_TARGET=http://localhost:8081
+  # Spring takes --spring.profiles.active over -Dspring.profiles.active over the environment, so the profile that
+  # counts is the strongest one set; dev must be in it and prod must not (review on PR #37).
+  FAKE_ARGS=--spring.profiles.active=prod expect 1 "dev in the environment, prod on the command line" "$here" \
+    backend "" SPRING_PROFILES_ACTIVE=dev
+  FAKE_ARGS=--spring.profiles.active=dev expect 0 "prod in the environment, dev on the command line" "$here" \
+    backend "" SPRING_PROFILES_ACTIVE=prod
+  FAKE_ARGS=-Dspring.profiles.active=prod expect 1 "dev in the environment, prod as a system property" "$here" \
+    backend "" SPRING_PROFILES_ACTIVE=dev
+  expect 1 "dev and prod together" "$here" backend "" SPRING_PROFILES_ACTIVE=dev,prod
+  expect 0 "this checkout's Vite proxying to the target with a trailing slash" "$root/frontend" vite \
+    "http://localhost:8081" VITE_API_PROXY_TARGET=http://localhost:8081/
+  # A checkout nested under this one (a worktree in a subfolder) is not this checkout (review on PR #37).
+  local fake_root nested
+  fake_root="$(cd "$(mktemp -d)" && pwd -P)"
+  nested="$fake_root/.worktrees/other"
+  mkdir -p "$nested/backend" "$fake_root/backend"
+  git -C "$fake_root" init -q && git -C "$nested" init -q
+  local real_root="$root"
+  root="$fake_root"
+  expect 1 "a checkout nested under this one" "$nested/backend" backend "" SPRING_PROFILES_ACTIVE=dev
+  expect 0 "a plain subfolder of this checkout" "$fake_root/backend" backend "" SPRING_PROFILES_ACTIVE=dev
+  root="$real_root"
+  rm -rf "$fake_root"
+  # E2E_API_URL must name its port: the script starts the backend on it.
+  local url want got
+  # Empty expected port = refused: the exit code must say so, not just the output (review on PR #44).
+  local rc want_rc
+  for url in "http://localhost:8081=8081" "http://localhost:8081/=8081" "http://[::1]:8082=8082" \
+    "http://localhost=" "http://localhost/api=" "http://[::1]=" "http://[::1]/api=" "localhost:8083=8083"; do
+    want="${url##*=}"
+    want_rc=0
+    [ -n "$want" ] || want_rc=1
+    rc=0
+    got="$(api_port_of "${url%=*}" 2>/dev/null)" || rc=$?
+    if [ "$rc" != "$want_rc" ] || [ "$got" != "$want" ]; then
+      echo "e2e-local self-test: port of ${url%=*}: expected '${want}' exit ${want_rc}, got '${got}' exit ${rc}" >&2
+      failures=$((failures + 1))
+    fi
+  done
   host_cases "$root" "$foreign" || failures=$((failures + 1))
   rmdir "$foreign" 2>/dev/null || true
   # A host without IPv6 loopback must skip the ::1 case and still pass (review on PR #37).
