@@ -6,6 +6,7 @@ import type { DependencyRelation, SearchHit, TaskView } from '../../api/types'
 import { Button } from '../../shared/ui/Button'
 import { BUSY_MESSAGE, useAddDependency } from './useDependencies'
 import { RELATIONS, RELATION_LABEL } from './relations'
+import { hasData, loadFailed } from '../../api/queryState'
 
 const DEBOUNCE_MS = 250
 const REF = /^[A-Za-z]{2,6}-\d+$/
@@ -213,10 +214,10 @@ export function DependencyPicker({
           Searching…
         </p>
       )}
-      {q.length >= 2 && search.isSuccess && shown.length === 0 && (
+      {q.length >= 2 && hasData(search) && shown.length === 0 && (
         <p className="m-0 text-xs text-muted">No tasks match.</p>
       )}
-      {search.isError && (
+      {loadFailed(search) && (
         <p role="alert" className="m-0 text-xs text-danger">
           {messageOf(search.error)}
         </p>

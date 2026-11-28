@@ -56,7 +56,7 @@ export function CreateKeyDialog({ workspaceId, accountId, onClose, onCreated }: 
           maxLength={100}
           autoComplete="off"
           onChange={(event) => setName(event.target.value)}
-          error={create.isError && !pastExpiry ? messageOf(create.error) : undefined}
+          error={create.error && !pastExpiry ? messageOf(create.error) : undefined}
         />
         <div className="flex flex-col gap-1">
           <label htmlFor="key-expiry" className="text-sm font-medium">

@@ -222,7 +222,7 @@ export function StatusEditor({
           {setError}
         </p>
       )}
-      {replace.isError && (
+      {replace.error && (
         <p role="alert" className="text-sm text-danger">
           {messageOf(replace.error)}
         </p>

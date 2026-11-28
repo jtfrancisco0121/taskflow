@@ -3,6 +3,7 @@ import { messageOf } from '../../api/errors'
 import type { SearchHit } from '../../api/types'
 import { isTypingTarget } from '../../shared/ui/typing'
 import { useOpenTaskHit, useTaskSearch } from './useTaskSearch'
+import { hasData, loadFailed } from '../../api/queryState'
 
 /** The server marks matches with <mark>; everything else is plain text, never HTML. */
 export function Snippet({ text }: { text: string }) {
@@ -94,12 +95,12 @@ export function SearchBox({ workspaceId }: { workspaceId: string }) {
           aria-label="Search results"
           className="glass absolute z-(--tf-z-floating) mt-1 max-h-96 w-[28rem] overflow-auto rounded-lg"
         >
-          {query.isError && (
+          {loadFailed(query) && (
             <p role="alert" className="p-2 text-sm text-danger">
               {messageOf(query.error)}
             </p>
           )}
-          {query.isSuccess && hits.length === 0 && (
+          {hasData(query) && hits.length === 0 && (
             <p className="p-2 text-sm text-muted">No tasks match “{q}”.</p>
           )}
           {hits.map((hit, i) => (

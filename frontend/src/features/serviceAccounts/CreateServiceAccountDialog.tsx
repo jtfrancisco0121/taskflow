@@ -39,7 +39,7 @@ export function CreateServiceAccountDialog({ workspaceId, onClose, onCreated }: 
           error={
             taken
               ? 'A service account with this name already exists'
-              : create.isError
+              : create.error
                 ? messageOf(create.error)
                 : undefined
           }

@@ -73,6 +73,35 @@ const firstLoadGuard = [
   },
 ]
 
+// Failed refresh blanks loaded data (ClickUp 14yq6g334fe): TanStack Query keeps the last good data when a background
+// refresh fails, but flips isError and drops isSuccess, so a screen that branches on those flags (or on status ===
+// 'error') blanks a task, a view or a page it still holds. Product code reads load state through src/api/queryState.ts:
+// loadFailed (first load failed, the error screen), refreshFailed (keep the data, show RefreshNotice) and hasData. A
+// mutation's failure is read from its error. Merged into the .tsx and .ts blocks below, like the first-load guard.
+const loadStateMessage =
+  'isError/isSuccess/status "error" are also set when a background refresh fails with data still held: use loadFailed, refreshFailed or hasData from src/api/queryState.ts (a mutation: read its error).'
+const loadStateGuard = [
+  {
+    selector: 'MemberExpression[property.name=/^(isError|isSuccess)$/]',
+    message: loadStateMessage,
+  },
+  {
+    selector: 'ObjectPattern > Property[key.name=/^(isError|isSuccess)$/]',
+    message: loadStateMessage,
+  },
+  // q.status or a destructured status, compared to 'error' on either side.
+  {
+    selector:
+      "BinaryExpression[operator=/^[!=]==?$/][right.value='error'] > :matches(MemberExpression[property.name='status'], Identifier[name='status']).left",
+    message: loadStateMessage,
+  },
+  {
+    selector:
+      "BinaryExpression[operator=/^[!=]==?$/][left.value='error'] > :matches(MemberExpression[property.name='status'], Identifier[name='status']).right",
+    message: loadStateMessage,
+  },
+]
+
 export default tseslint.config(
   { ignores: ['dist', 'coverage', 'src/api/schema.d.ts'] },
   {
@@ -181,15 +210,16 @@ export default tseslint.config(
           message: 'Use Select from src/shared/ui.',
         },
         ...firstLoadGuard,
+        ...loadStateGuard,
       ],
     },
   },
   {
-    // First-load race guard for .ts product code (the .tsx files get it in the block above). src/api/refresh.ts holds
+    // First-load race and load-state guards for .ts product code (the .tsx files get them in the block above). src/api/refresh.ts holds
     // the helpers; tests and src/test drive the cache directly.
     files: ['src/**/*.ts'],
-    ignores: ['src/test/**', 'src/**/*.test.ts', 'src/api/refresh.ts'],
-    rules: { 'no-restricted-syntax': ['error', ...firstLoadGuard] },
+    ignores: ['src/test/**', 'src/**/*.test.ts', 'src/api/refresh.ts', 'src/api/queryState.ts'],
+    rules: { 'no-restricted-syntax': ['error', ...firstLoadGuard, ...loadStateGuard] },
   },
   {
     // Slice 1: component tests pick, read and list select-like controls only through src/test/ui.ts.

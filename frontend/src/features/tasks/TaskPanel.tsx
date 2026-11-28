@@ -43,6 +43,8 @@ import { ChecklistsSection } from './ChecklistsSection'
 import { ParentLink, SubtasksSection } from './SubtasksSection'
 import { useTask } from './useTask'
 import { useUpdateTask, type TaskPatch } from './useUpdateTask'
+import { RefreshNotice } from '../../shared/ui/RefreshNotice'
+import { hasData, loadFailed, refreshFailed } from '../../api/queryState'
 
 /** Which hint slot and label each patch key belongs to. */
 const FIELD_OF: Record<keyof TaskPatch, { field: string; label: string }> = {
@@ -140,7 +142,9 @@ export function TaskPanel({ taskId, onClose, children }: TaskPanelProps) {
 
   const name = `Task ${task?.readableId ?? ''}`.trim()
   const status = query.error instanceof ApiError ? query.error.status : 0
-  const failed = query.isError || (query.isSuccess && !task)
+  // 14yq6g334fe: a failed background refresh keeps the task on screen with a RefreshNotice; only a failed first load
+  // (or a task that came back empty) shows the error screen.
+  const failed = loadFailed(query) || (hasData(query) && !task)
   const content = failed ? (
     <div className="flex flex-col items-start gap-3 p-4">
       <p>
@@ -148,7 +152,7 @@ export function TaskPanel({ taskId, onClose, children }: TaskPanelProps) {
           ? 'This task is gone or you can’t see it.'
           : messageOf(query.error)}
       </p>
-      {status !== 403 && status !== 404 && query.isError && (
+      {status !== 403 && status !== 404 && loadFailed(query) && (
         <Button onClick={() => void query.refetch()}>Retry</Button>
       )}
       <Button onClick={onClose}>Close</Button>
@@ -156,21 +160,28 @@ export function TaskPanel({ taskId, onClose, children }: TaskPanelProps) {
   ) : !task ? (
     SKELETON
   ) : (
-    <TaskDetailBody
-      key={task.id}
-      task={task}
-      layout={mode}
-      titleRef={titleRef}
-      focusRef={focusRef}
-      takeFocusTarget={takeFocusTarget}
-      onClose={onClose}
-      onToggle={() => {
-        toggled.current = true
-        setMode(mode === 'modal' ? 'docked' : 'modal')
-      }}
-    >
-      {children}
-    </TaskDetailBody>
+    <>
+      {refreshFailed(query) && (
+        <div className="px-4 pt-2">
+          <RefreshNotice message={messageOf(query.error)} onRetry={() => void query.refetch()} />
+        </div>
+      )}
+      <TaskDetailBody
+        key={task.id}
+        task={task}
+        layout={mode}
+        titleRef={titleRef}
+        focusRef={focusRef}
+        takeFocusTarget={takeFocusTarget}
+        onClose={onClose}
+        onToggle={() => {
+          toggled.current = true
+          setMode(mode === 'modal' ? 'docked' : 'modal')
+        }}
+      >
+        {children}
+      </TaskDetailBody>
+    </>
   )
 
   if (mode === 'modal') {
