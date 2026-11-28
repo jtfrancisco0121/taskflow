@@ -142,9 +142,10 @@ Follow-ups from the PR #33 reviews, after the decision was implemented. All in `
   under the lock. An expired token that was rotated still takes the lock and revokes its family as reuse; after
   the first such request the family is revoked, so the rest are refused before the lock
   (`RefreshLockContentionIT` for the dead states, `RefreshReuseGuardIT` for the expired, rotated token). One
-  millisecond-wide gap: a rotation that starts just before the token expires and commits just after leaves a
-  rotated, expired token that a replay presents after expiry; if the replay reads the row before that commit, it
-  sees an expired, unrotated token and gets 401 without revoking the family. That loses a reuse signal; it does
+  gap, up to about the 2 s lock wait wide (`now()` is the transaction's start, taken before the lock wait): a
+  rotation that starts before the token expires and commits after leaves a rotated, expired token that a replay
+  presents after expiry; if the replay reads the row before that commit, it sees an expired, unrotated token and
+  gets 401 without revoking the family. That loses a reuse signal; it does
   not let the replay through.
 - **Bounded lock wait.** Refresh and sign-out run `SET LOCAL lock_timeout = '2s'`. On refresh, a wait past it
   (55P03), a deadlock (40P01) or a serialization failure (40001) answers 503 with `Retry-After: 1` and code
@@ -153,13 +154,16 @@ Follow-ups from the PR #33 reviews, after the decision was implemented. All in `
 - **Sign-out retries the revoke on the server**, because the browser has no cookie left to retry with. A dead
   token (revoked, or expired and never rotated) has nothing live in its family and returns 204 without the
   family lock. Otherwise the locked revoke runs up to 3 times, each a fresh transaction with its own 2 s
-  `lock_timeout` (about 6 s in all). If all 3 time out, the answer is 503 `request.busy` without `Retry-After`
-  (nothing the client can retry), the cookie is still cleared, and an ERROR log names the family id (never the
-  token) (`RefreshLockContentionIT`). Remaining gap, accepted for now: in that case the family stays live
-  server-side until its tokens expire (up to 30 days), so a copy of the token taken before sign-out keeps
-  working. Before this branch sign-out waited for the lock without a limit and always revoked. Closing the gap
-  needs the revoke recorded outside the lock (a pending-revocation row that refresh checks) and is not in this
-  slice.
+  `lock_timeout` (about 6 s in all), retrying on any lock contention (55P03, 40P01, 40001: one predicate,
+  `LockContention`, shared with the 503 mapping). If every attempt meets contention, the answer is 503
+  `request.busy` without `Retry-After` (nothing the client can retry). Any other failure (a database error, a
+  pool timeout) is not retried and ends in a 500. Either way the cookie is still cleared and an ERROR log names
+  the family id (never the token) (`RefreshLockContentionIT`, `AuthServiceSignOutTest`, `LockContentionTest`).
+  Remaining gap: after any sign-out failure the family stays live server-side until its tokens expire (up to
+  30 days), so a copy of the token taken before sign-out keeps working; the ERROR line is the only trace.
+  Before this branch sign-out waited for the lock without a limit and always revoked. Accepted by JT Francisco,
+  2026-11-28, until slice 2 of ClickUp 14yq6g334r6, which closes it with a pending-revocation row written by
+  sign-out without the family lock and checked by refresh under it.
 - **The user is checked before rotation**, so a refused token is never left rotated with no successor
   (`RefreshReuseGuardIT`).
 - **Expiry on the database clock.** `expires_at` is set from the database's `now()` and judged against it, the
