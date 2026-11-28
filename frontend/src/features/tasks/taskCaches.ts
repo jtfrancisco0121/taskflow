@@ -6,8 +6,8 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { queryKeys } from '../../api/queryKeys'
-import { inBackground, restartQueries } from '../../api/refresh'
-import type { TaskView, ViewItem, ViewQueryResponse } from '../../api/types'
+import { inBackground, isLoadingMore, restartQueries } from '../../api/refresh'
+import type { TaskView, ViewConfig, ViewItem, ViewQueryResponse } from '../../api/types'
 
 type ViewPages = InfiniteData<ViewQueryResponse>
 
@@ -100,6 +100,33 @@ export function cachedVersion(
   return undefined
 }
 
+/**
+ * PR #45 review 1: the newest version any cached copy of the task holds (task cache, view pages, subtask scans), for a
+ * write's If-Match. Versions only grow, so the highest is the freshest: a task detail no screen shows is not refetched
+ * by a refresh and can be older than the views that were.
+ */
+export function freshestVersion(
+  queryClient: QueryClient,
+  workspaceId: string,
+  taskId: string,
+): number | undefined {
+  const versions: number[] = []
+  const own = queryClient.getQueryData<TaskView>(queryKeys.task(taskId))
+  if (own?.version != null) versions.push(own.version)
+  for (const [, data] of queryClient.getQueriesData<ViewPages>({
+    queryKey: queryKeys.viewsAll(workspaceId),
+  }))
+    for (const page of data?.pages ?? [])
+      for (const item of page.items ?? [])
+        if (item.task?.id === taskId && item.task.version != null) versions.push(item.task.version)
+  for (const [, scan] of queryClient.getQueriesData<SubtaskScan>({
+    queryKey: queryKeys.subtaskScanAll(),
+  }))
+    for (const t of scan?.tasks ?? [])
+      if (t.id === taskId && t.version != null) versions.push(t.version)
+  return versions.length > 0 ? Math.max(...versions) : undefined
+}
+
 /** The cached copy of a task (task cache first, then any view page), or undefined when none is cached. */
 export function cachedTask(
   queryClient: QueryClient,
@@ -137,9 +164,13 @@ function sameJson(a: unknown, b: unknown): boolean {
   )
 }
 
-/** Custom field values without the empty ones: a cleared field (absent or null) is the same "No value" group. */
+/** An empty custom field value: absent, null, "" or [] are all the same "No value" group (PR #35 review item 4). */
+const emptyValue = (v: unknown) =>
+  v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0)
+
+/** Custom field values without the empty ones. */
 const setFields = (fields: TaskView['customFields']) =>
-  Object.fromEntries(Object.entries(fields ?? {}).filter(([, v]) => v !== null && v !== undefined))
+  Object.fromEntries(Object.entries(fields ?? {}).filter(([, v]) => !emptyValue(v)))
 
 /**
  * 14yq6g334tg: whether a write moved the task to another group of a view (a Board column, a grouped List section).
@@ -164,10 +195,97 @@ export function regroups(before: TaskView | undefined, after: TaskView): boolean
   )
 }
 
-/** A view query whose fetch in flight is a Load more (fetchNextPage): cancelling it would drop the page asked for. */
-function loadingMore(query: Query) {
-  const meta = query.state.fetchMeta as { fetchMore?: unknown } | null
-  return query.state.fetchStatus === 'fetching' && !!meta?.fetchMore
+const sorted = (values: string[] = []) => [...values].sort()
+
+/**
+ * 14yq6g334bn: how a view config names a task field (ViewConfigValidator: groupings, sort keys, filter fields, plus
+ * `cf:<field id>`), read from a task. `manual` (the drag rank) is left out: a drag changes it through `apply`.
+ */
+const FIELD_VALUE: Record<string, (task: TaskView) => unknown> = {
+  title: (t) => t.title,
+  status: (t) => t.statusId,
+  statusGroup: (t) => t.statusId,
+  list: (t) => t.listId,
+  priority: (t) => t.priority,
+  assignee: (t) => sorted(t.assigneeIds),
+  tag: (t) => sorted(t.tags),
+  dueDate: (t) => t.dueDate ?? null,
+  startDate: (t) => t.startDate ?? null,
+  createdAt: (t) => t.createdAt ?? null,
+  updatedAt: (t) => t.updatedAt ?? null,
+  subtasks: (t) => t.parentTaskId ?? null,
+  blocked: (t) => !!t.blocked,
+}
+
+function fieldValue(task: TaskView, field: string): unknown {
+  if (field.startsWith('cf:')) return setFields(task.customFields)[field.slice(3)] ?? null
+  return FIELD_VALUE[field]?.(task)
+}
+
+/** Every task field a view config groups, filters or sorts by. */
+function fieldsOf(config: ViewConfig): Set<string> {
+  const fields = new Set<string>()
+  if (config.group && config.group !== 'none') fields.add(config.group)
+  for (const sort of config.sort ?? []) if (sort.key && sort.key !== 'manual') fields.add(sort.key)
+  const walk = (filter: ViewConfig['filter']) => {
+    if (!filter) return
+    if (filter.field) fields.add(filter.field)
+    filter.items?.forEach(walk)
+  }
+  walk(config.filter)
+  return fields
+}
+
+/** The task as one view's pages hold it, if they do. */
+function taskInView(data: ViewPages | undefined, taskId: string): TaskView | undefined {
+  for (const page of data?.pages ?? []) {
+    const hit = page.items?.find((item) => item.task?.id === taskId)
+    if (hit?.task) return hit.task
+  }
+  return undefined
+}
+
+export type ViewSnapshot = { query: Query; data: unknown }
+
+/**
+ * 14yq6g334bn: the loaded views a saved task must be read again in, judged against each view's own config (its
+ * grouping, filters and sorts; useViewTasks puts it in the query's meta) and each view's own copy of the task (a task
+ * cache can be older than the view, m3). A view not holding the task is judged against `before`; a view whose copy
+ * cannot be known is read again. `views` are the views as they were before the write's own change.
+ */
+export function viewsTouchedBy(
+  views: ViewSnapshot[],
+  before: TaskView | undefined,
+  after: TaskView,
+): Set<string> {
+  const hashes = new Set<string>()
+  for (const { query, data } of views) {
+    const config = (query.meta as { viewConfig?: ViewConfig } | undefined)?.viewConfig
+    if (data === undefined || !config) continue
+    const copy = taskInView(data as ViewPages, after.id!) ?? before
+    if (
+      !copy ||
+      [...fieldsOf(config)].some((f) => !sameJson(fieldValue(copy, f), fieldValue(after, f)))
+    )
+      hashes.add(query.queryHash)
+  }
+  return hashes
+}
+
+/** Whether any view's own copy of the task (before the write) sits in another group than `after` (m3). */
+export function regroupsInViews(views: ViewSnapshot[], after: TaskView): boolean {
+  return views.some(({ data }) => {
+    const copy = taskInView(data as ViewPages | undefined, after.id!)
+    return !!copy && regroups(copy, after)
+  })
+}
+
+/** The views of the Workspace and what each holds now. */
+export function viewSnapshots(queryClient: QueryClient, workspaceId: string): ViewSnapshot[] {
+  return queryClient
+    .getQueryCache()
+    .findAll({ queryKey: queryKeys.viewsAll(workspaceId) })
+    .map((query) => ({ query, data: query.state.data }))
 }
 
 /**
@@ -211,7 +329,7 @@ function flushViews(queryClient: QueryClient) {
   const refetch = new Set<Query>()
   for (const query of targets) {
     const load = query.promise
-    if (loadingMore(query) && load) {
+    if (isLoadingMore(query) && load) {
       const after = () => {
         // eslint-disable-next-line no-restricted-syntax -- first-load safe: the query has data (a Load more ran)
         void queryClient.invalidateQueries({ predicate: (q) => q === query })
@@ -222,6 +340,13 @@ function flushViews(queryClient: QueryClient) {
   if (refetch.size > 0)
     // eslint-disable-next-line no-restricted-syntax -- first-load safe: none of these has a fetch in flight
     inBackground(queryClient.invalidateQueries({ predicate: (query) => refetch.has(query) }))
+}
+
+/** Runs the gathered view refresh now instead of after VIEW_REFRESH_MS (tests prove "no read" without waiting). */
+export function flushViewRefreshNow(queryClient: QueryClient) {
+  const scheduled = scheduledViews.get(queryClient)
+  if (scheduled?.timer) clearTimeout(scheduled.timer)
+  flushViews(queryClient)
 }
 
 /**
@@ -242,7 +367,7 @@ export function refreshAfterTaskWrite(
   const views = { queryKey: queryKeys.viewsAll(workspaceId) }
   const cache = queryClient.getQueryCache()
   const stale = cache.findAll({ predicate: (query) => viewFetches.has(query.queryHash) })
-  const cancel = new Set(stale.filter((query) => !loadingMore(query)))
+  const cancel = new Set(stale.filter((query) => !isLoadingMore(query)))
   if (cancel.size > 0) void queryClient.cancelQueries({ predicate: (query) => cancel.has(query) })
   if (regrouped || viewFetches.size > 0) {
     let scheduled = scheduledViews.get(queryClient)

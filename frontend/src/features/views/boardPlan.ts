@@ -89,3 +89,22 @@ export function targetFields(
   }
   return { statusName: label }
 }
+
+/**
+ * The lead query's group counts after a card moves from one group to another (PR #35 review item 1): one less in
+ * `from`, one more in `to` (null: the card was in `to` already, e.g. an assignee it had). A group the lead does not
+ * list has no paged column (its column shows its own cards), so it is left out.
+ */
+export function moveCount(
+  data: Pages | undefined,
+  from: string,
+  to: string | null,
+): Pages | undefined {
+  const first = data?.pages?.[0]
+  if (!data || !first) return data
+  const groups = (first.groups ?? []).map((g) => ({
+    ...g,
+    count: (g.count ?? 0) + (g.key === to ? 1 : 0) - (g.key === from && (g.count ?? 0) > 0 ? 1 : 0),
+  }))
+  return { ...data, pages: [{ ...first, groups }, ...data.pages.slice(1)] }
+}

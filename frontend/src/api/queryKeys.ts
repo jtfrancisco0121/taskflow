@@ -13,8 +13,9 @@ export const queryKeys = {
   tasks: (wsId: string, locationId: string) => ['ws', wsId, 'tasks', locationId] as const,
   tasksAll: (wsId: string) => ['ws', wsId, 'tasks'] as const,
   /** AD-19: one key per (Workspace, scope, config hash, group value). */
-  view: (wsId: string, scopeId: string, configHash: string, groupValue?: string) =>
-    ['ws', wsId, 'view', scopeId, configHash, groupValue ?? null] as const,
+  /** A view read; `limit` is the page size (useViewTasks' default 50). */
+  view: (wsId: string, scopeId: string, configHash: string, groupValue?: string, limit = 50) =>
+    ['ws', wsId, 'view', scopeId, configHash, groupValue ?? null, limit] as const,
   viewsAll: (wsId: string) => ['ws', wsId, 'view'] as const,
   viewList: (wsId: string, scopeId: string) => ['ws', wsId, 'viewList', scopeId] as const,
   viewListAll: (wsId: string) => ['ws', wsId, 'viewList'] as const,

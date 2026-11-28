@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { queryKeys } from '../../api/queryKeys'
 import type { TaskView, ViewQueryResponse } from '../../api/types'
 import { installFetch, json, newQueryClient, problem } from '../../test/api'
-import { VIEW_REFRESH_MS } from './taskCaches'
+import { flushViewRefreshNow } from './taskCaches'
 import { useUpdateTask } from './useUpdateTask'
 
 // 14yq6g334tg: the task panel's write path (useUpdateTask) follows the same rule as the optimistic one: a saved or
@@ -37,7 +37,7 @@ function setup(answer: (body: unknown) => Response) {
   )
   const { result } = renderHook(() => useUpdateTask('t1'), { wrapper })
   const invalidated = () => queryClient.getQueryState(viewKey)?.isInvalidated
-  return { result, invalidated }
+  return { result, invalidated, queryClient }
 }
 
 describe('useUpdateTask and view groups (14yq6g334tg)', () => {
@@ -60,12 +60,12 @@ describe('useUpdateTask and view groups (14yq6g334tg)', () => {
   })
 
   it('a saved title change reads no view again', async () => {
-    const { result, invalidated } = setup((body) =>
+    const { result, invalidated, queryClient } = setup((body) =>
       json({ ...base, ...(body as object), version: 2 }),
     )
     await act(() => result.current.mutateAsync({ title: 'Renamed' }))
-    // Past the gathered refresh (VIEW_REFRESH_MS), so a scheduled read would have run.
-    await act(() => new Promise((resolve) => setTimeout(resolve, VIEW_REFRESH_MS + 50)))
+    // m4: run the gathered refresh now, so a scheduled read would have run (no waiting on real timers).
+    act(() => flushViewRefreshNow(queryClient))
     expect(invalidated()).toBe(false)
   })
 })

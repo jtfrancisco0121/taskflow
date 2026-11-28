@@ -161,6 +161,90 @@ describe('BOARD-1/2 Board view', () => {
     await waitFor(() => expectColumnCountsMatchCards())
   })
 
+  // PR #35 review item 1 (14yq6g334bn AC8): a paged column shows the lead query's server count; a card dropped into it
+  // is counted at once, and the count stays right when the refresh after the save fails.
+  it('AC8: a card dropped into a paged column is counted, also when the refresh after the save fails', async () => {
+    let moved = false
+    const paged = Array.from({ length: 3 }, (_, i) => t(10 + i, { statusId: 'st-doing' }))
+    installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': (_r: Request, body: unknown) => {
+        if (moved) return problem(500, 'server.error', 'Boom')
+        const { groupValue } = body as { groupValue?: string }
+        if (groupValue === 'to do') return json({ items: [{ group: 'to do', task: task(1) }] })
+        if (groupValue === 'in progress')
+          return json({
+            items: paged.map((x) => ({ group: 'in progress', task: x })),
+            nextCursor: 'c2',
+          })
+        if (groupValue) return json({ items: [] })
+        return json({
+          items: [],
+          groups: [
+            { key: 'to do', label: 'to do', count: 1 },
+            { key: 'in progress', label: 'in progress', count: 120 },
+          ],
+        })
+      },
+      'POST /api/v1/tasks/:id/move': () => {
+        moved = true
+        return json({ ...task(1), statusId: 'st-doing', version: 2 })
+      },
+    } as never)
+    renderWithProviders(<BoardRenderer scope={scope} config={config} />)
+    await screen.findByText('Task 1')
+    const count = (name: string) =>
+      within(screen.getByRole('region', { name })).getByRole('heading').lastElementChild
+        ?.textContent
+    await waitFor(() => expect(count('In progress')).toBe('120'))
+
+    await keyboardDrop('Task 1')
+
+    await waitFor(() => expect(moved).toBe(true))
+    await waitFor(() => expect(count('In progress')).toBe('121'))
+    // Past the gathered refresh (100 ms), which fails: the count stays.
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    expect(count('In progress')).toBe('121')
+    expect(count('To do')).toBe('0')
+  })
+
+  it('AC8 negative: a 5xx drop puts the paged count back', async () => {
+    const paged = Array.from({ length: 3 }, (_, i) => t(10 + i, { statusId: 'st-doing' }))
+    installFetch({
+      ...baseRoutes,
+      'POST /api/v1/views/query': (_r: Request, body: unknown) => {
+        const { groupValue } = body as { groupValue?: string }
+        if (groupValue === 'to do') return json({ items: [{ group: 'to do', task: task(1) }] })
+        if (groupValue === 'in progress')
+          return json({
+            items: paged.map((x) => ({ group: 'in progress', task: x })),
+            nextCursor: 'c2',
+          })
+        if (groupValue) return json({ items: [] })
+        return json({
+          items: [],
+          groups: [
+            { key: 'to do', label: 'to do', count: 1 },
+            { key: 'in progress', label: 'in progress', count: 120 },
+          ],
+        })
+      },
+      'POST /api/v1/tasks/:id/move': () => problem(500, 'server.error', 'Boom'),
+    } as never)
+    renderWithProviders(<BoardRenderer scope={scope} config={config} />)
+    await screen.findByText('Task 1')
+    const count = (name: string) =>
+      within(screen.getByRole('region', { name })).getByRole('heading').lastElementChild
+        ?.textContent
+    await waitFor(() => expect(count('In progress')).toBe('120'))
+    await keyboardDrop('Task 1')
+    await waitFor(() =>
+      expect(useToastStore.getState().toasts.map((x) => x.message)).toContain('Boom'),
+    )
+    await waitFor(() => expect(count('In progress')).toBe('120'))
+    expect(screen.getByRole('region', { name: 'To do' })).toHaveTextContent('Task 1')
+  })
+
   it('BOARD-2: a 409 puts the card back in its original column and says why', async () => {
     serve({ 'to do': [t(1) as never], 'in progress': [] }, () =>
       problem(409, 'task.version_conflict', 'changed', { current: task(1, { version: 5 }) }),

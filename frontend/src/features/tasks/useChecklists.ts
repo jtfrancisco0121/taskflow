@@ -3,7 +3,7 @@ import { useRef } from 'react'
 import { api } from '../../api/client'
 import { messageOf, unwrap } from '../../api/errors'
 import { queryKeys } from '../../api/queryKeys'
-import { setDataRestartingFirstLoad } from '../../api/refresh'
+import { setDataRestartingFetches } from '../../api/refresh'
 import type {
   ChecklistItemView as ChecklistItem,
   ChecklistView as Checklist,
@@ -73,7 +73,7 @@ export function useChecklistWrites(taskId: string) {
           api.POST('/api/v1/tasks/{id}/checklists', { ...id(taskId), body: { name } }),
         )
         // "Add checklist" is clickable while the list is on its first load, which read before this write.
-        setDataRestartingFirstLoad<Checklist[]>(queryClient, key, (list) => replace(list, created))
+        setDataRestartingFetches<Checklist[]>(queryClient, key, (list) => replace(list, created))
         return { created }
       } catch (error) {
         return { message: messageOf(error) }
