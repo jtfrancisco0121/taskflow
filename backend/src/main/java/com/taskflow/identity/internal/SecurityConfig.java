@@ -30,7 +30,7 @@ import org.springframework.security.web.SecurityFilterChain;
 /** Stateless JWT resource server (AD-4, AD-5). Roles resolve per request, not from the token. */
 @Configuration
 @EnableMethodSecurity
-@EnableConfigurationProperties({JwtProperties.class, ApiKeyProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, ApiKeyProperties.class, SignInLimits.class})
 class SecurityConfig {
 
   @Bean

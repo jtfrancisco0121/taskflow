@@ -1,4 +1,9 @@
 # Development only (SPRING_PROFILES_ACTIVE=dev). Never use this secret anywhere else.
 taskflow:
+  auth:
+    sign-in:
+      # Local e2e runs sign in many times a minute from 127.0.0.1 (epic 14yq6g334tf). Dev only: the
+      # production limit is the code default, 20 per minute, and no other config file sets this.
+      ip-attempt-limit: 1000
   jwt:
     secret: ${TASKFLOW_JWT_SECRET:dev-only-secret-do-not-use-in-production-0123456789}
