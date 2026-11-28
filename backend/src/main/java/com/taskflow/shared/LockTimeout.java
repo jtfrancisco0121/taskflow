@@ -14,12 +14,13 @@ public final class LockTimeout {
   private LockTimeout() {}
 
   /**
-   * Sets lock_timeout for the current transaction. Zero would mean "wait forever" to Postgres, so a
-   * zero or negative timeout is refused.
+   * Sets lock_timeout for the current transaction, in whole milliseconds. Zero would mean "wait
+   * forever" to Postgres, so a timeout under one millisecond (zero, negative, or a positive one
+   * that would render as 0ms) is refused.
    */
   public static void set(JdbcTemplate jdbc, Duration timeout) {
-    if (timeout.isZero() || timeout.isNegative()) {
-      throw new IllegalArgumentException("lock timeout must be positive: " + timeout);
+    if (timeout.toMillis() < 1) {
+      throw new IllegalArgumentException("lock timeout must be at least 1 ms: " + timeout);
     }
     jdbc.execute("SET LOCAL lock_timeout = '" + timeout.toMillis() + "ms'");
   }

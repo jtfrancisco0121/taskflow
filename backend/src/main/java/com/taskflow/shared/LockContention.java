@@ -6,10 +6,10 @@ import org.springframework.dao.PessimisticLockingFailureException;
 
 /**
  * Lock contention: deadlock (40P01), serialization failure (40001) or lock timeout (55P03). The
- * same request can succeed on retry. The one predicate shared by the 503 mapping and the sign-out
- * retry (ClickUp 14yq6g334r6). Spring maps 40P01 and 40001 to {@link
- * PessimisticLockingFailureException} but may leave 55P03 uncategorized, so the SQLSTATE in the
- * cause chain is read too.
+ * same request can succeed on retry. The one predicate behind the 503 with Retry-After, shared by
+ * the global handler and DependencyService (ClickUp 14yq6g334r6). Spring maps 40P01 and 40001 to
+ * {@link PessimisticLockingFailureException} but may leave 55P03 uncategorized, so the SQLSTATE in
+ * the cause chain is read too.
  */
 public final class LockContention {
 

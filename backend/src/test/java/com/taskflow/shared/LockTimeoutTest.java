@@ -43,4 +43,16 @@ class LockTimeoutTest {
         .isInstanceOf(IllegalArgumentException.class);
     assertThat(statements).isEmpty();
   }
+
+  @Test
+  void refusesAPositiveTimeoutUnderOneMillisecondWhichWouldRenderAsZero() {
+    assertThatThrownBy(() -> LockTimeout.set(jdbc, Duration.ofNanos(1)))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> LockTimeout.set(jdbc, Duration.ofNanos(999_999)))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(statements).isEmpty();
+
+    LockTimeout.set(jdbc, Duration.ofMillis(1));
+    assertThat(statements).containsExactly("SET LOCAL lock_timeout = '1ms'");
+  }
 }

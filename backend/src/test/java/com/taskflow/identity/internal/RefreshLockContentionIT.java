@@ -11,6 +11,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -193,6 +195,9 @@ class RefreshLockContentionIT extends IntegrationTest {
     assertThat(refresh(a).status()).isEqualTo(200);
   }
 
+  /** A response and whether the test's holder still had the family lock when it arrived. */
+  private record Answered(Resp resp, boolean whileLockHeld) {}
+
   private int pendingRevocationsOf(UUID family) {
     return jdbc.queryForObject(
         "SELECT count(*) FROM refresh_pending_revocation WHERE family_id = ?",
@@ -215,19 +220,31 @@ class RefreshLockContentionIT extends IntegrationTest {
     UUID family = familyOf(a);
 
     Connection holder = holdFamilyLock(family);
-    Resp answer;
-    long started = System.nanoTime();
+    AtomicBoolean lockHeld = new AtomicBoolean(true);
+    Future<Answered> request =
+        pool.submit(() -> {
+          Resp r = signOut(b);
+          return new Answered(r, lockHeld.get());
+        });
     try {
-      answer = pool.submit(() -> signOut(b)).get(30, TimeUnit.SECONDS);
+      // The holder lets go only once the sign-out has answered, or after a bound far above its one
+      // 2 s lock wait. A sign-out that queues on the family lock until it is free answers only
+      // after this release, so the ordering, not the wall clock, is what the test checks.
+      request.get(15, TimeUnit.SECONDS);
+    } catch (TimeoutException stillWaiting) {
+      // Asserted below, after the release lets the sign-out finish.
     } finally {
+      lockHeld.set(false);
       release(holder);
     }
-    long tookMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+    Answered answered = request.get(30, TimeUnit.SECONDS);
+    Resp answer = answered.resp();
 
+    assertThat(answered.whileLockHeld())
+        .as("sign-out answered while the family lock was still held")
+        .isTrue();
     assertThat(answer.status()).isEqualTo(204);
     assertThat(answer.headers().getFirst("Set-Cookie")).contains("Max-Age=0");
-    // One locked attempt (2 s lock_timeout), not the old three.
-    assertThat(tookMillis).isLessThan(4_000);
     assertThat(pendingRevocationsOf(family)).isEqualTo(1);
     assertThat(liveTokensIn(family)).isEqualTo(2);
 
