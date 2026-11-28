@@ -4,6 +4,7 @@ import com.taskflow.shared.CurrentActor;
 import com.taskflow.shared.EventRecorder;
 import com.taskflow.shared.Ids;
 import com.taskflow.shared.LockContention;
+import com.taskflow.shared.LockTimeout;
 import com.taskflow.shared.TaskflowException;
 import com.taskflow.task.TaskView;
 import com.taskflow.workspace.Action;
@@ -11,6 +12,7 @@ import com.taskflow.workspace.LocationAccess;
 import com.taskflow.workspace.Permissions;
 import com.taskflow.workspace.Role;
 import com.taskflow.workspace.WorkspaceQuery;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,7 +44,7 @@ import org.springframework.transaction.annotation.Transactional;
 class DependencyService {
 
   static final int MAX_PER_TASK = 100;
-  private static final String LOCK_TIMEOUT = "SET LOCAL lock_timeout = '5s'";
+  private static final Duration LOCK_WAIT = Duration.ofSeconds(5);
 
   /** What the acting task is, from its own side. {@code BLOCKED_BY} is an alias of WAITING_ON. */
   enum Relation {
@@ -351,7 +353,7 @@ class DependencyService {
    * either task cannot slip between the version check and the bump).
    */
   private void lockForWrite(UUID workspaceId, UUID a, UUID b) {
-    jdbc.execute(LOCK_TIMEOUT);
+    LockTimeout.set(jdbc, LOCK_WAIT);
     lock.lock(workspaceId);
     jdbc.query("SELECT id FROM task WHERE id IN (?, ?) ORDER BY id FOR UPDATE", rs -> {}, a, b);
   }

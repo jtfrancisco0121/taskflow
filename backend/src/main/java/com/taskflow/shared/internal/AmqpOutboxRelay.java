@@ -3,8 +3,10 @@ package com.taskflow.shared.internal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.taskflow.shared.EventQueues;
+import com.taskflow.shared.LockTimeout;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -171,7 +173,7 @@ class AmqpOutboxRelay {
   private void mark(List<UUID> ids) {
     try {
       tx.executeWithoutResult(status -> {
-        jdbc.execute("SET LOCAL lock_timeout = '2s'");
+        LockTimeout.set(jdbc, Duration.ofSeconds(2));
         jdbc.update(
             "UPDATE outbox_event SET queued_at = now() WHERE id = ANY (?::uuid[])",
             ps -> ps.setArray(1, ps.getConnection().createArrayOf("uuid", ids.toArray())));

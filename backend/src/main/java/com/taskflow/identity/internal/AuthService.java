@@ -2,6 +2,7 @@ package com.taskflow.identity.internal;
 
 import com.taskflow.identity.UserInfo;
 import com.taskflow.shared.Ids;
+import com.taskflow.shared.LockTimeout;
 import com.taskflow.shared.RateLimiter;
 import com.taskflow.shared.TaskflowException;
 import java.nio.charset.StandardCharsets;
@@ -38,7 +39,7 @@ class AuthService {
    * How long a refresh or sign-out waits for its family lock before giving up with 503 (mapped by
    * ProblemDetailsHandler from 55P03), so a busy family cannot hold pool connections indefinitely.
    */
-  static final String LOCK_TIMEOUT = "SET LOCAL lock_timeout = '2s'";
+  static final Duration LOCK_WAIT = Duration.ofSeconds(2);
 
   /** An issued session: the access token plus the raw refresh token for the cookie. */
   record Session(UserInfo user, String accessToken, long expiresIn, String refreshToken) {}
@@ -155,7 +156,7 @@ class AuthService {
     long graceMillis = properties.refreshReuseGrace().toMillis();
     Result result =
         tx.execute(status -> {
-          jdbc.execute(LOCK_TIMEOUT);
+          LockTimeout.set(jdbc, LOCK_WAIT);
           Optional<UUID> family = lockLiveFamilyOf(hash);
           if (family.isEmpty()) {
             return new Result(Outcome.INVALID, null);
@@ -292,7 +293,7 @@ class AuthService {
     }
     try {
       tx.executeWithoutResult(status -> {
-        jdbc.execute(LOCK_TIMEOUT);
+        LockTimeout.set(jdbc, LOCK_WAIT);
         lockFamily(family);
         revokeFamily(family);
       });
